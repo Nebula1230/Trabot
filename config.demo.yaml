@@ -1,0 +1,227 @@
+# ─────────────────────────────────────────────────────────────────
+# Demo Trading Configuration
+# ─────────────────────────────────────────────────────────────────
+# 1. Open MetaTrader 5 on your PC and log in to a DEMO account.
+# 2. Fill in mt5.login, mt5.password, mt5.server below.
+# 3. Run:  python run_demo.py
+# ─────────────────────────────────────────────────────────────────
+#
+# ┌─ PROFILES ─────────────────────────────────────────────────────┐
+# │  safe     — tight filters, tiny risk, few trades               │
+# │  balanced — default (settings below apply as-is)               │
+# │  risky    — looser filters, more positions, larger risk         │
+# │  scalp    — 1-minute cycle on US30/US500/USTEC/DAX;            │
+# │             fast in-and-out trades using ScalpingAgent.         │
+# │             Symbols, interval and agent weights are ALL         │
+# │             overridden automatically by the profile.            │
+# │                                                                 │
+# │  Usage:  python run_demo.py --live --profile scalp              │
+# └─────────────────────────────────────────────────────────────────┘
+
+# ── Symbols to trade ─────────────────────────────────────────────
+# Use the exact symbol name your broker uses (check MT5 Market Watch).
+# Forex examples: EURUSD, GBPUSD, USDJPY, XAUUSD (gold)
+# Stocks:         NASDAQ:NVDA, NASDAQ:MSFT
+symbols:
+  - EURUSD
+  - GBPUSD
+  - USDJPY
+  - USDCHF
+  - AUDUSD
+  - USDCAD
+  - NZDUSD
+  - XAUUSD
+  # ── Indices (CFDs) ──────────────────────────────────────────────
+  - US30      # Dow Jones
+  - US500     # S&P 500
+  - USTEC     # Nasdaq 100
+  - DAX       # Germany 40
+  - UK100     # FTSE 100
+  #
+  # ── Optional additional symbols (uncomment to enable) ───────────
+  # Verify each name in your broker's Market Watch; some brokers append
+  # a suffix (e.g. EURUSD. or EURUSDm) or use a different name.
+  #
+  # Silver (spot):
+  # - XAGUSD
+  #
+  # Asia-Pacific equity indices (CFDs):
+  # - AUS200    # ASX 200 (Australia) — commodity-heavy, AUD-correlated
+  # - JP225     # Nikkei 225 (Japan)  — export-driven, USDJPY-correlated
+  #
+  # ── JPY crosses (risk-on / carry) ─────────────────────────────
+  - EURJPY    # EUR vs JPY — risk-on, VIX-driven
+  - GBPJPY    # GBP vs JPY — high-beta risk-on
+  - AUDJPY    # AUD vs JPY — purest risk-on barometer
+  #
+  # ── EUR crosses (relative macro) ────────────────────────────────
+  - EURGBP    # EUR vs GBP — EU/UK relative macro
+  - EURCHF    # EUR vs CHF — EU vs safe-haven franc
+  - CHFJPY    # CHF vs JPY — dual safe-haven pair
+  #
+  # ── Silver ───────────────────────────────────────────────────────
+  - XAGUSD    # Silver spot
+  #
+  # Energy (CFDs — check broker symbol name):
+  # - USOIL     # WTI Crude Oil  (some brokers use XTIUSD)
+  # - XTIUSD    # WTI Crude Oil  (alternative name)
+
+# ── Cycle interval ───────────────────────────────────────────────
+# How often (seconds) the bot re-analyses all symbols for NEW entries.
+# 3600 = once per hour  |  900 = every 15 min  |  300 = every 5 min
+interval_seconds: 300
+
+# ── Real-time surveillance ─────────────────────────────────
+# A separate fast loop watches open positions independently of the signal loop.
+# It runs SL lock-in (break-even/trail) and agent-based exit checks.
+realtime:
+  surveillance_interval_seconds: 60   # check open positions every 60s
+
+# ── MT5 connection ───────────────────────────────────────────────
+# Running on Linux?  Start the mt5docker container first:
+#   docker compose up -d
+# Then set host/port below to reach it.
+# Running on Windows with the native MT5 terminal?
+#   Set host: "" (empty) — the official MetaTrader5 package is used automatically.
+mt5:
+  host:     "localhost"          # Docker host
+  port:     18812                # mt5linux API port (mt5linux default)
+  login:    104910563           # ← your MT5 demo account number
+  password: "CrU-Il2h"          # ← your MT5 demo password
+  server:   "MetaQuotes-Demo"    # ← broker server name, e.g. "ICMarkets-Demo"
+  magic_number: 434242           # unique ID so the bot only manages its own orders
+  slippage: 10                   # max slippage in points
+  # Spread guard: refuse entry if spread exceeds this fraction of the planned stop distance.
+  # 0.20 = skip if spread > 20% of stop (instrument-agnostic: works for forex AND indices).
+  # EURUSD normal spread=3 pts ≈ 1.9% of a 16-pip stop → allowed.
+  # US30 normal spread=210 pts ≈ 0.5% of a 400-pt stop → allowed.
+  # If EURUSD spikes to 10 pips during news ≈ 31% of stop → blocked.
+  max_spread_fraction: 0.20
+
+# ── Risk management ──────────────────────────────────────────────
+# Forex-safe defaults: small risk per trade, leverage kept low
+risk:
+  base_risk_pct:            0.10   # risk 0.10% of equity per trade (Forex = leveraged!)
+  max_daily_drawdown_pct:   1.0    # halt if daily loss exceeds 1%
+  max_concurrent_trades:    6      # max open positions
+  per_symbol_leverage_cap:  3.0
+  portfolio_leverage_cap:   5.0
+  # Forex correlation guard: max positions in the same USD direction
+  # (e.g. SHORT EURUSD + SHORT GBPUSD = 2 × long USD).  Set to 0 to disable.
+  max_correlated_positions: 2
+  # Weekly pivot level proximity guard — reject entries directly into a key level.
+  # 0.50 = reject if opposing pivot is closer than 0.5×ATR.  Set 0 to disable.
+  pivot_buffer_atr: 0.50
+
+# ── Agent tuning (optional) ───────────────────────────────────────
+# Leave empty to use all agents with equal weight.
+agents:
+  enabled_agents: []   # empty = all 7 enabled
+  agent_weights:
+    RegimeAgent:          1.0
+    TrendAgent:           1.0
+    MomentumAgent:        1.0
+    MeanReversionAgent:   1.0
+    VolatilityAgent:      1.0
+    BreadthAgent:         1.0
+    PatternAgent:         1.0
+    # ── New forex-specific agents ──────────────────────────────
+    # IntermarketAgent: macro context (DXY, VIX, crude, yields via yfinance).
+    # Set weight < 1 initially so it confirms rather than overrides price structure.
+    IntermarketAgent:     0.80
+    # SessionBreakoutAgent: London open Asian-range breakout pattern (H1 bars).
+    SessionBreakoutAgent: 0.70
+    # DivergenceAgent: RSI divergences — reversal & continuation setups (1H bars).
+    DivergenceAgent:      0.80
+
+# ── Alignment thresholds ─────────────────────────────────────────
+# Controls how strongly signals must agree before a trade is placed.
+alignment:
+  long_min_score:   0.12   # min directional score on long timeframe (D1)  [was 0.25 — lowered to allow weak-but-aligned signals]
+  mid_min_score:    0.10   # min directional score on mid timeframe (1H)   [was 0.20]
+  short_min_score:  0.08   # min directional score on short timeframe (15m) [was 0.15]
+  mean_rev_guard:   0.65   # block if mean-reversion score > this (overbought check)
+  breadth_min:     -0.60   # block if market breadth below this (weak market)
+  min_win_prob:     0.45   # min win probability required
+  min_ev:           0.08   # min expected value required
+  pullback_tolerance: 0.40
+  # ── Forex session dead-zone (UTC hours) — thresholds tightened to avoid low-liquidity entries
+  dead_zone_start_utc: 22   # 22:00 UTC = London/NY close
+  dead_zone_end_utc:    6   # 06:00 UTC = before London open
+  dead_zone_factor:   1.40  # multiply all thresholds by this during dead zone
+  # ── Agent consensus gate ── require minimum agents to agree before trading
+  # Excludes BreadthAgent (market context filter).  With 10 directional agents
+  # (9 original + DivergenceAgent) a value of 5 requires majority agreement.
+  min_agent_consensus:      5     # minimum agents voting in trade direction
+  consensus_vote_threshold: 0.05  # minimum |dir_score| to count as a vote
+
+# ── Scale-in (pyramiding) ─────────────────────────────────────────
+# Allows adding a second position on the same symbol when the signal
+# is unusually strong (full-alignment only) and the existing trade is
+# already profitable.
+scale_in:
+  enabled:                  true   # set false to disable entirely
+  max_positions_per_symbol: 2      # hard cap: max 2 entries per symbol
+  require_profit:           true   # only scale into winning positions
+  risk_fraction:            0.5    # scale-in uses 50% of normal risk
+  sl_atr_multiplier:        1.0    # tighter stop: 1×ATR (vs normal 2×ATR)
+# ── Exit rules — proactive trade cancellation ──────────────────────────
+# Three conditions are evaluated every cycle for each open position:
+#  1. D1 flip: D1 trend reversed against trade (always active, uses long_min_score)
+#  2. Conviction fade: D1 score drops near zero — trend has evaporated
+#  3. Mid+Short opposition: 1H and 15m both strongly contradict the trade
+# Plus: soft-tighten when conviction is weakening but not yet at close threshold.
+exit_rules:
+  conviction_fade_enabled:          true
+  conviction_fade_threshold:        0.10   # close if |D1| < this (trend gone flat)
+  mid_short_opposition_enabled:     true
+  mid_short_opposition_threshold:   0.35   # close if BOTH M & S exceed this against trade
+  # Tighten SL/TP when signal is weakening (between fade and tighten thresholds)
+  # instead of waiting to either fully close or do nothing:
+  tighten_on_fade_enabled:          true
+  tighten_fade_threshold:           0.20   # tighten when fade_threshold < |D1| < this
+  tighten_tp_atr_mult:              0.5    # new TP = price ± N×ATR (capture nearby profit)
+# ── Trailing stop — staged lock-in + TP management ────────────────
+# Stage 1 (+1R profit):  SL → break-even
+# Stage 2 (+1.5R profit): SL → entry + 0.5R
+# Stage 3 (+2R profit):  SL → ATR trail  AND  TP → pushed forward automatically
+trailing:
+  atr_multiplier:      1.5    # Stage-3 SL trail distance = price ± N×ATR
+  tp_extend_enabled:   true   # push TP forward in Stage 3 (let winners run)
+  tp_extend_atr_mult:  2.0    # new TP = price ± N×ATR when extending
+
+# ── Regime-conditional agent weighting ───────────────────────────
+# In trending regimes (ADX > ~28, trendiness > trend_threshold), amplify
+# trend-following agents and reduce mean-reversion agents — and vice versa.
+# The transition is soft: full amplification only at the extreme of each regime.
+# Individual multipliers are defined as class constants in TradingGraph.
+regime_weighting:
+  trend_threshold: 0.55   # trendiness above this = trending regime
+  range_threshold: 0.40   # trendiness below this = ranging regime
+
+# ── VIX-based risk scaling ────────────────────────────────────────
+# Reduce position size when macro fear is elevated (VIX high/rising fast).
+# Risk is ONLY reduced, never increased above base_risk_pct.
+# vix_fear is the magnitude of the VIX signal pre-mapped for this symbol
+# by IntermarketAgent (0..1 scale).
+vix_risk_scaling:
+  enabled:   true
+  threshold: 0.40   # start reducing below this |vix| magnitude  (0.40 ≈ VIX ~26)
+  floor:     0.50   # minimum allowed fraction of base risk       (0.50 = halved at max fear)
+
+# ── Kelly criterion adaptive position sizing ────────────────────
+# Scales position size up/down based on per-symbol closed-trade history.
+# Uses half-Kelly for safety.  Requires min_trades before adjusting.
+kelly:
+  enabled:       true
+  half_kelly:    true    # recommended: use half of theoretical optimum
+  min_trades:    20      # history needed before adjusting size
+  max_mult:      1.75    # cap multiplier (prevents over-exposure on lucky streaks)
+  min_mult:      0.60    # floor multiplier (still trades but reduced on poor history)
+  lookback_days: 60      # MT5 history window for computing stats
+
+# ── Journal / logging ────────────────────────────────────────────
+journal:
+  log_dir: "logs"          # folder where trade logs are written
+  log_decisions: true      # log every signal cycle (even non-trades)
+  log_trades:    true      # log every executed order

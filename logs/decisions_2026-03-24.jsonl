@@ -1,0 +1,676 @@
+{"ts": "2026-03-24T16:04:14", "symbol": "NASDAQ:NVDA", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:04:14", "symbol": "NASDAQ:MSFT", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:04:28", "symbol": "NASDAQ:NVDA", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:04:28", "symbol": "NASDAQ:NVDA", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:04:28", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:04:29", "symbol": "BTCUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:04:29", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:04:29", "symbol": "NASDAQ:NVDA", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:04:29", "symbol": "NASDAQ:MSFT", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:04:29", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:04:29", "symbol": "NASDAQ:NVDA", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:04:29", "symbol": "NASDAQ:NVDA", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:04:29", "symbol": "NASDAQ:NVDA", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:04:31", "symbol": "NASDAQ:NVDA", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:04:31", "symbol": "NASDAQ:NVDA", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:04:31", "symbol": "NASDAQ:NVDA", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:04:31", "symbol": "NASDAQ:NVDA", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:04:32", "symbol": "NASDAQ:MSFT", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:04:32", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:04:32", "symbol": "NASDAQ:AAPL", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:07:16", "symbol": "NASDAQ:NVDA", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:07:16", "symbol": "NASDAQ:MSFT", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:14:02", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:14:02", "symbol": "GBPUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:14:02", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:25:52", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:25:52", "symbol": "GBPUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:25:53", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:27:12", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:27:12", "symbol": "GBPUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:27:12", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:33:09", "symbol": "NASDAQ:NVDA", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:33:09", "symbol": "NASDAQ:NVDA", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:33:09", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:33:09", "symbol": "BTCUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:33:09", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:33:10", "symbol": "NASDAQ:NVDA", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:33:10", "symbol": "NASDAQ:MSFT", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:33:10", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:33:10", "symbol": "NASDAQ:NVDA", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:33:10", "symbol": "NASDAQ:NVDA", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:33:10", "symbol": "NASDAQ:NVDA", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:33:12", "symbol": "NASDAQ:NVDA", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:33:13", "symbol": "NASDAQ:NVDA", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:33:13", "symbol": "NASDAQ:NVDA", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:33:13", "symbol": "NASDAQ:NVDA", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:33:13", "symbol": "NASDAQ:MSFT", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:33:13", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:33:14", "symbol": "NASDAQ:AAPL", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:34:11", "symbol": "NASDAQ:NVDA", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:34:11", "symbol": "NASDAQ:NVDA", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:34:11", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:34:11", "symbol": "BTCUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:34:11", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:34:12", "symbol": "NASDAQ:NVDA", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:34:12", "symbol": "NASDAQ:MSFT", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:34:12", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:34:12", "symbol": "NASDAQ:NVDA", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:34:12", "symbol": "NASDAQ:NVDA", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:34:12", "symbol": "NASDAQ:NVDA", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:34:14", "symbol": "NASDAQ:NVDA", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:34:14", "symbol": "NASDAQ:NVDA", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:34:14", "symbol": "NASDAQ:NVDA", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:34:14", "symbol": "NASDAQ:NVDA", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:34:15", "symbol": "NASDAQ:MSFT", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:34:15", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:34:15", "symbol": "NASDAQ:AAPL", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:34:25", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:34:25", "symbol": "GBPUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:34:26", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:52:12", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:52:12", "symbol": "GBPUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:52:12", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:52:25", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:52:25", "symbol": "GBPUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T16:52:26", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T17:01:54", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T17:01:54", "symbol": "GBPUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T17:01:54", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T17:05:41", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T17:05:41", "symbol": "GBPUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T17:05:41", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T17:13:12", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T17:13:12", "symbol": "GBPUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T17:13:12", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T18:24:49", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T18:24:49", "symbol": "GBPUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T18:24:49", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T18:27:12", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T18:27:12", "symbol": "GBPUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T18:27:13", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:03:53", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:03:54", "symbol": "GBPUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:03:54", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:05:23", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:05:23", "symbol": "GBPUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:05:23", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:21:30", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:21:31", "symbol": "GBPUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:21:35", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:25:32", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:25:32", "symbol": "GBPUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:25:33", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:26:47", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:26:47", "symbol": "GBPUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:26:48", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:28:53", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:28:54", "symbol": "GBPUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:28:54", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:32:16", "symbol": "EURUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:32:17", "symbol": "GBPUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:32:17", "symbol": "XAUUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:33:08", "symbol": "EURUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:33:09", "symbol": "GBPUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:33:10", "symbol": "XAUUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:34:08", "symbol": "EURUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:34:08", "symbol": "GBPUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:34:09", "symbol": "XAUUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:34:22", "symbol": "EURUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:34:23", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:34:23", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:34:24", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:34:29", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:34:33", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:34:36", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:34:36", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:34:39", "symbol": "XAGUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:35:22", "symbol": "EURUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:35:23", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:35:23", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:35:23", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:35:24", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:35:24", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:35:24", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:35:25", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:35:25", "symbol": "XAGUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:36:23", "symbol": "EURUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:36:23", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:36:23", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:36:24", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:36:25", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:36:25", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:36:25", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:36:26", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:36:26", "symbol": "XAGUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:37:09", "symbol": "EURUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:37:09", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:37:10", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:37:10", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:37:10", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:37:10", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:37:11", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:37:11", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:37:11", "symbol": "XAGUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:38:09", "symbol": "EURUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:38:09", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:38:09", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:38:10", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:38:10", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:38:10", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:38:11", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:38:11", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:38:11", "symbol": "XAGUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:38:32", "symbol": "EURUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:38:32", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:38:33", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:38:33", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:38:33", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:38:34", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:38:34", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:38:35", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:38:35", "symbol": "XAGUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:39:03", "symbol": "EURUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:39:04", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:39:04", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:39:05", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:39:05", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:39:05", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:39:06", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:39:06", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:39:07", "symbol": "XAGUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:40:04", "symbol": "EURUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:40:04", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:40:05", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:40:05", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:40:05", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:40:06", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:40:06", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:40:06", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:40:07", "symbol": "XAGUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:51:37", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:51:38", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:51:39", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:51:39", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:51:42", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:51:45", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:53:17", "symbol": "EURUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:53:17", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:53:18", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:53:18", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:53:19", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:53:19", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:53:20", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:53:23", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:53:25", "symbol": "XAGUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:54:17", "symbol": "EURUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:54:17", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:54:18", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:54:18", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:54:18", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:54:19", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:54:19", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:54:20", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:54:20", "symbol": "XAGUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:54:26", "symbol": "EURUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:54:27", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:54:27", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:54:27", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:54:28", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:54:28", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:54:29", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:54:29", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:54:30", "symbol": "XAGUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:54:41", "symbol": "EURUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:54:42", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:54:42", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:54:42", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:54:42", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:54:43", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:54:43", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:54:44", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:54:44", "symbol": "XAGUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:55:41", "symbol": "EURUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:55:42", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:55:42", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:55:43", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:55:43", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:55:43", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:55:43", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:55:44", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:55:44", "symbol": "XAGUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:56:41", "symbol": "EURUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:56:42", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:56:42", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:56:42", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:56:42", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:56:42", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:56:43", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:56:43", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:56:43", "symbol": "XAGUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:57:41", "symbol": "EURUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:57:42", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:57:42", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:57:42", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:57:43", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:57:43", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:57:43", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:57:44", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:57:44", "symbol": "XAGUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:58:42", "symbol": "EURUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:58:42", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:58:43", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:58:43", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:58:44", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:58:44", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:58:44", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:58:45", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:58:45", "symbol": "XAGUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:59:42", "symbol": "EURUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:59:42", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:59:43", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:59:43", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:59:44", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:59:44", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T19:59:45", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:59:46", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T19:59:46", "symbol": "XAGUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T20:00:42", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T20:00:42", "symbol": "GBPUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T20:00:42", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T20:00:43", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T20:00:43", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T20:00:44", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T20:00:44", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T20:00:44", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T20:00:45", "symbol": "XAGUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T20:01:42", "symbol": "EURUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T20:01:42", "symbol": "GBPUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T20:01:43", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T20:01:43", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T20:01:44", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T20:01:44", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T20:01:44", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T20:01:45", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T20:01:45", "symbol": "XAGUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T20:02:42", "symbol": "EURUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T20:02:43", "symbol": "GBPUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T20:02:43", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T20:02:44", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T20:02:44", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T20:02:44", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T20:02:45", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T20:02:45", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T20:02:46", "symbol": "XAGUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T20:03:42", "symbol": "EURUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T20:03:43", "symbol": "GBPUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T20:03:43", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T20:03:44", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T20:03:44", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T20:03:44", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T20:03:44", "symbol": "NZDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T20:03:45", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T20:03:45", "symbol": "XAGUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T20:04:42", "symbol": "EURUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T20:04:42", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T20:04:43", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T20:04:43", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T20:04:43", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T20:04:43", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T20:04:44", "symbol": "NZDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T20:04:44", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T20:04:44", "symbol": "XAGUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T20:05:43", "symbol": "EURUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T20:05:43", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T20:05:43", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T20:05:44", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T20:05:44", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T20:05:45", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T20:05:45", "symbol": "NZDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T20:05:45", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T20:05:46", "symbol": "XAGUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:02:57", "symbol": "EURUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:02:58", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:02:59", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:02:59", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:03:00", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:03:00", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:03:01", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:03:02", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:03:57", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:03:58", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:03:58", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:03:59", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:03:59", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:03:59", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:04:00", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:04:00", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:04:57", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:04:58", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:04:58", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:04:59", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:04:59", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:05:00", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:05:00", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:05:01", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:05:57", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:05:58", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:05:59", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:05:59", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:06:00", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:06:00", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:06:01", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:06:02", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:06:13", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:06:14", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:06:14", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:06:15", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:06:15", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:06:15", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:06:16", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:06:17", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:07:13", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:07:14", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:07:14", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:07:15", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:07:16", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:07:16", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:07:17", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:07:17", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:08:13", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:08:14", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:08:14", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:08:15", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:08:15", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:08:15", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:08:16", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:08:17", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:12:14", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:12:15", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:12:15", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:12:16", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:12:17", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:12:17", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:12:17", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:12:18", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:13:14", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:13:14", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:13:15", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:13:16", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:13:17", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:13:18", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:13:18", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:13:19", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:14:14", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:14:14", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:14:15", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:14:15", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:14:16", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:14:16", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:14:16", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:14:17", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:15:14", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:15:14", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:15:14", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:15:15", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:15:15", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:15:15", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:15:16", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:15:16", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:16:14", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:16:14", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:16:15", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:16:15", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:16:15", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:16:16", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:16:16", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:16:16", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:17:14", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:17:15", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:17:15", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:17:15", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:17:15", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:17:16", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:17:16", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:17:16", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:18:15", "symbol": "EURUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:18:15", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:18:16", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:18:16", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:18:16", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:18:17", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:18:18", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:18:18", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:19:14", "symbol": "EURUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:19:15", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:19:16", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:19:16", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:19:17", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:19:17", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:19:18", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:19:18", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:21:15", "symbol": "EURUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:21:16", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:21:16", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:21:17", "symbol": "USDCHF", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:21:18", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:21:18", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:21:19", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:21:20", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:22:15", "symbol": "EURUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:22:16", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:22:17", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:22:18", "symbol": "USDCHF", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:22:18", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:22:19", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:22:20", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:22:21", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:23:15", "symbol": "EURUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:23:16", "symbol": "GBPUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:23:17", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:23:17", "symbol": "USDCHF", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:23:18", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:23:18", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:23:19", "symbol": "NZDUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:23:20", "symbol": "XAUUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:29:39", "symbol": "EURUSD", "decision": "approved", "executed": false, "order_ticket": null, "errors": ["Trade execution: MT5 order failed"]}
+{"ts": "2026-03-24T21:31:48", "symbol": "EURUSD", "decision": "approved", "executed": true, "order_ticket": 7884511058, "errors": []}
+{"ts": "2026-03-24T21:31:49", "symbol": "GBPUSD", "decision": "approved", "executed": true, "order_ticket": 7884511282, "errors": []}
+{"ts": "2026-03-24T21:31:50", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:31:50", "symbol": "USDCHF", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:31:50", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:31:51", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:31:51", "symbol": "NZDUSD", "decision": "approved", "executed": true, "order_ticket": 7884511904, "errors": []}
+{"ts": "2026-03-24T21:31:52", "symbol": "XAUUSD", "decision": "approved", "executed": true, "order_ticket": 7884512175, "errors": []}
+{"ts": "2026-03-24T21:38:55", "symbol": "EURUSD", "decision": "approved", "executed": true, "order_ticket": 7884642929, "errors": []}
+{"ts": "2026-03-24T21:38:56", "symbol": "GBPUSD", "decision": "approved", "executed": true, "order_ticket": 7884643103, "errors": []}
+{"ts": "2026-03-24T21:38:57", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:38:57", "symbol": "USDCHF", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:38:58", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:38:58", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:38:59", "symbol": "NZDUSD", "decision": "approved", "executed": true, "order_ticket": 7884643510, "errors": []}
+{"ts": "2026-03-24T21:39:00", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:43:55", "symbol": "EURUSD", "decision": "approved", "executed": true, "order_ticket": 7884739535, "errors": []}
+{"ts": "2026-03-24T21:43:56", "symbol": "GBPUSD", "decision": "approved", "executed": true, "order_ticket": 7884739877, "errors": []}
+{"ts": "2026-03-24T21:43:57", "symbol": "USDJPY", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:43:57", "symbol": "USDCHF", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:43:58", "symbol": "AUDUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:43:59", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T21:43:59", "symbol": "NZDUSD", "decision": "approved", "executed": true, "order_ticket": 7884740730, "errors": []}
+{"ts": "2026-03-24T21:44:00", "symbol": "XAUUSD", "decision": "approved", "executed": true, "order_ticket": 7884740917, "errors": []}
+{"ts": "2026-03-24T22:05:55", "symbol": "EURUSD", "decision": "approved", "executed": true, "order_ticket": 7884964003, "errors": []}
+{"ts": "2026-03-24T22:05:56", "symbol": "GBPUSD", "decision": "approved", "executed": true, "order_ticket": 7884964012, "errors": []}
+{"ts": "2026-03-24T22:05:56", "symbol": "USDJPY", "decision": "approved", "executed": true, "order_ticket": 7884964015, "errors": []}
+{"ts": "2026-03-24T22:05:57", "symbol": "USDCHF", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T22:05:57", "symbol": "AUDUSD", "decision": "approved", "executed": true, "order_ticket": 7884964024, "errors": []}
+{"ts": "2026-03-24T22:05:58", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T22:05:59", "symbol": "NZDUSD", "decision": "approved", "executed": true, "order_ticket": 7884964050, "errors": []}
+{"ts": "2026-03-24T22:05:59", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T22:10:59", "symbol": "EURUSD", "decision": "approved", "executed": true, "order_ticket": 7884970383, "errors": []}
+{"ts": "2026-03-24T22:11:00", "symbol": "GBPUSD", "decision": "approved", "executed": true, "order_ticket": 7884970388, "errors": []}
+{"ts": "2026-03-24T22:11:01", "symbol": "USDJPY", "decision": "approved", "executed": true, "order_ticket": 7884970393, "errors": []}
+{"ts": "2026-03-24T22:11:01", "symbol": "USDCHF", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T22:11:02", "symbol": "AUDUSD", "decision": "approved", "executed": true, "order_ticket": 7884970411, "errors": []}
+{"ts": "2026-03-24T22:11:02", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T22:11:03", "symbol": "NZDUSD", "decision": "approved", "executed": true, "order_ticket": 7884970418, "errors": []}
+{"ts": "2026-03-24T22:11:03", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T22:16:02", "symbol": "EURUSD", "decision": "approved", "executed": true, "order_ticket": 7884976739, "errors": []}
+{"ts": "2026-03-24T22:16:03", "symbol": "GBPUSD", "decision": "approved", "executed": true, "order_ticket": 7884976743, "errors": []}
+{"ts": "2026-03-24T22:16:03", "symbol": "USDJPY", "decision": "approved", "executed": true, "order_ticket": 7884976753, "errors": []}
+{"ts": "2026-03-24T22:16:04", "symbol": "USDCHF", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T22:16:05", "symbol": "AUDUSD", "decision": "approved", "executed": true, "order_ticket": 7884976766, "errors": []}
+{"ts": "2026-03-24T22:16:05", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T22:16:06", "symbol": "NZDUSD", "decision": "approved", "executed": true, "order_ticket": 7884976782, "errors": []}
+{"ts": "2026-03-24T22:16:07", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T22:21:02", "symbol": "EURUSD", "decision": "approved", "executed": true, "order_ticket": 7884982943, "errors": []}
+{"ts": "2026-03-24T22:21:03", "symbol": "GBPUSD", "decision": "approved", "executed": true, "order_ticket": 7884982949, "errors": []}
+{"ts": "2026-03-24T22:21:03", "symbol": "USDJPY", "decision": "approved", "executed": true, "order_ticket": 7884982963, "errors": []}
+{"ts": "2026-03-24T22:21:04", "symbol": "USDCHF", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T22:21:05", "symbol": "AUDUSD", "decision": "approved", "executed": true, "order_ticket": 7884982982, "errors": []}
+{"ts": "2026-03-24T22:21:05", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T22:21:06", "symbol": "NZDUSD", "decision": "approved", "executed": true, "order_ticket": 7884982998, "errors": []}
+{"ts": "2026-03-24T22:21:06", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T22:26:07", "symbol": "EURUSD", "decision": "approved", "executed": true, "order_ticket": 7884988695, "errors": []}
+{"ts": "2026-03-24T22:26:08", "symbol": "GBPUSD", "decision": "approved", "executed": true, "order_ticket": 7884988708, "errors": []}
+{"ts": "2026-03-24T22:26:09", "symbol": "USDJPY", "decision": "approved", "executed": true, "order_ticket": 7884988718, "errors": []}
+{"ts": "2026-03-24T22:26:09", "symbol": "USDCHF", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T22:26:10", "symbol": "AUDUSD", "decision": "approved", "executed": true, "order_ticket": 7884988732, "errors": []}
+{"ts": "2026-03-24T22:26:10", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T22:26:11", "symbol": "NZDUSD", "decision": "approved", "executed": true, "order_ticket": 7884988749, "errors": []}
+{"ts": "2026-03-24T22:26:12", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T22:31:05", "symbol": "EURUSD", "decision": "approved", "executed": true, "order_ticket": 7884994933, "errors": []}
+{"ts": "2026-03-24T22:31:05", "symbol": "GBPUSD", "decision": "approved", "executed": true, "order_ticket": 7884994940, "errors": []}
+{"ts": "2026-03-24T22:31:06", "symbol": "USDJPY", "decision": "approved", "executed": true, "order_ticket": 7884994947, "errors": []}
+{"ts": "2026-03-24T22:31:06", "symbol": "USDCHF", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T22:31:07", "symbol": "AUDUSD", "decision": "approved", "executed": true, "order_ticket": 7884994963, "errors": []}
+{"ts": "2026-03-24T22:31:07", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T22:31:08", "symbol": "NZDUSD", "decision": "approved", "executed": true, "order_ticket": 7884994984, "errors": []}
+{"ts": "2026-03-24T22:31:09", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T22:36:12", "symbol": "EURUSD", "decision": "approved", "executed": true, "order_ticket": 7885001006, "errors": []}
+{"ts": "2026-03-24T22:36:12", "symbol": "GBPUSD", "decision": "approved", "executed": true, "order_ticket": 7885001041, "errors": []}
+{"ts": "2026-03-24T22:36:13", "symbol": "USDJPY", "decision": "approved", "executed": true, "order_ticket": 7885001065, "errors": []}
+{"ts": "2026-03-24T22:36:13", "symbol": "USDCHF", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T22:36:14", "symbol": "AUDUSD", "decision": "approved", "executed": true, "order_ticket": 7885001101, "errors": []}
+{"ts": "2026-03-24T22:36:14", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T22:36:15", "symbol": "NZDUSD", "decision": "approved", "executed": true, "order_ticket": 7885001144, "errors": []}
+{"ts": "2026-03-24T22:36:15", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T22:41:11", "symbol": "EURUSD", "decision": "approved", "executed": true, "order_ticket": 7885007357, "errors": []}
+{"ts": "2026-03-24T22:41:12", "symbol": "GBPUSD", "decision": "approved", "executed": true, "order_ticket": 7885007439, "errors": []}
+{"ts": "2026-03-24T22:41:13", "symbol": "USDJPY", "decision": "approved", "executed": true, "order_ticket": 7885007447, "errors": []}
+{"ts": "2026-03-24T22:41:13", "symbol": "USDCHF", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T22:41:14", "symbol": "AUDUSD", "decision": "approved", "executed": true, "order_ticket": 7885007463, "errors": []}
+{"ts": "2026-03-24T22:41:14", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T22:41:15", "symbol": "NZDUSD", "decision": "approved", "executed": true, "order_ticket": 7885007481, "errors": []}
+{"ts": "2026-03-24T22:41:15", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T22:46:12", "symbol": "EURUSD", "decision": "approved", "executed": true, "order_ticket": 7885013077, "errors": []}
+{"ts": "2026-03-24T22:46:13", "symbol": "GBPUSD", "decision": "approved", "executed": true, "order_ticket": 7885013081, "errors": []}
+{"ts": "2026-03-24T22:46:13", "symbol": "USDJPY", "decision": "approved", "executed": true, "order_ticket": 7885013089, "errors": []}
+{"ts": "2026-03-24T22:46:14", "symbol": "USDCHF", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T22:46:15", "symbol": "AUDUSD", "decision": "approved", "executed": true, "order_ticket": 7885013106, "errors": []}
+{"ts": "2026-03-24T22:46:15", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T22:46:16", "symbol": "NZDUSD", "decision": "approved", "executed": true, "order_ticket": 7885013126, "errors": []}
+{"ts": "2026-03-24T22:46:16", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T22:51:16", "symbol": "EURUSD", "decision": "approved", "executed": true, "order_ticket": 7885017868, "errors": []}
+{"ts": "2026-03-24T22:51:16", "symbol": "GBPUSD", "decision": "approved", "executed": true, "order_ticket": 7885017977, "errors": []}
+{"ts": "2026-03-24T22:51:17", "symbol": "USDJPY", "decision": "approved", "executed": true, "order_ticket": 7885017984, "errors": []}
+{"ts": "2026-03-24T22:51:18", "symbol": "USDCHF", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T22:51:18", "symbol": "AUDUSD", "decision": "approved", "executed": true, "order_ticket": 7885017995, "errors": []}
+{"ts": "2026-03-24T22:51:19", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T22:51:20", "symbol": "NZDUSD", "decision": "approved", "executed": true, "order_ticket": 7885018006, "errors": []}
+{"ts": "2026-03-24T22:51:20", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T22:56:25", "symbol": "EURUSD", "decision": "approved", "executed": true, "order_ticket": 7885022596, "errors": []}
+{"ts": "2026-03-24T22:56:25", "symbol": "GBPUSD", "decision": "approved", "executed": true, "order_ticket": 7885022600, "errors": []}
+{"ts": "2026-03-24T22:56:26", "symbol": "USDJPY", "decision": "approved", "executed": true, "order_ticket": 7885022607, "errors": []}
+{"ts": "2026-03-24T22:56:26", "symbol": "USDCHF", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T22:56:27", "symbol": "AUDUSD", "decision": "approved", "executed": true, "order_ticket": 7885022640, "errors": []}
+{"ts": "2026-03-24T22:56:28", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T22:56:28", "symbol": "NZDUSD", "decision": "approved", "executed": true, "order_ticket": 7885022658, "errors": []}
+{"ts": "2026-03-24T22:56:28", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:01:37", "symbol": "EURUSD", "decision": "approved", "executed": true, "order_ticket": 7885041303, "errors": []}
+{"ts": "2026-03-24T23:01:38", "symbol": "GBPUSD", "decision": "approved", "executed": true, "order_ticket": 7885041466, "errors": []}
+{"ts": "2026-03-24T23:01:39", "symbol": "USDJPY", "decision": "approved", "executed": true, "order_ticket": 7885041560, "errors": []}
+{"ts": "2026-03-24T23:01:40", "symbol": "USDCHF", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:01:41", "symbol": "AUDUSD", "decision": "approved", "executed": true, "order_ticket": 7885041700, "errors": []}
+{"ts": "2026-03-24T23:01:43", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:01:44", "symbol": "NZDUSD", "decision": "approved", "executed": true, "order_ticket": 7885041938, "errors": []}
+{"ts": "2026-03-24T23:01:44", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:06:28", "symbol": "EURUSD", "decision": "approved", "executed": true, "order_ticket": 7885112661, "errors": []}
+{"ts": "2026-03-24T23:06:29", "symbol": "GBPUSD", "decision": "approved", "executed": true, "order_ticket": 7885112784, "errors": []}
+{"ts": "2026-03-24T23:06:30", "symbol": "USDJPY", "decision": "approved", "executed": true, "order_ticket": 7885112983, "errors": []}
+{"ts": "2026-03-24T23:06:30", "symbol": "USDCHF", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:06:31", "symbol": "AUDUSD", "decision": "approved", "executed": true, "order_ticket": 7885113248, "errors": []}
+{"ts": "2026-03-24T23:06:32", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:06:33", "symbol": "NZDUSD", "decision": "approved", "executed": true, "order_ticket": 7885113417, "errors": []}
+{"ts": "2026-03-24T23:06:33", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:22:28", "symbol": "EURUSD", "decision": "approved", "executed": true, "order_ticket": 7885356991, "errors": []}
+{"ts": "2026-03-24T23:22:29", "symbol": "GBPUSD", "decision": "approved", "executed": true, "order_ticket": 7885357341, "errors": []}
+{"ts": "2026-03-24T23:22:30", "symbol": "USDJPY", "decision": "approved", "executed": true, "order_ticket": 7885357560, "errors": []}
+{"ts": "2026-03-24T23:22:30", "symbol": "USDCHF", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:22:31", "symbol": "AUDUSD", "decision": "approved", "executed": true, "order_ticket": 7885357802, "errors": []}
+{"ts": "2026-03-24T23:22:31", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:22:32", "symbol": "NZDUSD", "decision": "approved", "executed": true, "order_ticket": 7885358010, "errors": []}
+{"ts": "2026-03-24T23:22:33", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:27:31", "symbol": "EURUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:27:31", "symbol": "GBPUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:27:32", "symbol": "USDJPY", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:27:32", "symbol": "USDCHF", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:27:33", "symbol": "AUDUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:27:33", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:27:33", "symbol": "NZDUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:27:34", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:32:31", "symbol": "EURUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:32:31", "symbol": "GBPUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:32:31", "symbol": "USDJPY", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:32:32", "symbol": "USDCHF", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:32:32", "symbol": "AUDUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:32:33", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:32:33", "symbol": "NZDUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:32:33", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:37:31", "symbol": "EURUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:37:31", "symbol": "GBPUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:37:32", "symbol": "USDJPY", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:37:32", "symbol": "USDCHF", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:37:33", "symbol": "AUDUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:37:33", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:37:33", "symbol": "NZDUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:37:34", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:42:31", "symbol": "EURUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:42:31", "symbol": "GBPUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:42:31", "symbol": "USDJPY", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:42:32", "symbol": "USDCHF", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:42:32", "symbol": "AUDUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:42:33", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:42:33", "symbol": "NZDUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:42:33", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:47:33", "symbol": "EURUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:47:33", "symbol": "GBPUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:47:34", "symbol": "USDJPY", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:47:34", "symbol": "USDCHF", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:47:35", "symbol": "AUDUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:47:35", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:47:35", "symbol": "NZDUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:47:36", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:52:31", "symbol": "EURUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:52:31", "symbol": "GBPUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:52:31", "symbol": "USDJPY", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:52:31", "symbol": "USDCHF", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:52:32", "symbol": "AUDUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:52:32", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:52:32", "symbol": "NZDUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:52:32", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:54:44", "symbol": "EURUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:54:45", "symbol": "GBPUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:54:45", "symbol": "USDJPY", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:54:45", "symbol": "USDCHF", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:54:45", "symbol": "AUDUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:54:45", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:54:46", "symbol": "NZDUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:54:46", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:59:44", "symbol": "EURUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:59:44", "symbol": "GBPUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:59:44", "symbol": "USDJPY", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:59:44", "symbol": "USDCHF", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:59:45", "symbol": "AUDUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:59:45", "symbol": "USDCAD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:59:45", "symbol": "NZDUSD", "decision": "rejected", "executed": false, "order_ticket": null, "errors": []}
+{"ts": "2026-03-24T23:59:46", "symbol": "XAUUSD", "decision": "stop", "executed": false, "order_ticket": null, "errors": []}

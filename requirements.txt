@@ -1,0 +1,32 @@
+# MT5 broker connection (Linux + Docker)
+# mt5linux connects to MetaTrader 5 running inside the mt5docker container via rpyc/TCP.
+# Start the container first:  docker compose up -d
+# Then open http://localhost:6081/vnc.html and log into your DEMO account.
+mt5linux
+
+typing-extensions
+langchain-openai
+langchain-experimental
+pandas
+yfinance
+praw
+feedparser
+stockstats
+eodhd
+langgraph
+chromadb
+setuptools
+backtrader
+akshare
+tushare
+finnhub-python
+parsel
+requests
+tqdm
+pytz
+redis
+chainlit
+rich
+questionary
+langchain_anthropic
+langchain-google-genai

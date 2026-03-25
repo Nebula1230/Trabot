@@ -1,0 +1,106 @@
+# TradingAgents v2 Configuration File
+# Advanced Multi-Agent LLM Financial Trading Framework
+
+# Trading symbols to monitor
+symbols:
+  - "NASDAQ:NVDA"
+  - "NASDAQ:MSFT"
+  - "NASDAQ:AAPL"
+  - "SPY"
+  - "QQQ"
+
+# Timeframe configuration
+timeframes:
+  long: ["1D", "1W"]
+  mid: ["4H", "1H"]
+  short: ["15m", "5m"]
+
+# Alignment thresholds for decision making
+alignment_thresholds:
+  long: 0.4    # Long timeframe must be > 0.4
+  mid: 0.3     # Mid timeframe must be > 0.3
+  short: 0.2   # Short timeframe must be > 0.2
+
+# Risk management configuration
+risk:
+  base_risk_pct: 0.25          # % of equity per trade
+  max_daily_drawdown_pct: 2.0  # Circuit breaker at 2% daily DD
+  max_concurrent_trades: 3     # Maximum open positions
+  per_symbol_leverage_cap: 3.0 # Max leverage per symbol
+  portfolio_leverage_cap: 5.0  # Max total portfolio leverage
+
+# Execution configuration
+execution:
+  slippage_bp: 2               # Slippage tolerance in basis points
+  spread_guard_bp: 3           # Maximum spread in basis points
+  news_blackout_minutes: 10    # Avoid trading during news
+  max_tick_age_ms: 1000        # Maximum tick age for execution
+  use_bracket_orders: true     # Use bracket orders for entry/exit
+  partial_take_profits: true   # Enable partial take profits
+  trailing_stops: true         # Enable trailing stops
+
+# Probability and calibration
+probability:
+  recipe_min_trades: 50        # Minimum trades for recipe calibration
+  min_win_prob: 0.48          # Minimum win probability threshold
+  min_expectancy_r: 0.10      # Minimum expectancy in R units
+
+# Debate system configuration
+debate:
+  rounds: 1                    # Number of debate rounds
+  enabled: true                # Enable Pro vs Contra debate
+
+# MetaTrader 5 configuration
+mt5:
+  magic_number: 424242         # Magic number for order identification
+  slippage: 10                 # Default slippage in points
+  retry_attempts: 3            # Retry attempts for failed orders
+  retry_delay_ms: 1000         # Delay between retries
+
+# Agent configuration
+agents:
+  enabled_agents:              # List of enabled agents (empty = all enabled)
+    - "RegimeAgent"
+    - "TrendAgent"
+    - "MomentumAgent"
+    - "MeanReversionAgent"
+    - "VolatilityAgent"
+    - "BreadthAgent"
+    - "PatternAgent"
+  
+  agent_weights:               # Agent weight multipliers
+    RegimeAgent: 1.2           # Give regime analysis higher weight
+    TrendAgent: 1.1            # Slightly higher weight for trend
+    MomentumAgent: 1.0         # Standard weight
+    MeanReversionAgent: 0.9    # Slightly lower weight
+    VolatilityAgent: 1.0       # Standard weight
+    BreadthAgent: 1.1          # Slightly higher weight for market context
+    PatternAgent: 1.0          # Standard weight
+
+# Logging configuration
+log_level: "INFO"              # Logging level (DEBUG, INFO, WARNING, ERROR)
+log_file: "tradingagents.log"  # Log file path (optional)
+
+# Performance monitoring
+enable_monitoring: true        # Enable performance monitoring
+monitoring_interval_seconds: 60 # Monitoring interval
+
+# Backtesting configuration
+enable_backtesting: true       # Enable backtesting capabilities
+backtest_start_date: "2024-01-01"  # Backtest start date
+backtest_end_date: "2024-12-31"    # Backtest end date
+
+# Custom agent prompts (optional)
+agents:
+  custom_prompts:
+    RegimeAgent: |
+      You are a market regime analyst. Focus on identifying trending vs choppy conditions
+      and volatility state. Use ADX, RVI, and volatility metrics to determine market structure.
+    
+    TrendAgent: |
+      You are a trend analyst. Analyze market structure (HH/HL, LH/LL) and moving average
+      alignment. Focus on clean swing sequences and EMA stack conditions.
+    
+    MomentumAgent: |
+      You are a momentum analyst. Confirm impulse moves in the trend direction while
+      avoiding exhausted moves. Use RSI regime logic and MACD histogram changes. 

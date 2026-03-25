@@ -1,0 +1,84 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tradingagents-v2"
+version = "0.2.0"
+description = "Advanced Multi-Agent LLM Financial Trading Framework with MT5 Integration"
+authors = [
+    {name = "TradingAgents Team", email = "yijia.xiao@cs.ucla.edu"}
+]
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Financial and Trading Industry",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Office/Business :: Financial :: Investment",
+]
+dependencies = [
+    "langchain>=0.1.0",
+    "langchain-openai>=0.0.2",
+    "langchain-experimental>=0.0.40",
+    "langgraph>=0.0.20",
+    "numpy>=1.24.0",
+    "pandas>=2.0.0",
+    "yfinance>=0.2.31",
+    "typer>=0.9.0",
+    "rich>=13.0.0",
+    "questionary>=2.0.1",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "PyYAML>=6.0",
+    "scipy>=1.10.0",
+    "scikit-learn>=1.3.0",
+    "matplotlib>=3.7.0",
+    "seaborn>=0.12.0",
+    "ta>=0.10.0",
+    "asyncio-mqtt>=0.11.0",
+    "redis>=4.5.0",
+    "fastapi>=0.100.0",
+    "uvicorn>=0.23.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "mypy>=1.5.0",
+    "pre-commit>=3.3.0",
+]
+backtest = [
+    "backtrader>=1.9.78",
+    "vectorbt>=0.25.0",
+]
+mt5 = [
+    "MetaTrader5>=5.0.0",
+]
+
+[project.scripts]
+tradingagents = "tradingagents_v2.cli.main:app"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["tradingagents_v2*"]
+
+[tool.black]
+line-length = 88
+target-version = ['py310']
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true

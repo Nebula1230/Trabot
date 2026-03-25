@@ -1,0 +1,49 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# mt5docker — MetaTrader 5 in Docker (Linux-compatible via Wine + noVNC)
+# https://github.com/hpdeandrade/mt5docker
+#
+# This container bundles Wine + MT5 terminal + the mt5linux rpyc SERVER.
+# Your host Python installs mt5linux (already in requirements.txt) as the CLIENT.
+#
+# Architecture:
+#   host Python (mt5linux client)  ──TCP:8001──▶  container (Wine + MT5 + rpyc server)
+#
+# Usage:
+#   docker compose up -d            # start container in background
+#   # Open http://localhost:6081/vnc.html — log into your broker DEMO account (once)
+#   pip install -r requirements.txt # installs mt5linux client on your host
+#   python run_demo.py --live       # bot connects on port 8001
+#
+#   docker compose logs -f          # follow logs
+#   docker compose down             # stop & remove container
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  mt5docker:
+    image: hpdeandrade/mt5docker:latest
+    container_name: mt5docker
+    restart: unless-stopped
+    environment:
+      # Internal hostname used by MetaTrader 5 inside the container.
+      # Must match the host= value you pass to MetaTrader5() in Python
+      # when connecting from inside another Docker container.
+      # If running Python on the HOST machine, use "localhost" instead.
+      - MT5_HOST=mt5docker
+      # Change this password — it secures the noVNC/VNC access
+      - VNC_PWD=changeme123
+    ports:
+      - "5902:5901"   # VNC (desktop VNC client)
+      - "6082:6081"   # noVNC  →  http://localhost:6082/vnc.html
+      - "18812:8001"  # mt5linux Python API: host:18812 → container:8001
+    volumes:
+      # Persists MT5 installation and profile across container restarts
+      - mt5_data:/opt/wineprefix/drive_c/Program Files/MetaTrader 5
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "8001"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s    # MT5 needs time to start via Wine
+
+volumes:
+  mt5_data:
