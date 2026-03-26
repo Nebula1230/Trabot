@@ -183,6 +183,8 @@ class TradingGraph:
             # ranging:  trendiness < 0.40 → amplify mean-reversion agents
             trendiness_raw = 0.50
             if "RegimeAgent" in outputs:
+                # RegimeAgent runs on MID (1H) features — its trendiness reading
+                # reflects the intraday regime, which updates faster than D1 ADX.
                 trendiness_raw = outputs["RegimeAgent"].evidence.get("trendiness", 0.50)
 
             TREND_THRESH  = float(self.config.get("regime_weighting", {}).get("trend_threshold", 0.55))
@@ -221,16 +223,50 @@ class TradingGraph:
                 for a in self.agent_registry.get_all_agents()
             }
 
+            # ── Correlation auto-weighting ────────────────────────────────────
+            # Pairs of agents that tend to measure similar things get their
+            # combined weight reduced so they don't double-count the same signal.
+            # Rule: for each correlated pair (A, B), if both exist in this cycle
+            # and their dir_scores agree in sign, reduce each by sqrt(penalty).
+            # sqrt keeps the total effect moderate (e.g. 0.80 penalty → each ×0.894).
+            # Uses a fixed correlation map calibrated from typical signal overlap.
+            _CORR_PAIRS = [
+                # (agent_A, agent_B, penalty)  — penalty applied when both same-sign
+                ("TrendAgent",      "MomentumAgent",        0.80),
+                ("TrendAgent",      "RegimeAgent",           0.85),
+                ("MomentumAgent",   "SessionBreakoutAgent",  0.85),
+                ("ScalpingAgent",   "VwapScalpAgent",        0.80),
+                ("ScalpingAgent",   "SqueezeBreakoutAgent",  0.85),
+                ("VwapScalpAgent",  "OrderFlowAgent",        0.85),
+            ]
+            _corr_adj = {}   # agent_name → cumulative multiplicative adjustment
+            for agent_a, agent_b, penalty in _CORR_PAIRS:
+                if agent_a in outputs and agent_b in outputs:
+                    score_a = outputs[agent_a].dir_score
+                    score_b = outputs[agent_b].dir_score
+                    # Only penalise when both agents agree (same sign + both non-trivial)
+                    if score_a * score_b > 0 and abs(score_a) > 0.05 and abs(score_b) > 0.05:
+                        adj = penalty ** 0.5   # sqrt: moderate, symmetric reduction
+                        _corr_adj[agent_a] = _corr_adj.get(agent_a, 1.0) * adj
+                        _corr_adj[agent_b] = _corr_adj.get(agent_b, 1.0) * adj
+
+            if _corr_adj:
+                self.logger.debug(
+                    f"Corr adj: { {k: f'{v:.3f}' for k, v in _corr_adj.items()} }"
+                )
+
             def weighted_avg(named_outs):
                 if not named_outs:
                     return 0.0, 0.0
-                # Combine profile weight × regime multiplier × confidence into one scalar
+                # Combine profile weight × regime multiplier × correlation adj × confidence
                 total_score = sum(
                     o.dir_score * o.conf * _agent_weights.get(n, 1.0) * _regime_mult(n)
+                    * _corr_adj.get(n, 1.0)
                     for n, o in named_outs
                 )
                 total_weight = sum(
                     o.conf * _agent_weights.get(n, 1.0) * _regime_mult(n)
+                    * _corr_adj.get(n, 1.0)
                     for n, o in named_outs
                 )
                 n_agents = len(named_outs)
@@ -398,6 +434,7 @@ class TradingGraph:
                 if mean_rev_blocks_short:
                     reasons.append(f"mean-rev blocks SHORT (score={mean_rev_score:.2f})")
                 state["decision"] = "stop"
+                state.setdefault("metadata", {})["block_reason"] = "alignment:" + ";".join(reasons)
                 self.logger.info(f"Timeframes not aligned — stopping ({'; '.join(reasons)})")
 
         except Exception as e:
@@ -548,11 +585,13 @@ class TradingGraph:
             if recipe.win_probability < min_win_prob:
                 self.logger.info(f"Win probability too low: {recipe.win_probability:.3f} < {min_win_prob}")
                 state["decision"] = "rejected"
+                state.setdefault("metadata", {})["block_reason"] = f"win_prob:{recipe.win_probability:.3f}<{min_win_prob}"
                 return state
 
             if recipe.expected_value < min_ev:
                 self.logger.info(f"Expected value too low: {recipe.expected_value:.3f} < {min_ev}")
                 state["decision"] = "rejected"
+                state.setdefault("metadata", {})["block_reason"] = f"min_ev:{recipe.expected_value:.3f}<{min_ev}"
                 return state
 
             # ── Signal confidence gate ─────────────────────────────────────────
@@ -573,6 +612,7 @@ class TradingGraph:
                             f"(scalp={scalp_mode})"
                         )
                         state["decision"] = "rejected"
+                        state.setdefault("metadata", {})["block_reason"] = f"confidence:{signal_conf:.3f}<{min_conf}"
                         return state
 
             portfolio = state.get("portfolio_state")
@@ -581,10 +621,12 @@ class TradingGraph:
                 if portfolio.daily_drawdown < -limits.max_daily_drawdown_pct / 100:
                     self.logger.info("Daily drawdown limit exceeded")
                     state["decision"] = "rejected"
+                    state.setdefault("metadata", {})["block_reason"] = f"daily_drawdown:{portfolio.daily_drawdown*100:.2f}%"
                     return state
                 if len(portfolio.open_positions) >= limits.max_concurrent_trades:
                     self.logger.info("Max concurrent trades reached")
                     state["decision"] = "rejected"
+                    state.setdefault("metadata", {})["block_reason"] = f"max_concurrent:{len(portfolio.open_positions)}/{limits.max_concurrent_trades}"
                     return state
 
                 # ── Currency correlation guard ─────────────────────────────────
@@ -635,6 +677,7 @@ class TradingGraph:
                             f"positions already open — refusing {signal} {signal_type}"
                         )
                         state["decision"] = "rejected"
+                        state.setdefault("metadata", {})["block_reason"] = f"correlation:{new_usd_dir}:{corr_count}/{max_corr}"
                         return state
 
                 if signal in portfolio.open_positions:
@@ -719,6 +762,7 @@ class TradingGraph:
                         f"({recipe.direction}) — need {min_consensus}"
                     )
                     state["decision"] = "rejected"
+                    state.setdefault("metadata", {})["block_reason"] = f"consensus:{_votes_for}/{len(_voters)}<{min_consensus}"
                     return state
                 self.logger.debug(
                     f"Consensus: {_votes_for}/{len(_voters)} agents agree ({recipe.direction})"
@@ -741,6 +785,7 @@ class TradingGraph:
                             f"— rejecting LONG (buffer={_pivot_buf})"
                         )
                         state["decision"] = "rejected"
+                        state.setdefault("metadata", {})["block_reason"] = f"pivot_resist:{_dist:.2f}atr<{_pivot_buf}"
                         return state
                 elif recipe.direction == "short":
                     _dist = getattr(_feat, "nearest_support_atr", 10.0)
@@ -750,6 +795,7 @@ class TradingGraph:
                             f"— rejecting SHORT (buffer={_pivot_buf})"
                         )
                         state["decision"] = "rejected"
+                        state.setdefault("metadata", {})["block_reason"] = f"pivot_support:{_dist:.2f}atr<{_pivot_buf}"
                         return state
 
             state["decision"] = "approved"

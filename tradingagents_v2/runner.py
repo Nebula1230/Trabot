@@ -510,6 +510,29 @@ class TradingRunner:
                 #    (e.g. scalp profile — ratchet would overwrite tight 1m-ATR targets)
                 if not _skip_ratchet:
                     self.trailing_stop_mgr.update_structural_sl_tp(self.data_loader)
+
+                # ── Drawdown circuit breaker: close ALL open positions when the
+                # daily drawdown ceiling is breached.  Unlike the entry-halt in
+                # _run_cycle (which only stops new entries), this actively closes
+                # existing losers so a bad morning can't silently compound.
+                # The check runs every surveillance tick (60s) so the response is fast.
+                _dd_cfg = self.config.model_dump().get("risk", {})
+                _max_dd_pct = float(_dd_cfg.get("max_daily_drawdown_pct", 0))
+                if _max_dd_pct > 0 and self._start_of_day_balance > 0:
+                    _acct = self.executor.get_account_info()
+                    if _acct is not None:
+                        _equity_now = _acct.get("equity", self._start_of_day_balance)
+                        _real_dd = (_equity_now - self._start_of_day_balance) / self._start_of_day_balance
+                        if _real_dd < -(_max_dd_pct / 100):
+                            self.logger.warning(
+                                f"[DD CLOSE-ALL] Daily drawdown {_real_dd*100:.2f}% "
+                                f"breached -{_max_dd_pct:.2f}% ceiling — "
+                                "closing all open positions"
+                            )
+                            await self._close_all_positions(
+                                f"drawdown circuit breaker: {_real_dd*100:.2f}% < -{_max_dd_pct:.2f}%"
+                            )
+
                 # 3. Agent-based exit check (exit_check_only — no entry evaluation)
                 await self._check_and_close_positions()
             except Exception as e:
@@ -945,10 +968,11 @@ class TradingRunner:
                 )
 
                 results[symbol] = {
-                    "decision": state.get("decision", "stop"),
-                    "executed": state.get("metadata", {}).get("executed", False),
+                    "decision":     state.get("decision", "stop"),
+                    "executed":     state.get("metadata", {}).get("executed", False),
                     "order_ticket": state.get("metadata", {}).get("order_ticket"),
-                    "errors": state.get("errors", []),
+                    "errors":       state.get("errors", []),
+                    "block_reason": state.get("metadata", {}).get("block_reason", ""),
                 }
 
                 # Journal: record this cycle

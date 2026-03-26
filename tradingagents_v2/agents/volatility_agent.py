@@ -117,22 +117,25 @@ class VolatilityAgent(BaseAgent):
     def _calculate_realized_volatility(self, features: TechnicalFeatures) -> float:
         """Realized volatility regime modifier.
 
-        Very high realized vol → uncertainty, pull toward neutral.
-        Very low realized vol  → regime may break out, mild directional lean.
-        Normal realized vol    → pass through price direction unmodified.
+        realized_vol is stored as annualised fraction (e.g. 0.08 = 8% pa).
+        Thresholds are calibrated to annual vol (same scale as RegimeAgent):
+          > 0.20  — very high annual vol (indices / gold in volatile periods) → dampen
+          > 0.08  — elevated annual vol (typical for indices / trending FX)   → boost
+          > 0.04  — normal FX range (EUR/USD, GBP/JPY ~5-10% pa)             → moderate
+          <= 0.04 — very quiet (pre-news, dead zone)                          → mild
         Score is always paired with price direction (ROC sign).
         """
         realized_vol = features.realized_vol
         roc = features.roc_10
         price_direction = float(np.sign(roc)) if abs(roc) > 1e-5 else 0.0
 
-        if realized_vol > 0.04:    # Very high vol — noisy, dampen
+        if realized_vol > 0.20:    # Very high annual vol (indices/gold) — noisy, dampen
             realized_score = price_direction * 0.1
-        elif realized_vol > 0.02:  # Elevated vol — trending environment
+        elif realized_vol > 0.08:  # Elevated annual vol — trending environment
             realized_score = price_direction * 0.5
-        elif realized_vol > 0.01:  # Normal
+        elif realized_vol > 0.04:  # Normal FX annual vol (EUR/USD ~5-10%)
             realized_score = price_direction * 0.4
-        else:                       # Low vol — pre-breakout; mild direction
+        else:                       # Very low vol — pre-breakout; mild direction
             realized_score = price_direction * 0.2
 
         return float(np.clip(realized_score, -1.0, 1.0))

@@ -55,9 +55,11 @@ class SqueezeBreakoutAgent(BaseAgent):
     bb_width ≥ keltner_width  → bands firing = breakout in progress.
     Direction confirmed by MACD histogram + ROC.
 
-    State memory: only emits SQUEEZE_FIRE on the *transition* out of a squeeze
-    (i.e. previous bar was squeeze_active and current bar has ratio ≥ threshold).
-    This prevents spurious "fire" signals on every normally-spread bar.
+    State memory: only emits high-confidence SQUEEZE_FIRE on the *transition*
+    bar out of a squeeze (previous bar was squeeze_active AND current bar has
+    ratio ≥ threshold).  Normal BB expansion without a prior squeeze is scored
+    as ``expansion_normal`` with lower confidence.
+    This prevents spurious high-confidence signals on every normally-spread bar.
     """
 
     name: str = "SqueezeBreakoutAgent"
@@ -69,8 +71,11 @@ class SqueezeBreakoutAgent(BaseAgent):
     _ADX_TREND: float = 20.0       # ADX above this = trending (confirms breakout)
 
     def model_post_init(self, __context: Any) -> None:
-        # Mutable state: tracks previous bar's BB/KC ratio to detect transition
-        object.__setattr__(self, "_prev_ratio", None)
+        # Mutable state: tracks whether the previous bar was in squeeze_active.
+        # Used by the state machine: SQUEEZE_FIRE is only emitted on the
+        # *transition* bar (prev_squeeze_active=True → current ratio >= threshold)
+        # to avoid re-emitting the same breakout signal on every subsequent bar.
+        object.__setattr__(self, "_prev_squeeze_active", False)
 
     def get_required_features(self) -> list:
         return ["bb_width", "keltner_width", "roc_10", "macd_hist",
@@ -130,6 +135,8 @@ class SqueezeBreakoutAgent(BaseAgent):
         evidence["direction_strength"] = round(direction_strength, 2)
 
         # ── Squeeze state machine ───────────────────────────────────────
+        prev_squeeze_active: bool = object.__getattribute__(self, "_prev_squeeze_active")
+
         if ratio < self._SQUEEZE_RATIO:
             # --- SQUEEZE ACTIVE: coiling, no entry ---
             # Still report direction so other agents can anticipate direction,
@@ -137,20 +144,33 @@ class SqueezeBreakoutAgent(BaseAgent):
             dir_score = float(direction * direction_strength * 0.2)
             conf = 0.15
             regime = "squeeze_active"
+            # Update state: still in squeeze
+            object.__setattr__(self, "_prev_squeeze_active", True)
 
         elif ratio < self._BREAKOUT_RATIO:
             # --- TRANSITION / EARLY FIRE: BB reaching Keltner width ---
-            # This is the ideal entry zone — BB is firing from a squeeze.
-            # Confidence is highest here; direction must be confirmed.
-            dir_score = float(direction * direction_strength * 0.85)
-            adx_bonus = min((adx - self._ADX_TREND) / 30.0, 0.15) if adx > self._ADX_TREND else 0.0
-            conf = float(np.clip(0.55 + 0.25 * direction_strength + adx_bonus, 0.0, 1.0))
-            regime = "squeeze_fire"
+            # Only emit with high confidence on the *first* transition bar
+            # (when previous bar was in squeeze_active).  Subsequent bars in
+            # this zone that were never squeezed are normal expansion — lower conf.
+            object.__setattr__(self, "_prev_squeeze_active", False)
+            if prev_squeeze_active:
+                # True squeeze-fire transition: maximum conviction
+                dir_score = float(direction * direction_strength * 0.85)
+                adx_bonus = min((adx - self._ADX_TREND) / 30.0, 0.15) if adx > self._ADX_TREND else 0.0
+                conf = float(np.clip(0.55 + 0.25 * direction_strength + adx_bonus, 0.0, 1.0))
+                regime = "squeeze_fire"
+            else:
+                # Normal BB expansion (no preceding squeeze) — moderate signal
+                dir_score = float(direction * direction_strength * 0.50)
+                adx_bonus = min((adx - self._ADX_TREND) / 30.0, 0.10) if adx > self._ADX_TREND else 0.0
+                conf = float(np.clip(0.35 + 0.15 * direction_strength + adx_bonus, 0.0, 1.0))
+                regime = "expansion_normal"
 
         else:
             # --- BREAKOUT EXPANDED: BB already wide ---
             # Breakout is underway; entry is still valid but we're chasing.
             # Reduce confidence proportional to how extended the expansion is.
+            object.__setattr__(self, "_prev_squeeze_active", False)
             extension = min((ratio - self._BREAKOUT_RATIO) / 0.5, 1.0)
             dir_score = float(direction * direction_strength * (0.7 - 0.3 * extension))
             conf = float(np.clip(0.40 - 0.20 * extension + 0.15 * direction_strength, 0.0, 1.0))

@@ -132,8 +132,12 @@ class ScalpingAgent(BaseAgent):
         swing_break_score = 0.0
         current_price = ctx.get("current_price", None)
         if current_price and features.swing_highs and features.swing_lows:
-            nearest_sh = max(features.swing_highs)   # highest recent swing high
-            nearest_sl = min(features.swing_lows)    # lowest  recent swing low
+            # Use the most recent confirmed swing high/low (last in chronological list)
+            # so we detect whether price just broke the immediately prior structure.
+            # max/min of the full list would require price to beat the all-time
+            # highest/lowest of the lookback window — far too strict for 1m scalping.
+            nearest_sh = features.swing_highs[-1]   # most recent swing high
+            nearest_sl = features.swing_lows[-1]    # most recent swing low
             if current_price > nearest_sh:
                 swing_break_score = 0.8   # above last high = momentum breakout
             elif current_price < nearest_sl:

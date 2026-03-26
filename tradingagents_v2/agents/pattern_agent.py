@@ -141,24 +141,29 @@ class PatternAgent(BaseAgent):
         return np.clip(breakout_score, -1.0, 1.0)
 
     def _calculate_consolidation_patterns(self, features: TechnicalFeatures) -> float:
-        """Calculate score based on consolidation patterns."""
+        """Calculate directional score based on consolidation breakout context.
 
+        When price is NOT in the BB midzone (i.e. breaking out of consolidation),
+        return a weak directional bias aligned with the breakout direction.
+        Inside the midzone the score is neutral — the last_break field (already
+        scored in _calculate_breakout_patterns) handles that case.
+        """
         bb_percent = features.bb_percent_b
-        atr = features.atr_14
+        last_break = features.last_break
 
-        # Consolidation pattern analysis
-        # Tight range (BB %B near 0.5) suggests consolidation
         if 0.4 < bb_percent < 0.6:
-            # Check if this is a tight consolidation
-            if atr < 2.0:  # Low ATR suggests tight range
-                consolidation_score = 0.0  # Neutral during consolidation
-            else:
-                consolidation_score = 0.0
-        else:
-            # Not in consolidation
-            consolidation_score = 0.0
+            # Inside consolidation range — neutral
+            return 0.0
 
-        return np.clip(consolidation_score, -1.0, 1.0)
+        # Outside midzone: confirm the side with a weak directional nudge
+        if bb_percent >= 0.6:
+            # Upper half — mild bullish lean
+            consolidation_score = 0.2 if last_break == "bullish" else 0.1
+        else:
+            # Lower half — mild bearish lean
+            consolidation_score = -0.2 if last_break == "bearish" else -0.1
+
+        return float(np.clip(consolidation_score, -1.0, 1.0))
 
     def _calculate_support_resistance(self, features: TechnicalFeatures) -> float:
         """Calculate score based on support/resistance levels."""
