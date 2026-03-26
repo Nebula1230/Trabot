@@ -130,34 +130,31 @@ class SqueezeBreakoutAgent(BaseAgent):
         evidence["direction_strength"] = round(direction_strength, 2)
 
         # ── Squeeze state machine ───────────────────────────────────────
-        prev_ratio: Optional[float] = object.__getattribute__(self, "_prev_ratio")
-        was_squeezed = (prev_ratio is not None and prev_ratio < self._SQUEEZE_RATIO)
-        object.__setattr__(self, "_prev_ratio", ratio)   # update memory
-
         if ratio < self._SQUEEZE_RATIO:
             # --- SQUEEZE ACTIVE: coiling, no entry ---
+            # Still report direction so other agents can anticipate direction,
+            # but with very low confidence (we don't trade the squeeze itself).
             dir_score = float(direction * direction_strength * 0.2)
             conf = 0.15
             regime = "squeeze_active"
 
         elif ratio < self._BREAKOUT_RATIO:
-            if was_squeezed:
-                # --- TRUE TRANSITION FIRE: exiting squeeze → strong signal ---
-                dir_score = float(direction * direction_strength * 0.85)
-                adx_bonus = min((adx - self._ADX_TREND) / 30.0, 0.15) if adx > self._ADX_TREND else 0.0
-                conf = float(np.clip(0.55 + 0.25 * direction_strength + adx_bonus, 0.0, 1.0))
-                regime = "squeeze_fire"
-            else:
-                # Near-squeeze bands but no prior coil — normal spread, not a breakout
-                dir_score = float(direction * direction_strength * 0.35)
-                conf = float(np.clip(0.20 + 0.15 * direction_strength, 0.0, 1.0))
-                regime = "normal_spread"
+            # --- TRANSITION / EARLY FIRE: BB reaching Keltner width ---
+            # This is the ideal entry zone — BB is firing from a squeeze.
+            # Confidence is highest here; direction must be confirmed.
+            dir_score = float(direction * direction_strength * 0.85)
+            adx_bonus = min((adx - self._ADX_TREND) / 30.0, 0.15) if adx > self._ADX_TREND else 0.0
+            conf = float(np.clip(0.55 + 0.25 * direction_strength + adx_bonus, 0.0, 1.0))
+            regime = "squeeze_fire"
 
         else:
             # --- BREAKOUT EXPANDED: BB already wide ---
+            # Breakout is underway; entry is still valid but we're chasing.
+            # Reduce confidence proportional to how extended the expansion is.
             extension = min((ratio - self._BREAKOUT_RATIO) / 0.5, 1.0)
             dir_score = float(direction * direction_strength * (0.7 - 0.3 * extension))
             conf = float(np.clip(0.40 - 0.20 * extension + 0.15 * direction_strength, 0.0, 1.0))
+            # Further dampened if ADX is weak (false breakout territory)
             if adx < self._ADX_TREND:
                 dir_score *= 0.5
                 conf *= 0.7

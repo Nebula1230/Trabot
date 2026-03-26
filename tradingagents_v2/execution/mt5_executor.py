@@ -200,7 +200,23 @@ class MT5Executor:
             if not symbol_info:
                 return None
 
-            # Check symbol trade mode (0=disabled, 1=long-only, 2=short-only, 4=full)
+            # ── Tick freshness check ────────────────────────────────────────────────────
+            # Reject if the last tick is older than max_tick_age_ms ms.
+            # A stale tick means the market connection is broken or the symbol
+            # is outside its trading session — any order would fill at an
+            # outdated price.
+            max_tick_age_ms = int(self.config.get("execution", {}).get("max_tick_age_ms", 0))
+            if not self.simulation_mode and max_tick_age_ms > 0:
+                _tick = self._mt5.symbol_info_tick(symbol)
+                if _tick is not None and hasattr(_tick, "time_msc"):
+                    import time as _t
+                    tick_age_ms = _t.time() * 1000 - _tick.time_msc
+                    if tick_age_ms > max_tick_age_ms:
+                        self.logger.warning(
+                            f"{symbol}: last tick is {tick_age_ms:.0f}ms old "
+                            f"(limit={max_tick_age_ms}ms) — skipping entry"
+                        )
+                        return None
             trade_mode = getattr(symbol_info, 'trade_mode', 4)
             if trade_mode == 0:
                 self.logger.warning(
@@ -294,7 +310,11 @@ class MT5Executor:
                 "tp":           take_profit,
                 "deviation":    self.config.get("slippage", 10),
                 "magic":        self.magic_number,
-                "comment":      f"{self._order_comment}/{trade_plan.recipe.direction}",
+                "comment":      (
+                    f"{self._order_comment}_"
+                    + ("DLO" if trade_plan.recipe.direction.value == "long" else
+                       "DSH" if trade_plan.recipe.direction.value == "short" else "DNE")
+                ),
                 "type_filling": filling_type,
             }
             self.logger.debug(f"order_send request: {request}")
@@ -350,9 +370,18 @@ class MT5Executor:
                 "magic":    pos.magic,
             }
             result = self._mt5.order_send(request)
-            if result is None or result.retcode != self._mt5.TRADE_RETCODE_DONE:
-                retcode = result.retcode if result else "None"
-                self.logger.error(f"SL modification failed: retcode={retcode}")
+            if result is None:
+                self.logger.error(f"SL modification failed: no result")
+                return False
+            # 10025 = TRADE_RETCODE_NO_CHANGES: new value rounds to the same tick
+            # as the current SL — position is already where we want it.
+            if result.retcode == 10025:
+                self.logger.debug(
+                    f"SL already at tick for position {position_ticket} — no MT5 change needed"
+                )
+                return True
+            if result.retcode != self._mt5.TRADE_RETCODE_DONE:
+                self.logger.warning(f"SL modification failed: retcode={result.retcode} — original SL still active")
                 return False
 
             self.logger.info(f"SL modified for position {position_ticket}: {new_stop_loss:.5f}")
@@ -386,9 +415,17 @@ class MT5Executor:
                 "magic":    pos.magic,
             }
             result = self._mt5.order_send(request)
-            if result is None or result.retcode != self._mt5.TRADE_RETCODE_DONE:
-                retcode = result.retcode if result else "None"
-                self.logger.error(f"TP modification failed: retcode={retcode}")
+            if result is None:
+                self.logger.error(f"TP modification failed: no result")
+                return False
+            # 10025 = TRADE_RETCODE_NO_CHANGES: new TP rounds to the same tick.
+            if result.retcode == 10025:
+                self.logger.debug(
+                    f"TP already at tick for position {position_ticket} — no MT5 change needed"
+                )
+                return True
+            if result.retcode != self._mt5.TRADE_RETCODE_DONE:
+                self.logger.warning(f"TP modification failed: retcode={result.retcode} — original TP still active")
                 return False
 
             self.logger.info(f"TP modified for position {position_ticket}: {new_take_profit:.5f}")
@@ -424,9 +461,18 @@ class MT5Executor:
                 "magic":    pos.magic,
             }
             result = self._mt5.order_send(request)
-            if result is None or result.retcode != self._mt5.TRADE_RETCODE_DONE:
-                retcode = result.retcode if result else "None"
-                self.logger.error(f"SL/TP modification failed: retcode={retcode}")
+            if result is None:
+                self.logger.error(f"SL/TP modification failed: no result")
+                return False
+            # 10025 = TRADE_RETCODE_NO_CHANGES: both values already at their
+            # tick-rounded positions — not an error, just a no-op.
+            if result.retcode == 10025:
+                self.logger.debug(
+                    f"SL/TP already at tick for position {position_ticket} — no MT5 change needed"
+                )
+                return True
+            if result.retcode != self._mt5.TRADE_RETCODE_DONE:
+                self.logger.warning(f"SL/TP modification failed: retcode={result.retcode} — original SL/TP still active")
                 return False
 
             self.logger.info(
@@ -478,7 +524,7 @@ class MT5Executor:
                 "price":        price,
                 "deviation":    self.config.get("slippage", 10),
                 "magic":        self.magic_number,
-                "comment":      f"{self._order_comment}/close",
+                "comment":      f"{self._order_comment}_WFX",
                 "type_time":    self._mt5.ORDER_TIME_GTC,
                 "type_filling": fill_mode,
             }
@@ -493,6 +539,95 @@ class MT5Executor:
 
         except Exception as e:
             self.logger.error(f"Error closing position: {e}")
+            return False
+
+    def close_partial_position(self, position_ticket: int, fraction: float) -> bool:
+        """
+        Close a fraction of an open position in-place.
+
+        Parameters
+        ----------
+        position_ticket : int
+            MT5 ticket of the position to partially close.
+        fraction : float
+            Fraction of current volume to close (0 < fraction < 1).
+            Rounded down to the symbol's volume_step; skipped if the
+            resulting close or remaining volume would be below volume_min.
+
+        Returns True if the partial close was sent and accepted by the broker.
+        """
+        if self.simulation_mode:
+            self.logger.info(
+                f"SIMULATION: Partial close {fraction:.0%} of #{position_ticket}"
+            )
+            return True
+
+        try:
+            position = self._mt5.positions_get(ticket=position_ticket)
+            if not position:
+                self.logger.error(f"Partial close: position #{position_ticket} not found")
+                return False
+
+            pos      = position[0]
+            sym_info = self._mt5.symbol_info(pos.symbol)
+            vol_min  = getattr(sym_info, "volume_min",  0.01)
+            vol_step = getattr(sym_info, "volume_step", 0.01)
+
+            # Calculate close volume, snapped to vol_step grid
+            close_vol = pos.volume * fraction
+            close_vol = round(round(close_vol / vol_step) * vol_step, 8)
+            remaining = round(pos.volume - close_vol, 8)
+
+            if close_vol < vol_min or remaining < vol_min:
+                self.logger.warning(
+                    f"#{position_ticket}: partial close {fraction:.0%} skipped "
+                    f"(close={close_vol:.3f} remaining={remaining:.3f} "
+                    f"vol_min={vol_min:.3f})"
+                )
+                return False
+
+            if pos.type == self._mt5.POSITION_TYPE_BUY:
+                close_type = self._mt5.ORDER_TYPE_SELL
+                price      = self._mt5.symbol_info_tick(pos.symbol).bid
+            else:
+                close_type = self._mt5.ORDER_TYPE_BUY
+                price      = self._mt5.symbol_info_tick(pos.symbol).ask
+
+            fill_mode = self._mt5.ORDER_FILLING_RETURN
+            if sym_info:
+                fm = getattr(sym_info, "filling_mode", 0)
+                if fm & 0x1:
+                    fill_mode = self._mt5.ORDER_FILLING_FOK
+                elif fm & 0x2:
+                    fill_mode = self._mt5.ORDER_FILLING_IOC
+
+            request = {
+                "action":       self._mt5.TRADE_ACTION_DEAL,
+                "symbol":       pos.symbol,
+                "volume":       close_vol,
+                "type":         close_type,
+                "position":     position_ticket,
+                "price":        price,
+                "deviation":    self.config.get("slippage", 10),
+                "magic":        self.magic_number,
+                "comment":      f"{self._order_comment}_PTP",
+                "type_time":    self._mt5.ORDER_TIME_GTC,
+                "type_filling": fill_mode,
+            }
+            result = self._mt5.order_send(request)
+            if result is None or result.retcode != self._mt5.TRADE_RETCODE_DONE:
+                retcode = result.retcode if result else "None (connection lost)"
+                self.logger.error(f"Partial close #{position_ticket} failed: {retcode}")
+                return False
+
+            self.logger.info(
+                f"Partial close #{position_ticket}: {close_vol:.3f} lots "
+                f"({fraction:.0%}) locked in — {remaining:.3f} lots remaining"
+            )
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error in partial close #{position_ticket}: {e}")
             return False
 
     def get_open_positions(self) -> list:

@@ -37,11 +37,36 @@ class TrailingStopManager:
                  atr_multiplier: float = 1.5,
                  min_profit_atr: float = 1.0,
                  tp_extend_enabled: bool = True,
-                 tp_extend_atr_mult: float = 2.0):
+                 tp_extend_atr_mult: float = 2.0,
+                 partial_tp_enabled: bool = False,
+                 partial_tp_fraction: float = 0.50,
+                 partial_tp2_enabled: bool = False,
+                 partial_tp2_r_mult: float = 2.0,
+                 partial_tp2_fraction: float = 0.50,
+                 windfall_exit_enabled: bool = False,
+                 windfall_r_mult: float = 3.0,
+                 profile: str = ""):
         self.executor = executor
+        self.profile = profile
         self.atr_multiplier = atr_multiplier
         self.tp_extend_enabled = tp_extend_enabled
         self.tp_extend_atr_mult = tp_extend_atr_mult
+        # ── Partial TP1: close a fraction at +1R (break-even stage) ──────────
+        # Guard: SL still below entry — restart-safe, no state file needed.
+        self.partial_tp_enabled  = partial_tp_enabled
+        self.partial_tp_fraction = partial_tp_fraction
+        # ── Partial TP2: close another fraction when trade extends to +2R ────
+        # Guard: SL still at stage-2 level (entry+0.5R for BUY).
+        # After firing, SL is bumped to entry+0.7R so the guard can't re-fire.
+        self.partial_tp2_enabled  = partial_tp2_enabled
+        self.partial_tp2_r_mult   = partial_tp2_r_mult
+        self.partial_tp2_fraction = partial_tp2_fraction
+        # ── Windfall exit: close ALL when profit hits an exceptional multiple ─
+        # Captures spike moves before a reversal can give them back.
+        # In-memory guard (ticket set) prevents double-fires within one session.
+        self.windfall_exit_enabled = windfall_exit_enabled
+        self.windfall_r_mult       = windfall_r_mult
+        self._windfall_closed_tickets: set = set()
         self.logger = logging.getLogger("TrailingStopManager")
 
     def update_trails(self, data_loader: "DataLoader"):
@@ -123,8 +148,10 @@ class TrailingStopManager:
             structural_tp = resist_candidates[0] if resist_candidates else current_tp
             new_tp = max(current_tp, structural_tp) if current_tp > 0 else structural_tp
 
-            sl_changed = new_sl > current_sl + 1e-9
-            tp_changed = new_tp > current_tp + 1e-9
+            # Use 1e-4 (sub-pip) as minimum meaningful change to avoid firing
+            # MT5 requests for deltas that will round to zero at the tick level.
+            sl_changed = new_sl > current_sl + 1e-4
+            tp_changed = new_tp > current_tp + 1e-4
 
         else:  # SELL
             # SL: pull nearest resistance down, ratchet only
@@ -143,8 +170,10 @@ class TrailingStopManager:
             new_tp = (min(current_tp, structural_tp)
                       if current_tp > 0 else structural_tp) if in_profit else current_tp
 
-            sl_changed = (current_sl == 0.0 or new_sl < current_sl - 1e-9)
-            tp_changed = (current_tp == 0.0 or new_tp < current_tp - 1e-9)
+            # Use 1e-4 (sub-pip) as minimum meaningful change — same rationale
+            # as the BUY branch above.
+            sl_changed = (current_sl == 0.0 or new_sl < current_sl - 1e-4)
+            tp_changed = (current_tp == 0.0 or new_tp < current_tp - 1e-4)
 
         if sl_changed or tp_changed:
             self.logger.info(
@@ -198,6 +227,60 @@ class TrailingStopManager:
             else:
                 return  # still inside 1R — don't touch
 
+            _pfx = f"[{self.profile.upper()}] " if self.profile else ""
+
+            # ── Windfall exit: close ALL at exceptional R multiple ────────────
+            # Captures spike moves before a reversal gives them back.
+            # In-memory ticket guard prevents double-fires within one session.
+            if (self.windfall_exit_enabled
+                    and profit >= self.windfall_r_mult * one_r
+                    and ticket not in self._windfall_closed_tickets):
+                self._windfall_closed_tickets.add(ticket)
+                ok = self.executor.close_position(ticket)
+                if ok:
+                    self.logger.info(
+                        f"{_pfx}WINDFALL EXIT BUY {symbol} #{ticket}: "
+                        f"ALL closed at +{profit/one_r:.1f}R "
+                        f"(entry={entry:.5f} price={price:.5f})"
+                    )
+                return   # position closed — no further SL management
+
+            # ── Partial TP1: fire once at +1R while SL still below entry ─────
+            # Guard: current_sl < entry — restart-safe (SL moves to entry after)
+            if (self.partial_tp_enabled
+                    and stage == 1
+                    and current_sl < entry - 1e-5):
+                ok = self.executor.close_partial_position(
+                    ticket, self.partial_tp_fraction
+                )
+                if ok:
+                    self.logger.info(
+                        f"{_pfx}PARTIAL TP BUY {symbol} #{ticket}: "
+                        f"{self.partial_tp_fraction:.0%} locked in at +1R "
+                        f"(entry={entry:.5f} price={price:.5f})"
+                    )
+
+            # ── Partial TP2: fire once at +2R while SL still at stage-2 level ─
+            # Guard: SL at/near entry+0.5R (set in stage 2, not yet moved by ATR).
+            # After firing, new_sl is bumped to entry+0.7R so the guard can't
+            # re-fire on the next surveillance tick (restart-safe).
+            if (self.partial_tp2_enabled
+                    and stage == 3
+                    and profit >= self.partial_tp2_r_mult * one_r
+                    and current_sl <= entry + 0.52 * one_r):
+                ok = self.executor.close_partial_position(
+                    ticket, self.partial_tp2_fraction
+                )
+                if ok:
+                    self.logger.info(
+                        f"{_pfx}PARTIAL TP2 BUY {symbol} #{ticket}: "
+                        f"{self.partial_tp2_fraction:.0%} locked in at "
+                        f"+{profit/one_r:.1f}R "
+                        f"(entry={entry:.5f} price={price:.5f})"
+                    )
+                    # Push SL above stage-2 guard threshold to prevent re-fire
+                    new_sl = max(new_sl, entry + 0.7 * one_r)
+
             if new_sl > current_sl:
                 self.logger.info(
                     f"SL lock BUY  {symbol} #{ticket} [stage {stage}]: "
@@ -235,6 +318,58 @@ class TrailingStopManager:
                 stage = 1
             else:
                 return
+
+            _pfx = f"[{self.profile.upper()}] " if self.profile else ""
+
+            # ── Windfall exit: close ALL at exceptional R multiple ────────────
+            if (self.windfall_exit_enabled
+                    and profit >= self.windfall_r_mult * one_r
+                    and ticket not in self._windfall_closed_tickets):
+                self._windfall_closed_tickets.add(ticket)
+                ok = self.executor.close_position(ticket)
+                if ok:
+                    self.logger.info(
+                        f"{_pfx}WINDFALL EXIT SELL {symbol} #{ticket}: "
+                        f"ALL closed at +{profit/one_r:.1f}R "
+                        f"(entry={entry:.5f} price={price:.5f})"
+                    )
+                return   # position closed — no further SL management
+
+            # ── Partial TP1: fire once at +1R while SL still above entry ─────
+            # Guard: current_sl > entry — restart-safe (SL moves to entry after)
+            if (self.partial_tp_enabled
+                    and stage == 1
+                    and (current_sl == 0.0 or current_sl > entry + 1e-5)):
+                ok = self.executor.close_partial_position(
+                    ticket, self.partial_tp_fraction
+                )
+                if ok:
+                    self.logger.info(
+                        f"{_pfx}PARTIAL TP SELL {symbol} #{ticket}: "
+                        f"{self.partial_tp_fraction:.0%} locked in at +1R "
+                        f"(entry={entry:.5f} price={price:.5f})"
+                    )
+
+            # ── Partial TP2: fire once at +2R while SL still at stage-2 level ─
+            # Guard: SL at/near entry-0.5R (set in stage 2, not yet moved by ATR).
+            # After firing, new_sl is bumped to entry-0.7R so the guard can't
+            # re-fire on the next surveillance tick (restart-safe).
+            if (self.partial_tp2_enabled
+                    and stage == 3
+                    and profit >= self.partial_tp2_r_mult * one_r
+                    and (current_sl == 0.0 or current_sl >= entry - 0.52 * one_r)):
+                ok = self.executor.close_partial_position(
+                    ticket, self.partial_tp2_fraction
+                )
+                if ok:
+                    self.logger.info(
+                        f"{_pfx}PARTIAL TP2 SELL {symbol} #{ticket}: "
+                        f"{self.partial_tp2_fraction:.0%} locked in at "
+                        f"+{profit/one_r:.1f}R "
+                        f"(entry={entry:.5f} price={price:.5f})"
+                    )
+                    # Push SL below stage-2 guard threshold to prevent re-fire
+                    new_sl = min(new_sl, entry - 0.7 * one_r)
 
             if current_sl == 0.0 or new_sl < current_sl:
                 self.logger.info(

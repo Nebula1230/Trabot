@@ -30,12 +30,18 @@ class RiskConfig(BaseModel):
     """Risk management configuration."""
     base_risk_pct: float = Field(default=0.25, ge=0.01, le=5.0, description="Base risk per trade as % of equity")
     max_daily_drawdown_pct: float = Field(default=2.0, ge=0.1, le=10.0, description="Maximum daily drawdown %")
+    max_weekly_drawdown_pct: float = Field(default=0.0, ge=0.0, le=30.0, description="Maximum weekly drawdown % (0 = disabled)")
     max_concurrent_trades: int = Field(default=3, ge=1, le=20, description="Maximum concurrent trades")
     per_symbol_leverage_cap: float = Field(default=3.0, ge=1.0, le=10.0, description="Per-symbol leverage cap")
     portfolio_leverage_cap: float = Field(default=5.0, ge=1.0, le=20.0, description="Portfolio leverage cap")
     max_correlated_positions: int = Field(default=2, ge=1, le=10, description="Max open positions in the same currency direction (e.g. long USD)")
     # Weekly pivot level proximity guard (ATR units).  0 = disabled.
     pivot_buffer_atr: float = Field(default=0.50, ge=0.0, description="Reject entries closer than N×ATR to a weekly pivot level")
+    # Overtrading guards — MUST be in the Pydantic model so model_dump() exposes
+    # them to runner.py.  If missing, Pydantic drops them silently and guards are
+    # disabled (root cause of 1556 scalp trades / −$3858 in one session).
+    max_daily_trades: int = Field(default=0, ge=0, description="Hard daily cap on total orders placed (0 = disabled)")
+    entry_cooldown_minutes: float = Field(default=0.0, ge=0.0, description="Minimum minutes between successive entries on the same symbol (0 = disabled)")
 
 
 class ExecutionConfig(BaseModel):
@@ -146,6 +152,12 @@ class TradingConfig(BaseSettings):
 
     # VIX-based risk scaling
     vix_risk_scaling: Dict[str, Any] = Field(default_factory=dict, description="VIX-driven risk reduction config")
+
+    # Per-symbol risk multipliers (symbol → fraction of base risk, e.g. {"XAUUSD": 0.50})
+    symbol_risk_multipliers: Dict[str, float] = Field(
+        default_factory=dict,
+        description="Per-symbol risk fraction overrides. Values < 1.0 reduce position size for that symbol.",
+    )
 
     # Kelly criterion adaptive position sizing
     kelly: Dict[str, Any] = Field(default_factory=dict, description="Kelly criterion sizing config")

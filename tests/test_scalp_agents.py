@@ -673,8 +673,9 @@ class TestScalpProfileConfig:
     def test_risk_pct_matches_profile(self, cfg):
         assert cfg.risk.base_risk_pct == pytest.approx(0.10)
 
-    def test_max_concurrent_8(self, cfg):
-        assert cfg.risk.max_concurrent_trades == 8
+    def test_max_concurrent_4(self, cfg):
+        # Tightened from 8 → 4 after live-trading overtrading analysis
+        assert cfg.risk.max_concurrent_trades == 4
 
     def test_surveillance_20s(self, cfg):
         assert cfg.model_dump().get("realtime", {}).get("surveillance_interval_seconds") == 20
@@ -709,8 +710,8 @@ class TestScalpProfileConfig:
         assert cfg.validate_config() is True
 
     def test_min_win_prob_allowed(self, cfg):
-        # risky/scalp use 0.42; was previously rejected
-        assert cfg.probability.min_win_prob == pytest.approx(0.42)
+        # Tightened from 0.42 → 0.52 after live-trading overtrading analysis
+        assert cfg.probability.min_win_prob == pytest.approx(0.52)
 
     def test_all_four_profiles_distinct_magic(self):
         magics = set()
@@ -879,7 +880,7 @@ class TestScalpRunnerIntegration:
     def test_decisions_all_valid(self, runner):
         results = run(runner.run_once())
         for sym, r in results.items():
-            assert r["decision"] in ("stop", "continue", "approved", "rejected"), \
+            assert r["decision"] in ("stop", "continue", "approved", "rejected", "cooldown", "news_blackout"), \
                 f"{sym}: unexpected decision '{r['decision']}'"
 
     def test_executed_is_bool(self, runner):
@@ -888,7 +889,7 @@ class TestScalpRunnerIntegration:
             assert isinstance(r.get("executed", False), bool)
 
     def test_order_comment_contains_scalp(self, runner):
-        assert "scalp" in runner.executor._order_comment
+        assert "scp" in runner.executor._order_comment
 
     def test_result_has_required_keys(self, runner):
         results = run(runner.run_once())

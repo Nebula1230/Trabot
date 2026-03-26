@@ -30,7 +30,9 @@ symbols:
   - AUDUSD
   - USDCAD
   - NZDUSD
-  - XAUUSD
+  # - XAUUSD   # DISABLED — gold is too volatile for D1-based profiles (safe/balanced/risky).
+  #              Only trade gold via the scalp profile (1m ATR-based tight SL).
+  #              Uncomment here ONLY if you understand the risk and have a funded account.
   # ── Indices (CFDs) ──────────────────────────────────────────────
   - US30      # Dow Jones
   - US500     # S&P 500
@@ -74,8 +76,11 @@ interval_seconds: 300
 # ── Real-time surveillance ─────────────────────────────────
 # A separate fast loop watches open positions independently of the signal loop.
 # It runs SL lock-in (break-even/trail) and agent-based exit checks.
+# Also handles Friday weekend gap protection (weekend_close_enabled).
 realtime:
   surveillance_interval_seconds: 60   # check open positions every 60s
+  weekend_close_enabled:     true
+  weekend_close_utc_hour:    20        # 20:00 UTC = after London session, before Asian open
 
 # ── MT5 connection ───────────────────────────────────────────────
 # Running on Linux?  Start the mt5docker container first:
@@ -103,6 +108,10 @@ mt5:
 risk:
   base_risk_pct:            0.10   # risk 0.10% of equity per trade (Forex = leveraged!)
   max_daily_drawdown_pct:   1.0    # halt if daily loss exceeds 1%
+  # Weekly circuit breaker: let the bot lose up to 2% in a week before halting
+  # all new entries.  Prevents 5× small daily losses from compounding silently.
+  # 0 = disabled.
+  max_weekly_drawdown_pct:  2.0
   max_concurrent_trades:    6      # max open positions
   per_symbol_leverage_cap:  3.0
   portfolio_leverage_cap:   5.0
@@ -112,6 +121,10 @@ risk:
   # Weekly pivot level proximity guard — reject entries directly into a key level.
   # 0.50 = reject if opposing pivot is closer than 0.5×ATR.  Set 0 to disable.
   pivot_buffer_atr: 0.50
+  # Overtrading guards: balanced has 21 symbols on a 5-min cycle.
+  # Without caps the bot can place trade after trade on hot symbols.
+  entry_cooldown_minutes: 15    # min 15 min between entries on same symbol
+  max_daily_trades:       20    # hard daily cap across all symbols
 
 # ── Agent tuning (optional) ───────────────────────────────────────
 # Leave empty to use all agents with equal weight.
@@ -137,13 +150,14 @@ agents:
 # ── Alignment thresholds ─────────────────────────────────────────
 # Controls how strongly signals must agree before a trade is placed.
 alignment:
-  long_min_score:   0.12   # min directional score on long timeframe (D1)  [was 0.25 — lowered to allow weak-but-aligned signals]
-  mid_min_score:    0.10   # min directional score on mid timeframe (1H)   [was 0.20]
-  short_min_score:  0.08   # min directional score on short timeframe (15m) [was 0.15]
+  long_min_score:   0.20   # min directional score on long timeframe (D1)  [raised from 0.12 — near-noise; risky=0.18, safe=0.35]
+  mid_min_score:    0.10   # min directional score on mid timeframe (1H)
+  short_min_score:  0.08   # min directional score on short timeframe (15m)
   mean_rev_guard:   0.65   # block if mean-reversion score > this (overbought check)
   breadth_min:     -0.60   # block if market breadth below this (weak market)
-  min_win_prob:     0.45   # min win probability required
+  min_win_prob:     0.47   # min win probability required  [raised from 0.45 — sub-50% territory]
   min_ev:           0.08   # min expected value required
+  min_confidence:   0.46   # agent confidence gate [was missing — safe=0.50, risky=0.42]
   pullback_tolerance: 0.40
   # ── Forex session dead-zone (UTC hours) — thresholds tightened to avoid low-liquidity entries
   dead_zone_start_utc: 22   # 22:00 UTC = London/NY close
@@ -181,6 +195,25 @@ exit_rules:
   tighten_on_fade_enabled:          true
   tighten_fade_threshold:           0.20   # tighten when fade_threshold < |D1| < this
   tighten_tp_atr_mult:              0.5    # new TP = price ± N×ATR (capture nearby profit)
+  # Time-stop: close any trade open longer than this without reaching TP.
+  # Prevents capital being locked in stalled/sideways trades paying swap.
+  # 0 = disabled.  Balanced default: 10h (D1 signal — 10h without move = thesis failed).
+  max_trade_duration_hours:         10
+
+# ── Execution freshness guards ───────────────────────────────────
+# Reject entries when the signal or last market tick is too old.
+execution:
+  signal_max_age_seconds: 150  # reject plan if bar data is older than this (s); 0=disabled
+  max_tick_age_ms: 2000        # reject entry if last MT5 tick is older than this (ms); 0=disabled
+  # Pre-news blackout: skip new entries within ±N minutes of a high-impact economic
+  # event (NFP, FOMC, CPI) for any currency in the traded symbol.  Data from
+  # ForexFactory public JSON (cached 4h, fault-tolerant — disabled if unreachable).
+  # 0 = disabled.
+  news_blackout_minutes: 20
+
+# ── Weekend gap protection ──────────────────────────────────────────────
+# Moved into the realtime: block above (YAML does not allow duplicate top-level keys).
+
 # ── Trailing stop — staged lock-in + TP management ────────────────
 # Stage 1 (+1R profit):  SL → break-even
 # Stage 2 (+1.5R profit): SL → entry + 0.5R
@@ -189,6 +222,17 @@ trailing:
   atr_multiplier:      1.5    # Stage-3 SL trail distance = price ± N×ATR
   tp_extend_enabled:   true   # push TP forward in Stage 3 (let winners run)
   tp_extend_atr_mult:  2.0    # new TP = price ± N×ATR when extending
+  # Partial take-profit: close a fraction of the position the first time
+  # price hits +1R (break-even), then trail the remaining lot.
+  # This banks a guaranteed gain and removes psychological pressure
+  # while the trailing SL rides the rest of the move.
+  partial_tp_enabled:  true
+  partial_tp_fraction: 0.50   # close 50% at +1R; trail the other 50%
+  partial_tp2_enabled:  true
+  partial_tp2_r_mult:   2.0   # fire 2nd partial when profit reaches +2R
+  partial_tp2_fraction: 0.40  # close 40% of remaining at +2R
+  windfall_exit_enabled: true
+  windfall_r_mult:      3.5   # close ALL when profit reaches +3.5R
 
 # ── Regime-conditional agent weighting ───────────────────────────
 # In trending regimes (ADX > ~28, trendiness > trend_threshold), amplify

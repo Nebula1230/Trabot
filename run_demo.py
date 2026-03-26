@@ -31,6 +31,82 @@ import sys
 from pathlib import Path
 
 
+def _acquire_profile_lock(profile: str):
+    """Acquire an exclusive per-profile lock file.
+
+    Self-healing: if the lock is held by a dead or *suspended* (Ctrl+Z) process,
+    that process is automatically killed and the lock reclaimed by this instance.
+    Only a genuinely active (R/S state) process blocks startup.
+    """
+    import fcntl, os, signal
+
+    lock_path = Path(f"/tmp/tradingbot_{profile}.lock")
+
+    def _read_locked_pid():
+        try:
+            return int(lock_path.read_text().strip())
+        except Exception:
+            return None
+
+    def _proc_state(pid):
+        """Return single-char state from /proc/<pid>/status, empty string if gone."""
+        try:
+            for line in Path(f"/proc/{pid}/status").read_text().splitlines():
+                if line.startswith("State:"):
+                    return line.split()[1]   # 'R', 'S', 'T', 'Z', …
+        except FileNotFoundError:
+            pass
+        return ""
+
+    for _attempt in range(2):
+        fh = open(lock_path, "a+")   # 'a+' creates the file if absent
+        try:
+            fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            # Lock acquired — overwrite file with our PID.
+            fh.seek(0)
+            fh.truncate()
+            fh.write(str(os.getpid()))
+            fh.flush()
+            return fh   # keep open: lock released when FD closes / process dies
+        except (BlockingIOError, OSError):
+            fh.close()
+
+        # Lock is held — inspect the holder.
+        locked_pid = _read_locked_pid()
+        state = _proc_state(locked_pid) if locked_pid else ""
+
+        if not state or state == "Z":
+            # Holder is dead/zombie — stale lock; clear and retry.
+            print(f"[lock] Stale lock for '{profile}' (PID {locked_pid} is dead) — clearing.")
+            lock_path.unlink(missing_ok=True)
+            continue
+
+        if state == "T":
+            # Holder is suspended (Ctrl+Z). Kill it and retry automatically.
+            print(
+                f"[lock] '{profile}' bot (PID {locked_pid}) is SUSPENDED (Ctrl+Z)."
+                f" Killing it to allow a clean restart…"
+            )
+            try:
+                os.kill(locked_pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            import time as _t; _t.sleep(0.5)
+            lock_path.unlink(missing_ok=True)
+            continue
+
+        # Process is genuinely alive (R/S) — refuse startup.
+        print(
+            f"\n\u26d4  Another '{profile}' bot (PID {locked_pid}, state={state}) is already running."
+            f"\n   Only ONE instance per profile is allowed."
+            f"\n   Kill it first:  kill -9 {locked_pid}\n"
+        )
+        sys.exit(1)
+
+    print(f"\n\u26d4  Could not acquire lock for profile '{profile}' after retry. Aborting.\n")
+    sys.exit(1)
+
+
 def _setup_logging(log_dir: str, level: str = "INFO"):
     """Configure logging to both console and a rotating file."""
     from logging.handlers import RotatingFileHandler
@@ -164,6 +240,9 @@ def main():
         print(f"Error: config file '{config_path}' not found.")
         print("Copy and edit config.demo.yaml to get started.")
         sys.exit(1)
+
+    # Prevent accidental multi-instance launches (the #1 cause of over-trading)
+    _lock = _acquire_profile_lock(args.profile)  # noqa: F841 — kept alive until exit
 
     simulation = not args.live
 

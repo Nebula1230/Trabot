@@ -407,11 +407,11 @@ class TestRegimeAgentLogic:
         assert agent._calculate_volatility_state(f) == "low"
 
     def test_vol_state_normal(self, agent):
-        f = make_features(realized_vol=0.02)
+        f = make_features(realized_vol=0.10)   # 10% annual — typical FX, within normal 5-20%
         assert agent._calculate_volatility_state(f) == "normal"
 
     def test_vol_state_high(self, agent):
-        f = make_features(realized_vol=0.05)
+        f = make_features(realized_vol=0.25)   # 25% annual — indices/gold in volatile periods
         assert agent._calculate_volatility_state(f) == "high"
 
     def test_dir_score_in_range(self, agent):
@@ -620,7 +620,7 @@ class TestMeanReversionAgentLogic:
         assert agent._calculate_rsi_extremes(f) == 0.0
 
     def test_high_vol_negative_adjustment(self, agent):
-        f = make_features(realized_vol=0.05, atr_14=2.0)
+        f = make_features(realized_vol=0.25, atr_14=2.0)  # 25% annual → high → -0.3
         assert agent._calculate_volatility_adjustment(f) < 0
 
     def test_low_vol_positive_adjustment(self, agent):
@@ -1055,7 +1055,7 @@ class TestTradingGraph:
         )
         portfolio = make_portfolio()
         limits = RiskLimits()
-        g = TradingGraph(_full_registry(), {}, MT5Executor())
+        g = TradingGraph(_full_registry(), {}, MT5Executor({"simulation": True}))
         state = run(g.run("BULL", f, portfolio_state=portfolio, risk_limits=limits))
         # No errors regardless of outcome
         assert state["errors"] == []

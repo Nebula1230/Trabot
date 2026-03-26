@@ -13,8 +13,11 @@ Or from the CLI:
 """
 
 import asyncio
+import json
 import logging
 import signal
+import time
+from pathlib import Path
 from typing import List, Optional
 from datetime import datetime
 
@@ -33,6 +36,142 @@ from .execution.mt5_executor import MT5Executor
 from .execution.order_manager import OrderManager
 from .execution.trailing_stop import TrailingStopManager
 from .monitoring.journal import TradeJournal
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# News blackout helpers
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _symbol_currencies(symbol: str) -> frozenset:
+    """
+    Return the set of ISO currency codes a symbol is sensitive to.
+    Used by the news blackout guard to match economic events to a symbol.
+    """
+    sym = symbol.upper()
+    # Strip common broker suffixes (EURUSDm, EURUSD.)
+    bare = sym.rstrip(".").rstrip("M") if sym.endswith(("M", ".")) else sym
+    # Standard 6-character forex pair (EURUSD, GBPJPY, …)
+    if len(bare) == 6 and bare.isalpha():
+        return frozenset([bare[:3], bare[3:]])
+    # 6-char prefix with broker suffix (EURUSDm, EURUSDx)
+    if len(bare) > 6 and bare[:6].isalpha():
+        return frozenset([bare[:3], bare[3:6]])
+    # US equity indices — USD-denominated
+    if any(x in sym for x in ("US30", "US500", "USTEC", "NAS", "DJ30", "SP500")):
+        return frozenset(["USD"])
+    # European indices
+    if any(x in sym for x in ("DAX", "GER", "CAC", "FRA")):
+        return frozenset(["EUR"])
+    if any(x in sym for x in ("UK100", "FTSE", "UK")):
+        return frozenset(["GBP"])
+    if any(x in sym for x in ("JP225", "JPN", "NIK")):
+        return frozenset(["JPY"])
+    if any(x in sym for x in ("AUS200", "ASX", "AUS")):
+        return frozenset(["AUD"])
+    # Commodities / metals
+    if "XAU" in sym or "GOLD" in sym:
+        return frozenset(["USD"])
+    if any(x in sym for x in ("OIL", "WTI", "BRENT", "XTI", "NGAS")):
+        return frozenset(["USD"])
+    return frozenset(["USD"])   # safe fallback
+
+
+class _NewsCalendar:
+    """
+    Lightweight economic calendar cache using the ForexFactory public JSON feed.
+    Fetches high-impact events once and caches them for 4 hours.
+
+    If the feed is unavailable or cannot be parsed the guard silently disables
+    itself for that cycle — no trades are ever blocked due to an API failure.
+    """
+
+    _TTL = 4 * 3600   # refresh every 4 hours
+    _URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
+
+    def __init__(self):
+        self._events: list = []       # [{"currency": str, "ts": float}, …]
+        self._fetched_at: float = 0.0
+        self._logger = logging.getLogger("NewsCalendar")
+
+    def _parse_event_ts(self, date_str: str) -> "Optional[float]":
+        """Parse a date string (ISO 8601 or MM-DD-YYYY) to a UTC Unix timestamp."""
+        from datetime import timezone as _tz
+        # Python 3.11 fromisoformat handles full ISO 8601 including timezone offsets
+        try:
+            dt = datetime.fromisoformat(date_str)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=_tz.utc)
+            return dt.timestamp()
+        except Exception:
+            pass
+        # ForexFactory legacy: "MM-DD-YYYY" or bare "YYYY-MM-DD"
+        for fmt in ("%m-%d-%Y", "%Y-%m-%d"):
+            try:
+                dt = datetime.strptime(date_str[:10], fmt).replace(tzinfo=_tz.utc)
+                return dt.timestamp()
+            except Exception:
+                pass
+        return None
+
+    def _refresh(self) -> None:
+        import requests as _req
+        try:
+            resp = _req.get(self._URL, timeout=5)
+            resp.raise_for_status()
+            raw = resp.json()
+            events = []
+            for ev in raw:
+                impact   = (ev.get("impact") or "").strip().lower()
+                if impact not in ("high", "3"):   # FF uses "High" or numeric "3"
+                    continue
+                currency = (ev.get("currency") or ev.get("country") or "").upper().strip()
+                date_str  = (ev.get("date") or "").strip()
+                if not date_str or not currency:
+                    continue
+                ts = self._parse_event_ts(date_str)
+                if ts is not None:
+                    events.append({"currency": currency, "ts": ts})
+            self._events     = events
+            self._fetched_at = time.time()
+            self._logger.info(
+                f"[NEWS] Loaded {len(events)} high-impact events (source: ForexFactory)"
+            )
+        except Exception as exc:
+            # Set _fetched_at to TTL/2 in the past so the next retry is in
+            # ~2 hours instead of immediately.  This prevents a 429 retry
+            # storm when 4 profile bots share the same source IP.
+            # _events is kept unchanged (last successful fetch) so any
+            # previously-loaded events still protect the next cycles.
+            self._fetched_at = time.time() - self._TTL / 2
+            self._logger.warning(
+                f"[NEWS] Calendar fetch failed ({exc}) — "
+                "news blackout disabled for this refresh cycle; "
+                "next retry in ~2 hours"
+            )
+
+    def is_blackout(self, symbol: str, blackout_minutes: int) -> bool:
+        """Return True if a high-impact event is within ±blackout_minutes for this symbol."""
+        if blackout_minutes <= 0:
+            return False
+        now = time.time()
+        if now - self._fetched_at > self._TTL:
+            self._refresh()
+        if not self._events:
+            return False
+        window     = blackout_minutes * 60.0
+        currencies = _symbol_currencies(symbol)
+        for ev in self._events:
+            if ev["currency"] in currencies and abs(ev["ts"] - now) <= window:
+                mins_away = (ev["ts"] - now) / 60.0
+                self._logger.info(
+                    f"[NEWS] Blackout: {symbol} ({ev['currency']} event "
+                    f"in {mins_away:+.0f} min)"
+                )
+                return True
+        return False
+
+
+_news_calendar = _NewsCalendar()
 
 
 def _build_registry(config: TradingConfig) -> AgentRegistry:
@@ -120,8 +259,11 @@ class TradingRunner:
             executor_cfg["simulation"] = True    # force simulation mode regardless of mt5linux
         # Stamp each order's MT5 comment with the active profile so trades are
         # identifiable in the MT5 History / Trades tab of the UI.
-        # Format: "bot/<profile>" e.g. "bot/scalp", "bot/balanced"
-        executor_cfg["order_comment"] = f"bot/{self.config.profile}"
+        # Format: "b_{abbrev}" e.g. "b_safe", "b_bal", "b_rsk", "b_scp"
+        _p_abbrev = {"balanced": "bal", "risky": "rsk", "scalp": "scp"}.get(
+            self.config.profile, self.config.profile
+        )
+        executor_cfg["order_comment"] = f"b_{_p_abbrev}"
         self.executor = MT5Executor(executor_cfg)
         self.order_manager = OrderManager(self.config.mt5.model_dump())
 
@@ -154,6 +296,14 @@ class TradingRunner:
             min_profit_atr=1.0,
             tp_extend_enabled=bool(trailing_cfg.get("tp_extend_enabled", True)),
             tp_extend_atr_mult=float(trailing_cfg.get("tp_extend_atr_mult", 2.0)),
+            partial_tp_enabled=bool(trailing_cfg.get("partial_tp_enabled", False)),
+            partial_tp_fraction=float(trailing_cfg.get("partial_tp_fraction", 0.50)),
+            partial_tp2_enabled=bool(trailing_cfg.get("partial_tp2_enabled", False)),
+            partial_tp2_r_mult=float(trailing_cfg.get("partial_tp2_r_mult", 2.0)),
+            partial_tp2_fraction=float(trailing_cfg.get("partial_tp2_fraction", 0.50)),
+            windfall_exit_enabled=bool(trailing_cfg.get("windfall_exit_enabled", False)),
+            windfall_r_mult=float(trailing_cfg.get("windfall_r_mult", 3.0)),
+            profile=self.config.profile,
         )
 
         # Risk limits from config
@@ -172,6 +322,35 @@ class TradingRunner:
         # whenever positions are flat — useless as a daily loss limit.
         self._start_of_day_balance: float = 0.0
         self._start_of_day_date: str = ""
+
+        # Per-symbol entry cooldown: tracks the last time (epoch seconds) a
+        # trade was successfully placed on each symbol.  Prevents continuous
+        # re-entry on the same symbol every 60-second cycle.
+        self._entry_cooldown: dict = {}   # symbol → float (epoch seconds)
+
+        # Daily trade count: resets each UTC calendar day.  Enforces
+        # max_daily_trades from the risk config to cap total daily exposure.
+        self._daily_trade_count: int = 0
+
+        # Weekly drawdown tracking — measures equity from start of UTC week
+        # (ISO Monday).  max_weekly_drawdown_pct > 0 trips a weekly halt circuit
+        # breaker that blocks all new entries until the next Monday.
+        self._start_of_week_balance: float = 0.0
+        self._start_of_week_date:    str   = ""   # ISO week e.g. "2026-W12"
+
+        # Weekend gap protection flag — set Friday after market close, cleared
+        # on Monday when markets reopen.  While True, the signal loop skips
+        # all new entries so no positions remain at the Sunday gap open.
+        self._weekend_close_active: bool = False
+
+        # ── Persist / restore daily guards across restarts ────────────────────
+        # Without this: every restart resets _daily_trade_count=0 and
+        # _entry_cooldown={}, completely bypassing the overtrading guards.
+        # Root cause of 1556 scalp trades in one session (guard always read 0).
+        self._state_file = Path(
+            self.journal.log_dir / f"_bot_state_{self.config.profile}.json"
+        )
+        self._restore_daily_state()
 
         self._setup_signal_handlers()
 
@@ -306,6 +485,24 @@ class TradingRunner:
         while self._running:
             start = datetime.now()
             try:
+                # ── Friday weekend gap protection ──────────────────────────────────
+                # Close all positions before the weekend to prevent Sunday-open gaps
+                # from blowing through SLs that were sized for normal market hours.
+                _rt_cfg_sv = self.config.model_dump().get("realtime", {})
+                if bool(_rt_cfg_sv.get("weekend_close_enabled", False)):
+                    _now_utc  = datetime.utcnow()
+                    _cutoff   = int(_rt_cfg_sv.get("weekend_close_utc_hour", 20))
+                    if _now_utc.weekday() == 4 and _now_utc.hour >= _cutoff:
+                        # Friday past market close — close everything once
+                        if not self._weekend_close_active:
+                            self._weekend_close_active = True
+                            await self._close_all_positions(
+                                f"Friday weekend gap protection (past {_cutoff}:00 UTC)"
+                            )
+                    elif _now_utc.weekday() not in (4, 5):
+                        # Monday–Thursday or Sunday: markets open → allow entries again
+                        self._weekend_close_active = False
+
                 # 1. Staged SL lock-in (uses live price from positions, no bar load)
                 self.trailing_stop_mgr.update_trails(self.data_loader)
                 # 2. Structural SL/TP ratchet (pivot-based, every surveillance tick)
@@ -341,6 +538,38 @@ class TradingRunner:
     async def run_once(self, symbols: List[str] = None) -> dict:
         """Run a single analysis cycle and return results. Useful for testing."""
         return await self._run_cycle(symbols)
+
+    async def _close_all_positions(self, reason: str) -> None:
+        """
+        Close every open position managed by this bot instance.
+        Used for end-of-week gap protection and weekly drawdown circuit breaker.
+        """
+        open_positions = [
+            p for p in self.executor.get_open_positions()
+            if p.get("magic") == self.executor.magic_number
+        ]
+        if not open_positions:
+            self.logger.info(f"[CLOSE ALL] No open positions ({reason})")
+            return
+        self.logger.warning(
+            f"[CLOSE ALL] Closing {len(open_positions)} position(s) — {reason}"
+        )
+        for pos in open_positions:
+            symbol = pos["symbol"]
+            ticket = pos["ticket"]
+            ok = self.executor.close_position(ticket)
+            if ok:
+                self.logger.info(
+                    f"  Closed {symbol} #{ticket}  pnl={pos['profit']:+.2f}"
+                )
+                self.journal.record_cycle(symbol, {
+                    "decision":     "closed",
+                    "executed":     True,
+                    "order_ticket": ticket,
+                    "errors":       [],
+                })
+            else:
+                self.logger.error(f"  Failed to close {symbol} #{ticket}")
 
     async def _check_and_close_positions(self) -> None:
         """
@@ -472,6 +701,24 @@ class TradingRunner:
                                     f"(M={dir_mid:.3f} S={dir_short:.3f}) while D1 weak ({dir_long:.3f})"
                                 )
 
+                # ── Time-stop ────────────────────────────────────────────────
+                # If neither signal condition fired, check whether the trade has
+                # been open too long without reaching its TP.
+                if not should_close:
+                    max_hours = float(exit_cfg.get("max_trade_duration_hours", 0))
+                    if max_hours > 0:
+                        open_ts = pos.get("open_time", 0)  # UNIX seconds
+                        if open_ts and open_ts > 0:
+                            import time as _t
+                            hours_open = (_t.time() - open_ts) / 3600.0
+                            if hours_open >= max_hours:
+                                should_close = True
+                                reason = (
+                                    f"time-stop: open {hours_open:.1f}h "
+                                    f">= {max_hours:.0f}h limit  "
+                                    f"pnl={pos['profit']:+.2f}"
+                                )
+
                 if should_close:
                     self.logger.info(
                         f"EXIT [{symbol} #{pos['ticket']} {trade_type}  "
@@ -557,15 +804,51 @@ class TradingRunner:
             if self._start_of_day_date != today_utc:
                 self._start_of_day_balance = portfolio.equity
                 self._start_of_day_date = today_utc
+                self._daily_trade_count = 0  # reset counter each new UTC day
                 self.logger.info(
                     f"New trading day {today_utc} — "
                     f"start-of-day equity: {self._start_of_day_balance:.2f}"
                 )
+                # Persist the fresh daily state (counter = 0, new SOD balance)
+                self._persist_daily_state()
             if self._start_of_day_balance > 0:
                 real_dd = (portfolio.equity - self._start_of_day_balance) / self._start_of_day_balance
                 portfolio = portfolio.model_copy(
                     update={"daily_drawdown": real_dd, "max_daily_drawdown": real_dd}
                 )
+
+            # ── Weekly drawdown tracking ───────────────────────────────────────
+            # Use ISO 8601 week number (%G-W%V) so the counter resets on Monday.
+            _this_week = datetime.utcnow().strftime("%G-W%V")
+            if self._start_of_week_date != _this_week:
+                self._start_of_week_balance = portfolio.equity
+                self._start_of_week_date    = _this_week
+                self.logger.info(
+                    f"New trading week {_this_week} — "
+                    f"start-of-week equity: {self._start_of_week_balance:.2f}"
+                )
+
+        # ── Circuit breakers (checked before ANY new entry this cycle) ─────────
+        # 1. Weekend close mode: surveillance loop has already closed positions.
+        if self._weekend_close_active:
+            self.logger.debug("Weekend close active — no new entries until Monday")
+            return {}
+
+        # 2. Weekly drawdown halt: too much equity lost this week.
+        _risk_cfg_cb = self.config.model_dump().get("risk", {})
+        _max_weekly_pct = float(_risk_cfg_cb.get("max_weekly_drawdown_pct", 0))
+        if _max_weekly_pct > 0 and self._start_of_week_balance > 0 and portfolio is not None:
+            _weekly_dd = (
+                (portfolio.equity - self._start_of_week_balance)
+                / self._start_of_week_balance
+            )
+            if _weekly_dd < -(_max_weekly_pct / 100):
+                self.logger.warning(
+                    f"[WEEKLY HALT] Weekly drawdown {_weekly_dd * 100:.2f}% breached "
+                    f"-{_max_weekly_pct:.2f}% ceiling — "
+                    "no new entries until Monday"
+                )
+                return {}
 
         # Phase 1: Fetch bar data for all symbols concurrently, capped at 5 simultaneous
         # requests to avoid overwhelming the MT5 bridge with a request storm.
@@ -593,7 +876,30 @@ class TradingRunner:
 
         # Phase 2: Process each symbol sequentially — graph analysis and order
         # execution must remain serial to avoid race conditions in order_manager.
+        _risk_cfg = self.config.model_dump().get("risk", {})
+        _max_daily = int(_risk_cfg.get("max_daily_trades", 0))
+        _cooldown_secs = float(_risk_cfg.get("entry_cooldown_minutes", 0)) * 60.0
         for symbol in symbols:
+            # Daily trade cap: stop analysing further symbols once limit reached
+            if _max_daily > 0 and self._daily_trade_count >= _max_daily:
+                self.logger.warning(
+                    f"Max daily trades ({_max_daily}) reached — no further entries today"
+                )
+                break
+
+            # Per-symbol cooldown: skip symbol if not enough time has elapsed since
+            # the last trade on that symbol.
+            if _cooldown_secs > 0 and symbol in self._entry_cooldown:
+                elapsed = time.time() - self._entry_cooldown[symbol]
+                if elapsed < _cooldown_secs:
+                    self.logger.debug(
+                        f"{symbol}: cooldown active "
+                        f"({elapsed:.0f}s / {_cooldown_secs:.0f}s) — skipping"
+                    )
+                    results[symbol] = {"decision": "cooldown", "executed": False,
+                                       "order_ticket": None, "errors": []}
+                    continue
+
             self.logger.info(f"Analysing {symbol} …")
             try:
                 if symbol not in features_map:
@@ -608,6 +914,26 @@ class TradingRunner:
                             or features_by_tf.get("short"))
                 if features is None:
                     self.logger.warning(f"Could not load features for {symbol} — skipping")
+                    continue
+
+                # ── News blackout ──────────────────────────────────────────────
+                # Block new entries within ±N minutes of a high-impact economic
+                # event for any currency in this symbol (NFP, Fed, CPI, …).
+                _news_mins = int(
+                    self.config.model_dump().get("execution", {})
+                    .get("news_blackout_minutes", 0)
+                )
+                if _news_mins > 0 and _news_calendar.is_blackout(symbol, _news_mins):
+                    self.logger.info(
+                        f"{symbol}: high-impact event within {_news_mins} min — "
+                        "skipping entry (news blackout)"
+                    )
+                    results[symbol] = {
+                        "decision":     "news_blackout",
+                        "executed":     False,
+                        "order_ticket": None,
+                        "errors":       [],
+                    }
                     continue
 
                 state = await self.graph.run(
@@ -637,6 +963,15 @@ class TradingRunner:
                         state["trade_plan"],
                         {"order_ticket": mt5_ticket},
                     )
+                    # Update entry cooldown and daily trade counter
+                    self._entry_cooldown[symbol] = time.time()
+                    self._daily_trade_count += 1
+                    self.logger.info(
+                        f"{symbol}: trade placed — daily count {self._daily_trade_count}/{_max_daily or '∞'}, "
+                        f"next entry in {_cooldown_secs/60:.0f}min"
+                    )
+                    # Persist state immediately so a restart won't bypass guards
+                    self._persist_daily_state()
                     # Refresh portfolio so the next symbol in this cycle sees the
                     # updated open-position count and daily drawdown.
                     _refreshed = _portfolio_state_from_executor(self.executor, self.order_manager)
@@ -670,6 +1005,67 @@ class TradingRunner:
         )
 
         return results
+
+    # ------------------------------------------------------------------
+    # Daily state persistence — survives restarts
+    # ------------------------------------------------------------------
+
+    def _restore_daily_state(self) -> None:
+        """
+        Load persisted daily state from disk.  Guards against the #1 production
+        bug: every restart previously reset _daily_trade_count=0 and
+        _entry_cooldown={}, silently bypassing all overtrading guards.
+
+        State is keyed by UTC calendar date.  If the saved state is from a
+        previous day it is discarded (daily reset is intentional).
+
+        Skipped in simulation mode — tests and back-tests always start fresh
+        so that real-world production state from logs/ doesn't pollute test runs.
+        """
+        if self.executor.simulation_mode:
+            return   # simulation / test: never inherit production state
+        today = datetime.utcnow().strftime("%Y-%m-%d")
+        try:
+            raw = json.loads(self._state_file.read_text())
+            if raw.get("date") != today:
+                self.logger.info(
+                    f"[State] Stale state from {raw.get('date')} — starting fresh for {today}"
+                )
+                return
+            self._daily_trade_count      = int(raw.get("daily_trade_count", 0))
+            self._entry_cooldown         = {k: float(v) for k, v in raw.get("entry_cooldown", {}).items()}
+            self._start_of_day_balance   = float(raw.get("start_of_day_balance", 0.0))
+            self._start_of_day_date      = raw.get("start_of_day_date", "")
+            self._start_of_week_balance  = float(raw.get("start_of_week_balance", 0.0))
+            self._start_of_week_date     = raw.get("start_of_week_date", "")
+            self._weekend_close_active   = bool(raw.get("weekend_close_active", False))
+            self.logger.info(
+                f"[State] Restored: daily_trades={self._daily_trade_count}, "
+                f"cooldowns={len(self._entry_cooldown)}, "
+                f"sod_balance={self._start_of_day_balance:.2f}"
+            )
+        except FileNotFoundError:
+            pass   # first start of the day — no state file yet
+        except Exception as exc:
+            self.logger.warning(f"[State] Could not restore state ({exc}) — starting fresh")
+
+    def _persist_daily_state(self) -> None:
+        """Write current daily state to disk so it survives a restart."""
+        today = datetime.utcnow().strftime("%Y-%m-%d")
+        try:
+            payload = {
+                "date":                  today,
+                "daily_trade_count":     self._daily_trade_count,
+                "entry_cooldown":        self._entry_cooldown,
+                "start_of_day_balance":  self._start_of_day_balance,
+                "start_of_day_date":     self._start_of_day_date,
+                "start_of_week_balance": self._start_of_week_balance,
+                "start_of_week_date":    self._start_of_week_date,
+                "weekend_close_active":  self._weekend_close_active,
+            }
+            self._state_file.write_text(json.dumps(payload))
+        except Exception as exc:
+            self.logger.warning(f"[State] Could not persist state: {exc}")
 
     # ------------------------------------------------------------------
     # Graceful shutdown

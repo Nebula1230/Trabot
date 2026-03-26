@@ -102,6 +102,10 @@ class TradingGraph:
         """Run all enabled agents in parallel via asyncio.gather."""
         try:
             self.logger.info(f"Running agents for {state['symbol']}")
+            # Stamp the moment bar data was consumed so _execute_trade can
+            # reject the decision if the cycle took too long and the signal is stale.
+            import time as _time
+            state.setdefault("metadata", {})["signal_born_at"] = _time.time()
             agents = [a for a in self.agent_registry.get_all_agents() if a.enabled]
             features_by_tf: Dict[str, TechnicalFeatures] = state.get("features_by_tf") or {}
             primary_features = state.get("features")
@@ -551,6 +555,26 @@ class TradingGraph:
                 state["decision"] = "rejected"
                 return state
 
+            # ── Signal confidence gate ─────────────────────────────────────────
+            # Use the SHORT-tier confidence for scalp (where the dominant agents
+            # run) so we reject low-conviction 1m signals before sizing.
+            # Use average of LONG+MID confidence for swing modes.
+            min_conf = float(self.config.get("alignment", {}).get("min_confidence", 0.0))
+            if min_conf > 0:
+                fusion = state.get("timeframe_fusion")
+                if fusion is not None:
+                    scalp_mode = bool(self.config.get("tight_sl_tp", {}).get("enabled", False))
+                    signal_conf = fusion.conf_short if scalp_mode else (
+                        (fusion.conf_long + fusion.conf_mid) / 2.0
+                    )
+                    if signal_conf < min_conf:
+                        self.logger.info(
+                            f"Signal confidence too low: {signal_conf:.3f} < {min_conf} "
+                            f"(scalp={scalp_mode})"
+                        )
+                        state["decision"] = "rejected"
+                        return state
+
             portfolio = state.get("portfolio_state")
             limits = state.get("risk_limits") or RiskLimits()
             if portfolio:
@@ -769,6 +793,20 @@ class TradingGraph:
                 sl_atr_mult   = 2.0
 
             risk_amount   = equity * limits.base_risk_pct / 100 * risk_fraction
+
+            # ── Per-symbol risk multiplier ────────────────────────────────────
+            # Applied BEFORE VIX/Kelly so that volatile/hard-to-predict assets
+            # (e.g. XAUUSD) are capped at a fraction of the profile's base risk
+            # regardless of any other scaling.  Values < 1.0 reduce risk; the
+            # key "XAUUSD" catches any case where gold is re-added to a profile.
+            _sym_risk_overrides = self.config.get("symbol_risk_multipliers", {})
+            _sym_mult = float(_sym_risk_overrides.get(state["symbol"].upper(), 1.0))
+            if _sym_mult != 1.0:
+                risk_amount *= _sym_mult
+                self.logger.info(
+                    f"Symbol risk override [{state['symbol']}]: "
+                    f"×{_sym_mult:.2f} → risk=${risk_amount:.2f}"
+                )
 
             # ── VIX-based risk scaling (only downward) ────────────────────────
             # When macro fear is elevated (VIX high or rising fast), slippage
@@ -1104,7 +1142,14 @@ class TradingGraph:
                 stop_loss=stop_loss,
                 take_profit=take_profit,
                 risk_amount=risk_amount,
-                confidence=fusion.conf_long,
+                # Use the tier that drives conviction in this mode:
+                # scalp → conf_short (1m ScalpingAgent at 3× weight)
+                # swing → conf_long (D1 thesis is the primary driver)
+                confidence=(
+                    fusion.conf_short
+                    if bool(self.config.get("tight_sl_tp", {}).get("enabled", False))
+                    else fusion.conf_long
+                ),
                 timeframes_aligned=["long", "mid", "short"],
             )
             self.logger.info(f"Created trade plan: entry={entry_price:.4f}, sl={stop_loss:.4f}, tp={take_profit:.4f}")
@@ -1123,6 +1168,27 @@ class TradingGraph:
                 self.logger.warning("No trade plan to execute")
                 return state
 
+            # ── Signal freshness check ─────────────────────────────────────────────────────
+            # The bar data used to build this plan was fetched at signal_born_at.
+            # With 21 symbols processed sequentially, the last symbol in the list
+            # could be executing a plan based on bars that are 3-5 minutes old.
+            # If the signal age exceeds the configured limit we skip the order
+            # entirely: the entry price, SL, and TP may all be wrong.
+            import time as _time
+            max_signal_age = float(
+                self.config.get("execution", {}).get("signal_max_age_seconds", 0)
+            )
+            _born = state.get("metadata", {}).get("signal_born_at", 0)
+            if max_signal_age > 0 and _born > 0:
+                signal_age = _time.time() - _born
+                if signal_age > max_signal_age:
+                    self.logger.warning(
+                        f"{state['symbol']}: signal is {signal_age:.0f}s old "
+                        f"(limit={max_signal_age:.0f}s) — discarding stale plan"
+                    )
+                    state["errors"].append(f"stale signal ({signal_age:.0f}s > {max_signal_age:.0f}s)")
+                    return state
+
             self.logger.info(f"Executing trade for {state['symbol']}")
             result = self.executor.place_bracket_order(trade_plan)
             if result:
@@ -1131,8 +1197,14 @@ class TradingGraph:
                 state["metadata"]["order_ticket"] = result.get("order_ticket")
                 self.logger.info(f"Order placed: ticket={result.get('order_ticket')}")
             else:
-                self.logger.error("MT5Executor returned None — order was not placed")
-                state["errors"].append("Trade execution: MT5 order failed")
+                # None is the normal return when the executor skips placement for a
+                # legitimate reason (market closed, stale tick, spread too wide).
+                # Those cases already emit a WARNING in the executor — just note
+                # silently here rather than logging as ERROR, which is misleading.
+                self.logger.info(
+                    f"Order not placed for {state['symbol']} "
+                    "(executor returned None — see executor log for reason)"
+                )
 
         except Exception as e:
             self.logger.error(f"Error executing trade: {e}")
