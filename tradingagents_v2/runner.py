@@ -29,6 +29,7 @@ from .agents import (
     MeanReversionAgent, VolatilityAgent, BreadthAgent, PatternAgent,
     IntermarketAgent, SessionBreakoutAgent, DivergenceAgent,
     ScalpingAgent, VwapScalpAgent, SqueezeBreakoutAgent, OrderFlowAgent,
+    LLMSentimentAgent,
 )
 from .config.settings import TradingConfig
 from .data.loader import DataLoader
@@ -36,6 +37,8 @@ from .execution.mt5_executor import MT5Executor
 from .execution.order_manager import OrderManager
 from .execution.trailing_stop import TrailingStopManager
 from .monitoring.journal import TradeJournal
+from .monitoring.agent_tracker import AgentCalibrationTracker
+from .monitoring.adaptive_weights import AdaptiveWeightManager
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -197,6 +200,38 @@ def _build_registry(config: TradingConfig) -> AgentRegistry:
         if config.is_agent_enabled(agent.name):
             agent.weight = config.get_agent_weight(agent.name)
             registry.register(agent)
+
+    # Optional LLM agent bridge (tradingagents package)
+    llm_cfg = config.llm_agents
+    if llm_cfg.enabled:
+        llm_agent = LLMSentimentAgent(
+            weight=llm_cfg.weight,
+            analysts=list(llm_cfg.analysts),
+            throttle_hours=llm_cfg.throttle_hours,
+            timeout_seconds=llm_cfg.timeout_seconds,
+            max_retries=llm_cfg.max_retries,
+            llm_config={
+                "llm_provider":        llm_cfg.llm_provider,
+                "deep_think_llm":      llm_cfg.deep_think_llm,
+                "quick_think_llm":     llm_cfg.quick_think_llm,
+                "backend_url":         llm_cfg.backend_url,
+                "upstream_path":       llm_cfg.upstream_path,
+                # CB thresholds forwarded so _ensure_graph can sync them
+                "cb_fail_threshold":   llm_cfg.cb_fail_threshold,
+                "cb_cooldown_minutes": llm_cfg.cb_cooldown_minutes,
+            },
+        )
+        registry.register(llm_agent)
+        _rlog = logging.getLogger("runner")
+        _rlog.info(
+            "LLMSentimentAgent enabled — "
+            f"analysts={llm_cfg.analysts}, throttle={llm_cfg.throttle_hours}h, "
+            f"timeout={llm_cfg.timeout_seconds}s, retries={llm_cfg.max_retries}, "
+            f"provider={llm_cfg.llm_provider}, "
+            f"cb_threshold={llm_cfg.cb_fail_threshold}, "
+            f"cb_cooldown={llm_cfg.cb_cooldown_minutes}min"
+        )
+
     return registry
 
 
@@ -286,6 +321,17 @@ class TradingRunner:
             log_dir=j.log_dir,
             log_decisions=j.log_decisions,
             log_trades=j.log_trades,
+        )
+
+        # Agent calibration tracker — records per-agent vote outcomes
+        self.agent_tracker = AgentCalibrationTracker(log_dir=j.log_dir)
+
+        # Adaptive weight manager — periodically updates agent.weight based on
+        # closed-trade hit-rate statistics collected by agent_tracker.
+        self.adaptive_weight_mgr = AdaptiveWeightManager(
+            registry=registry,
+            cal_tracker=self.agent_tracker,
+            config=self.config.adaptive_weights,
         )
 
         # Trailing stop manager — read tuning from optional trailing: config block
@@ -522,6 +568,23 @@ class TradingRunner:
                     _acct = self.executor.get_account_info()
                     if _acct is not None:
                         _equity_now = _acct.get("equity", self._start_of_day_balance)
+                        # Auto-correct a stale SOD balance (e.g. from a previous
+                        # backtest/demo session with a different account size).
+                        if (
+                            _equity_now > 0
+                            and (
+                                self._start_of_day_balance / _equity_now > 5.0
+                                or self._start_of_day_balance / _equity_now < 0.2
+                            )
+                        ):
+                            self.logger.warning(
+                                f"[State] SOD balance {self._start_of_day_balance:.2f} "
+                                f"is implausible vs live equity {_equity_now:.2f} — "
+                                "re-anchoring automatically"
+                            )
+                            self._start_of_day_balance  = _equity_now
+                            self._start_of_week_balance = _equity_now
+                            self._persist_daily_state()
                         _real_dd = (_equity_now - self._start_of_day_balance) / self._start_of_day_balance
                         if _real_dd < -(_max_dd_pct / 100):
                             self.logger.warning(
@@ -615,13 +678,22 @@ class TradingRunner:
         al_cfg     = cfg_dict.get("alignment", {})
         exit_cfg   = cfg_dict.get("exit_rules", {})
 
-        flip_threshold      = float(al_cfg.get("long_min_score", 0.25))
+        # d1_flip_threshold: separate exit key so profiles can require a STRONGER
+        # D1 reversal before exiting.  Using long_min_score (entry gate) as the
+        # exit threshold caused premature exits when the score crossed the entry
+        # bar by a few ticks — the actual trend hadn't reversed yet.
+        flip_threshold      = float(exit_cfg.get("d1_flip_threshold",
+                                                  al_cfg.get("long_min_score", 0.25)))
         # Conviction fade: close when |D1| drops below this (trend gone flat)
         fade_threshold      = float(exit_cfg.get("conviction_fade_threshold", 0.10))
         # Mid+Short opposition: close when BOTH mid & short oppose by more than this
         opposition_threshold = float(exit_cfg.get("mid_short_opposition_threshold", 0.35))
         # Whether each condition is enabled
-        fade_enabled        = bool(exit_cfg.get("conviction_fade_enabled", True))
+        # Default False: conviction_fade is opt-in (must be explicitly enabled in config).
+        # Defaulting True was silently force-closing positions on every bar where |dir_long|
+        # dipped below 0.10, killing trades that were entered correctly.
+        # Matches the backtest engine default (engine.py) to ensure live/backtest parity.
+        fade_enabled        = bool(exit_cfg.get("conviction_fade_enabled", False))
         opposition_enabled  = bool(exit_cfg.get("mid_short_opposition_enabled", True))
         # Scalp mode: exit on SHORT-tier reversal instead of D1 conviction
         short_tier_exits    = bool(exit_cfg.get("use_short_tier_exits", False))
@@ -749,6 +821,10 @@ class TradingRunner:
                     )
                     ok = self.executor.close_position(pos["ticket"])
                     if ok:
+                        # Score agent votes against the outcome of this trade
+                        self.agent_tracker.score_closed_trade(
+                            pos["ticket"], pos.get("profit", 0.0)
+                        )
                         self.journal.record_cycle(symbol, {
                             "decision": "closed",
                             "executed": True,
@@ -815,6 +891,11 @@ class TradingRunner:
 
     async def _run_cycle(self, symbols: List[str] = None) -> dict:
         symbols = symbols or self.config.symbols
+
+        # Refresh adaptive weights before the symbol loop so all agents in this
+        # cycle use the latest calibration-adjusted weights.  The manager's own
+        # TTL guard limits actual recomputation to at most every N hours.
+        self.adaptive_weight_mgr.update()
 
         portfolio = _portfolio_state_from_executor(self.executor, self.order_manager)
         results = {}
@@ -987,6 +1068,12 @@ class TradingRunner:
                         state["trade_plan"],
                         {"order_ticket": mt5_ticket},
                     )
+                    # Record agent votes for calibration tracking
+                    if mt5_ticket and state.get("agent_outputs"):
+                        direction = str(state["trade_plan"].recipe.direction)
+                        self.agent_tracker.record_trade_votes(
+                            symbol, mt5_ticket, direction, state["agent_outputs"]
+                        )
                     # Update entry cooldown and daily trade counter
                     self._entry_cooldown[symbol] = time.time()
                     self._daily_trade_count += 1
@@ -1115,10 +1202,107 @@ class TradingRunner:
 # ---------------------------------------------------------------------------
 # CLI entry point:  python -m tradingagents_v2.runner
 # ---------------------------------------------------------------------------
+
+_ALL_AGENTS = [
+    "RegimeAgent", "TrendAgent", "MomentumAgent", "MeanReversionAgent",
+    "VolatilityAgent", "BreadthAgent", "PatternAgent", "IntermarketAgent",
+    "SessionBreakoutAgent", "DivergenceAgent", "ScalpingAgent",
+    "VwapScalpAgent", "SqueezeBreakoutAgent", "OrderFlowAgent",
+    "LLMSentimentAgent",
+]
+
+
+def _build_runner_cli() -> "argparse.Namespace":
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(
+        prog="python -m tradingagents_v2.runner",
+        description="Run the live trading bot (or dry-run simulation).",
+    )
+    parser.add_argument(
+        "--profile", default="balanced",
+        choices=["safe", "balanced", "risky", "scalp", "hft"],
+        help="Risk/strategy profile (default: balanced)",
+    )
+    parser.add_argument(
+        "--config", default="config.demo.yaml",
+        help="Path to YAML config file (default: config.demo.yaml)",
+    )
+    parser.add_argument(
+        "--simulation", action="store_true",
+        help="Run in simulation / paper-trading mode (no real orders sent to MT5)",
+    )
+    parser.add_argument(
+        "--agents", nargs="+", default=None, metavar="AGENT",
+        help=(
+            "Run ONLY these agents (space-separated). "
+            "Available: " + ", ".join(_ALL_AGENTS) + ". "
+            "Mutually exclusive with --disable-agents."
+        ),
+    )
+    parser.add_argument(
+        "--disable-agents", nargs="+", default=None,
+        dest="disable_agents", metavar="AGENT",
+        help="Disable these agents; all others remain active. "
+             "Mutually exclusive with --agents.",
+    )
+    parser.add_argument(
+        "--list-agents", action="store_true", dest="list_agents",
+        help="Print all available agent names and exit.",
+    )
+
+    # Handle --list-agents before argparse runs full validation
+    if "--list-agents" in sys.argv:
+        print("Available agents:")
+        for a in _ALL_AGENTS:
+            print(f"  {a}")
+        sys.exit(0)
+
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
+    import sys
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
     )
-    runner = TradingRunner()
+
+    args = _build_runner_cli()
+
+    if args.agents and args.disable_agents:
+        print("[ERROR] --agents and --disable-agents are mutually exclusive.", file=sys.stderr)
+        sys.exit(1)
+
+    # Load config and apply profile
+    try:
+        from tradingagents_v2.config.yaml_config import load_config_from_yaml
+        cfg = load_config_from_yaml(args.config, profile=args.profile)
+    except Exception as e:
+        print(f"[ERROR] Could not load config '{args.config}': {e}", file=sys.stderr)
+        sys.exit(1)
+
+    # Apply agent selection
+    if args.agents:
+        unknown = [a for a in args.agents if a not in _ALL_AGENTS]
+        if unknown:
+            print(f"[ERROR] Unknown agent(s): {unknown}. Run --list-agents for valid names.",
+                  file=sys.stderr)
+            sys.exit(1)
+        cfg.agents.enabled_agents = list(args.agents)
+        logging.getLogger("runner").info(f"Agent selection (only): {cfg.agents.enabled_agents}")
+    elif args.disable_agents:
+        unknown = [a for a in args.disable_agents if a not in _ALL_AGENTS]
+        if unknown:
+            print(f"[ERROR] Unknown agent(s): {unknown}. Run --list-agents for valid names.",
+                  file=sys.stderr)
+            sys.exit(1)
+        cfg.agents.enabled_agents = [a for a in _ALL_AGENTS if a not in args.disable_agents]
+        logging.getLogger("runner").info(
+            f"Agent selection (excluding {args.disable_agents}): {cfg.agents.enabled_agents}"
+        )
+
+    runner = TradingRunner(config=cfg, simulation=args.simulation)
     asyncio.run(runner.run_forever())

@@ -127,27 +127,28 @@ class RegimeAgent(BaseAgent):
             float: -1 (bearish regime) to +1 (bullish regime)
         """
         
-        # Base score from VWAP distance.
-        # vwap_distance is already in ATR units (e.g. ±0.5 = half an ATR from VWAP).
-        # Using /0.02 caused immediate saturation — divide by 2.0 instead so that
-        # ±1 ATR maps to tanh(±0.5) ≈ ±0.46 and ±2 ATR maps to ±0.76.
-        vwap_score = np.tanh(features.vwap_distance / 2.0)  # Normalize to [-1, 1]
-        
-        # Adjust based on trendiness
-        if trendiness < 0.3:
-            # Low trendiness - favor mean reversion
-            vwap_score *= -0.5  # Reduce directional bias
-            
-        # Adjust based on volatility state
+        # VWAP distance is in ATR units. ±1 ATR → tanh(±0.5) ≈ ±0.46; ±2 ATR → ±0.76.
+        vwap_score = float(np.tanh(features.vwap_distance / 2.0))
+
+        # In ranging markets, ATTENUATE (not invert) the VWAP signal.
+        # Inverting means "above VWAP = bearish" which is MeanReversionAgent's job.
+        # Scale proportionally: trendiness=0.5 → full weight; trendiness=0 → 30% weight.
+        trend_scale = float(np.clip(trendiness / 0.5, 0.30, 1.0))
+        vwap_score *= trend_scale
+
+        # RVI carries directional momentum (its sign = closes > opens on average).
+        # tanh(rvi * 4) maps the typical ±0.5 RVI range to approximately ±0.96.
+        rvi_score = float(np.tanh(features.rvi * 4.0))
+
+        # Blend: VWAP distance (65%) + RVI direction (35%)
+        dir_score = 0.65 * vwap_score + 0.35 * rvi_score
+
         if vol_state == "high":
-            # High volatility - reduce directional bias
-            vwap_score *= 0.7
+            dir_score *= 0.7
         elif vol_state == "low":
-            # Low volatility - increase directional bias
-            vwap_score *= 1.2
-            
-        # Ensure score is within bounds
-        return np.clip(vwap_score, -1.0, 1.0)
+            dir_score *= 1.15
+
+        return float(np.clip(dir_score, -1.0, 1.0))
     
     def _generate_rationale(self, trendiness: float, vol_state: str, dir_score: float) -> str:
         """Generate human-readable rationale for the regime analysis."""
@@ -186,19 +187,19 @@ class RegimeAgent(BaseAgent):
         # Start with base confidence
         confidence = 0.5
         
-        # Higher confidence with more extreme ADX values
+        # Higher confidence with strong trend (clear ADX signal)
         if features.adx_14 > 25:
             confidence += 0.2
         elif features.adx_14 < 15:
-            confidence += 0.1
-            
+            # Low ADX = regime is directionless — we can still read it but less confidently
+            confidence -= 0.10
+
         # Higher confidence with clear volatility state
         if features.realized_vol > 0.05:  # outside "quiet" region
             confidence += 0.1
-            
+
         # Higher confidence with clear VWAP distance
         if abs(features.vwap_distance) > 0.01:
             confidence += 0.1
-            
-        # Ensure confidence is within bounds
-        return min(max(confidence, 0.0), 1.0) 
+
+        return float(np.clip(confidence, 0.10, 1.0))

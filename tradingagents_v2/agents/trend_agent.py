@@ -103,24 +103,23 @@ class TrendAgent(BaseAgent):
     def _calculate_ma_alignment(self, features: TechnicalFeatures) -> float:
         """Calculate score based on EMA alignment and stack."""
 
-        # Check if EMAs are properly stacked (bullish: 20 > 50 > 200)
-        if (features.ema20 > features.ema50 > features.ema200):
-            # Bullish stack
+        # Full EMA stack: strongest trend signal
+        if features.ema20 > features.ema50 > features.ema200:
             ma_score = 0.8
-        elif (features.ema20 < features.ema50 < features.ema200):
-            # Bearish stack
+        elif features.ema20 < features.ema50 < features.ema200:
             ma_score = -0.8
         else:
-            # Mixed alignment
-            ma_score = 0.0
+            # Partial / mixed alignment: give a weak directional nudge
+            # Only check ema20 vs ema50 when NOT in a full stack to avoid
+            # double-counting (full-stack already captures this relationship).
+            if features.ema20 > features.ema50:
+                ma_score = 0.2
+            elif features.ema20 < features.ema50:
+                ma_score = -0.2
+            else:
+                ma_score = 0.0
 
-        # Adjust based on price position relative to EMAs
-        if features.ema20 > features.ema50:
-            ma_score += 0.2
-        else:
-            ma_score -= 0.2
-
-        return np.clip(ma_score, -1.0, 1.0)
+        return float(np.clip(ma_score, -1.0, 1.0))
 
     def _calculate_slope_score(self, features: TechnicalFeatures) -> float:
         """Calculate score based on EMA slopes."""

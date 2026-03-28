@@ -104,6 +104,8 @@ class MomentumAgent(BaseAgent):
             rsi_score = -0.1
         elif rsi_14 <= 40 and rising:    # Bouncing from weakness — neutral
             rsi_score = 0.0
+        elif rsi_14 < 30 and not rising:   # Deep oversold AND still falling — strong bear
+            rsi_score = -0.7
         elif rsi_14 <= 40 and not rising:  # Falling into weakness — bearish
             rsi_score = -0.5
         elif rsi_14 > 70 and not rising:  # Fading from highs — mild pullback
@@ -138,11 +140,14 @@ class MomentumAgent(BaseAgent):
 
         roc = features.roc_10
 
-        # ROC momentum analysis (normalize to [-1, 1])
-        # Assuming ROC is in decimal form (e.g., 0.03 = 3%)
-        roc_score = np.tanh(roc * 10)  # Scale factor for normalization
+        # roc_10 is a fractional return: (close - close[10]) / close[10].
+        # Normalise by atr_price_ratio (same units) so the score is
+        # instrument-independent: a 1-ATR 10-bar move maps to tanh(1) ≈ 0.76.
+        # Without this, EURUSD roc ≈ 0.001 gives tanh(0.001*10) ≈ 0.01 — near zero.
+        atr_ratio = max(features.atr_price_ratio, 0.001)
+        roc_score = float(np.tanh(roc / atr_ratio))
 
-        return roc_score
+        return float(np.clip(roc_score, -1.0, 1.0))
 
     def _calculate_bb_momentum(self, features: TechnicalFeatures) -> float:
         """Calculate momentum score based on Bollinger Band position.

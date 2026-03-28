@@ -45,6 +45,15 @@ class TimeframeFusion(BaseModel):
     conf_short: float = Field(..., ge=0.0, le=1.0)
     regime_trendiness: float = Field(..., ge=0.0, le=1.0)
     breadth_score: float = Field(..., ge=-1.0, le=1.0)
+    # ── Fusion quality metrics (added: better signal quality representation) ──
+    # Geometric mean of tier magnitudes when all 3 tiers agree in direction,
+    # else 0.0.  Used to boost win_prob for high-conviction setups.
+    alignment_strength: float = Field(default=0.0, ge=0.0, le=1.0)
+    # Fraction of actively-voting agents within each tier that agree with the
+    # tier direction (1.0 = full consensus, 0.5 = half disagree).
+    consensus_long:  float = Field(default=1.0, ge=0.0, le=1.0)
+    consensus_mid:   float = Field(default=1.0, ge=0.0, le=1.0)
+    consensus_short: float = Field(default=1.0, ge=0.0, le=1.0)
 
 
 class TradeRecipe(BaseModel):

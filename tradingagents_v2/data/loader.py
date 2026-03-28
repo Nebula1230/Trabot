@@ -301,21 +301,40 @@ class DataLoader:
         volume = bars["volume"]
 
         if len(close) < _MIN_BARS:
-            self.logger.error(
-                f"Not enough bars for {symbol}/{primary_tf}: got {len(close)}, need {_MIN_BARS}"
-            )
-            return None
+            # For longer timeframes (D1, 4H) the nominal 250-bar minimum cannot be
+            # met in a short backtest — apply a per-TF minimum instead.
+            _tf_min_required = {
+                "1D": 25,   # EMA20 needs 20 bars; 25 gives modest MACD window too
+                "1W": 15,
+                "4H": 50,   # EMA50 needs 50 bars
+            }.get(primary_tf, _MIN_BARS)
+            if len(close) < _tf_min_required:
+                self.logger.error(
+                    f"Not enough bars for {symbol}/{primary_tf}: "
+                    f"got {len(close)}, need {_tf_min_required}"
+                )
+                return None
+            # For D1/4H with sufficient but sub-250 bars: proceed with clamped periods
 
         # --- Moving averages ------------------------------------------------
-        ema20_arr = _ema(close, 20)
-        ema50_arr = _ema(close, 50)
-        ema200_arr = _ema(close, 200)
+        # Clamp EMA periods to available data so that longer-timeframe arrays
+        # (D1, 4H) don't fail when they have fewer bars than the nominal period.
+        # This is intentional: in a 5-day backtest you only have ~47 D1 bars;
+        # EMA47 gives a valid long-term trend signal on that scale.
+        _n = len(close)
+        _p200 = min(200, _n - 1)
+        _p50  = min(50, _n - 1)
+        _p20  = min(20, _n - 1)
+        ema20_arr = _ema(close, _p20)
+        ema50_arr = _ema(close, _p50)
+        ema200_arr = _ema(close, _p200)
         ema20 = float(ema20_arr[-1])
         ema50 = float(ema50_arr[-1])
         ema200 = float(ema200_arr[-1])
-        ema20_slope = float(ema20_arr[-1] - ema20_arr[-6]) / max(ema20_arr[-6], 1e-9)
-        ema50_slope = float(ema50_arr[-1] - ema50_arr[-6]) / max(ema50_arr[-6], 1e-9)
-        ema200_slope = float(ema200_arr[-1] - ema200_arr[-6]) / max(ema200_arr[-6], 1e-9)
+        _slope_lb = min(6, len(ema20_arr) - 1)  # clamp lookback for slope
+        ema20_slope = float(ema20_arr[-1] - ema20_arr[-(_slope_lb)]) / max(ema20_arr[-(_slope_lb)], 1e-9)
+        ema50_slope = float(ema50_arr[-1] - ema50_arr[-(_slope_lb)]) / max(ema50_arr[-(_slope_lb)], 1e-9)
+        ema200_slope = float(ema200_arr[-1] - ema200_arr[-(_slope_lb)]) / max(ema200_arr[-(_slope_lb)], 1e-9)
 
         # --- RSI -------------------------------------------------------------
         rsi_14 = _rsi(close, 14)
@@ -770,6 +789,11 @@ class DataLoader:
     _macro_cache_ts: float = 0.0
     _MACRO_CACHE_TTL: float = 300.0   # 5 minutes
 
+    # Class-level real-breadth cache — yfinance data, refreshed every hour
+    _breadth_cache: Dict[str, float] = {}
+    _breadth_cache_ts: float = 0.0
+    _BREADTH_CACHE_TTL: float = 3600.0   # 1 hour (daily data changes intraday)
+
     # Forex pairs where USD is the quote currency (e.g. EURUSD = EUR/USD).
     # A BUY on these = long foreign currency / short USD.
     _USD_QUOTE_PAIRS = frozenset([
@@ -803,6 +827,11 @@ class DataLoader:
         """
         Compute breadth features using a macro proxy appropriate for the symbol type.
 
+        When yfinance is available and not in simulation mode, this method first
+        tries ``_breadth_features_real()`` which uses real NYSE breadth data
+        (``^NYADD``, SPY, sector ETFs) with a 1-hour cache.  On failure it falls
+        back to the MT5-proxy approach below.
+
         Forex USD pairs  → USDJPY D1 as USD-strength proxy (USDJPY up = USD strong).
           USD-quote (EURUSD etc.): USD strength opposes buying → proxy used as-is.
           USD-base  (USDJPY etc.): USD strength favours buying → same direction.
@@ -811,6 +840,14 @@ class DataLoader:
         """
         if self.simulation:
             return 0.1, 0.52, 0.60, 0.45, 0.1
+
+        # ── Try real NYSE/SPY breadth first (yfinance, 1-hour cache) ─────────
+        try:
+            real = self._breadth_features_real(symbol)
+            if real is not None:
+                return real
+        except Exception:
+            pass  # fall through to MT5-proxy method
 
         sym_up = symbol.upper()
 
@@ -910,6 +947,118 @@ class DataLoader:
         sector_dir = index_trend  # simplified: same as index
 
         return index_trend, adec, above50, above200, sector_dir
+
+    # ------------------------------------------------------------------
+    # Real breadth features via yfinance (NYSE A/D + SPY + sector ETFs)
+    # ------------------------------------------------------------------
+
+    def _breadth_features_real(self, symbol: str):
+        """
+        Fetch genuine market breadth from yfinance with a 1-hour TTL cache.
+
+        Tickers used:
+          ^NYADD  — NYSE net advance/decline (raw breadth)
+          SPY     — S&P 500 ETF (trend + % above EMA)
+          XLF, XLK, XLE, XLV, XLI — sector ETFs (risk-on direction)
+
+        Returns the same 5-tuple as ``_breadth_features``:
+          (index_trend, advance_decline, above_50ema, above_200ema, sector_dir)
+        all values in [-1, 1], or None if yfinance is unavailable.
+
+        All symbols receive the same SPY-centric breadth because:
+          • For USD-quote FX pairs (EURUSD etc.) risk-on = USD weak = bullish
+          • For equity indices the S&P 500 breadth directly applies
+          • Cross pairs (EURJPY etc.) react most strongly to risk-on/off
+
+        The BreadthAgent weights this signal appropriately per symbol via
+        its internal direction bias, so a single risk-on reading is correct
+        to pass for all symbols.
+        """
+        now = _time.time()
+        if (DataLoader._breadth_cache
+                and (now - DataLoader._breadth_cache_ts) < DataLoader._BREADTH_CACHE_TTL):
+            cached = DataLoader._breadth_cache
+            # Return cached tuple
+            return (
+                cached["index_trend"],
+                cached["advance_decline"],
+                cached["above_50ema"],
+                cached["above_200ema"],
+                cached["sector_dir"],
+            )
+
+        try:
+            import yfinance as yf
+
+            # Download last 60 trading days of daily data.
+            # ^NYADD was removed from Yahoo Finance; use RSP (equal-weight S&P 500)
+            # vs SPY spread as a breadth proxy: RSP outperforming SPY = broad advance.
+            tickers = ["SPY", "RSP", "XLF", "XLK", "XLE", "XLV", "XLI"]
+            data = yf.download(
+                tickers, period="65d", interval="1d",
+                progress=False, auto_adjust=True, threads=True,
+            )
+            closes = data.get("Close", data)
+
+            # ── SPY trend: EMA50 > EMA200 ────────────────────────────────────
+            spy_col = closes.get("SPY")
+            if spy_col is None:
+                return None
+            spy_vals = spy_col.dropna().values
+            if len(spy_vals) < 51:
+                return None
+
+            ema50  = _ema(spy_vals, 50)
+            ema200 = _ema(spy_vals, min(200, len(spy_vals) - 1))
+
+            index_trend = float(np.sign(ema50[-1] - ema200[-1]) * 0.5)
+            above_50ema = float(np.clip(
+                (spy_vals[-1] - ema50[-1]) / max(ema50[-1], 1e-9), -1.0, 1.0
+            ))
+            above_200ema = float(np.clip(
+                (spy_vals[-1] - ema200[-1]) / max(ema200[-1], 1e-9), -1.0, 1.0
+            ))
+
+            # ── Breadth: RSP/SPY ratio momentum (equal-weight vs cap-weight) -
+            # RSP outperforming SPY → broad advance (many stocks rising).
+            # RSP underperforming → narrow leadership (few mega-caps carrying).
+            advance_decline = 0.0
+            rsp_col = closes.get("RSP")
+            if rsp_col is not None:
+                rsp_vals = rsp_col.dropna().values
+                if len(rsp_vals) >= 6 and len(spy_vals) >= 6:
+                    # 5-day relative performance, scaled: ±5% → ±1
+                    rsp_ret = (rsp_vals[-1] - rsp_vals[-6]) / max(abs(rsp_vals[-6]), 1e-9)
+                    spy_ret = (spy_vals[-1] - spy_vals[-6]) / max(abs(spy_vals[-6]), 1e-9)
+                    advance_decline = float(np.clip((rsp_ret - spy_ret) / 0.05, -1.0, 1.0))
+
+            # ── Sector direction: average 5-day return of sector ETFs ────────
+            sector_rets: list = []
+            for etf in ("XLF", "XLK", "XLE", "XLV", "XLI"):
+                col = closes.get(etf)
+                if col is None:
+                    continue
+                vals = col.dropna().values
+                if len(vals) >= 6:
+                    ret = (vals[-1] - vals[-6]) / max(abs(vals[-6]), 1e-9)
+                    sector_rets.append(float(np.clip(ret / 0.05, -1.0, 1.0)))
+            sector_dir = float(np.mean(sector_rets)) if sector_rets else 0.0
+
+            result = {
+                "index_trend":    index_trend,
+                "advance_decline": advance_decline,
+                "above_50ema":   above_50ema,
+                "above_200ema":  above_200ema,
+                "sector_dir":    sector_dir,
+            }
+            DataLoader._breadth_cache    = result
+            DataLoader._breadth_cache_ts = now
+
+            return index_trend, advance_decline, above_50ema, above_200ema, sector_dir
+
+        except Exception as exc:
+            self.logger.debug(f"_breadth_features_real: yfinance failed ({exc})")
+            return None
 
     # ------------------------------------------------------------------
     # Weekly pivot level proximity

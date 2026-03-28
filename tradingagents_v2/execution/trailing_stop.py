@@ -138,8 +138,7 @@ class TrailingStopManager:
             # SL: pull nearest support up, ratchet only
             structural_sl = pivots["nearest_support"] - buffer
             structural_sl = min(structural_sl, live_price - min_sl_dist)
-            new_sl = max(current_sl, structural_sl)
-            new_sl = min(new_sl, entry - buffer)   # never above entry
+            new_sl = max(current_sl, structural_sl)  # ratchet only — SL never widens
 
             # TP: push to next resistance, only raise
             resist_candidates = sorted(
@@ -157,8 +156,7 @@ class TrailingStopManager:
             # SL: pull nearest resistance down, ratchet only
             structural_sl = pivots["nearest_resist"] + buffer
             structural_sl = max(structural_sl, live_price + min_sl_dist)
-            new_sl = min(current_sl, structural_sl) if current_sl > 0 else structural_sl
-            new_sl = max(new_sl, entry + buffer)   # never below entry
+            new_sl = min(current_sl, structural_sl) if current_sl > 0 else structural_sl  # ratchet only
 
             # TP: push to next support, only lower
             in_profit = live_price < entry

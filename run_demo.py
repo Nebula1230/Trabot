@@ -230,8 +230,8 @@ def main():
     )
     parser.add_argument(
         "--profile", default="balanced",
-        choices=["safe", "balanced", "risky", "scalp"],
-        help="Risk profile preset: safe | balanced (default) | risky | scalp",
+        choices=["safe", "balanced", "risky", "scalp", "hft"],
+        help="Risk profile preset: safe | balanced (default) | risky | scalp | hft",
     )
     args = parser.parse_args()
 

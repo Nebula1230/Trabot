@@ -116,9 +116,27 @@ class MeanReversionAgent(BaseAgent):
         normalises so that ±1.0 = at the upper/lower Keltner band; beyond that
         is a powerful mean-reversion setup.
         """
-        keltner_pos = features.vwap_distance / 2.0   # +1 = upper band, -1 = lower band
-        # Above upper band → bearish reversion (negative score); vice versa.
-        return float(np.clip(-np.tanh(keltner_pos), -1.0, 1.0))
+        # Use the actual BB/KC width ratio — the true Keltner signal.
+        # bb_width / keltner_width:
+        #   > 1.05 → BBands wider than KC → price broke outside channel → extension
+        #   0.80–1.05 → normal expansion → mild signal
+        #   < 0.80 → squeeze (BB inside KC) → no directional edge yet
+        # Sign: extension on the VWAP side is the reversion direction.
+        ratio = features.bb_width / max(features.keltner_width, 1e-9)
+        vwap_sign = 1.0 if features.vwap_distance > 0 else -1.0
+
+        if ratio > 1.05:
+            # Price has broken outside the Keltner channel — extended, fade expected
+            extension = min((ratio - 1.05) / 0.50, 1.0)
+            score = -vwap_sign * float(np.clip(0.30 + 0.50 * extension, 0.0, 0.85))
+        elif ratio < 0.80:
+            # Squeeze: energy coiling, direction unknown — wait
+            score = 0.0
+        else:
+            # Mild expansion: weak reversion lean toward the KC centre
+            score = -vwap_sign * 0.10
+
+        return float(np.clip(score, -1.0, 1.0))
 
     def _calculate_rsi_extremes(self, features: TechnicalFeatures) -> float:
         """Calculate mean reversion score based on RSI extremes."""
@@ -175,17 +193,22 @@ class MeanReversionAgent(BaseAgent):
                                  vol_adjustment: float) -> float:
         """Combine individual reversion scores into final score."""
 
-        # Weighted combination
-        # BB and RSI get highest weights as they're most reliable
-        combined_score = (
+        # Weighted combination of indicator scores
+        raw = (
             bb_score * 0.4 +
             rsi_score * 0.3 +
             vwap_score * 0.2 +
-            keltner_score * 0.1 +
-            vol_adjustment
+            keltner_score * 0.1
         )
 
-        return np.clip(combined_score, -1.0, 1.0)
+        # vol_adjustment (±0.3 or 0) scales how much we trust the reversion signal.
+        # High vol (indices) → *0.85 (reversion less reliable).
+        # Very low vol (quiet FX) → *1.10 (reversion very reliable).
+        # Using a multiplier rather than an additive offset prevents pushing the
+        # score away from zero in instruments that are not extended at all.
+        combined_score = raw * (1.0 + vol_adjustment * 0.50)
+
+        return float(np.clip(combined_score, -1.0, 1.0))
 
     def _generate_rationale(self, bb_score: float, keltner_score: float,
                            rsi_score: float, vwap_score: float, 

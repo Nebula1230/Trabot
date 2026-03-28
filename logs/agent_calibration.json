@@ -1,0 +1,503 @@
+{
+  "vote_record": {
+    "55943478807": {
+      "symbol": "AUDJPY",
+      "direction": "Direction.LONG",
+      "votes": {
+        "RegimeAgent": 0.11923191227264768,
+        "TrendAgent": 0.7673076246423353,
+        "MomentumAgent": 0.0017482693782101127,
+        "MeanReversionAgent": 0.6377683098903792,
+        "VolatilityAgent": -0.25,
+        "BreadthAgent": 0.06966278161665194,
+        "PatternAgent": 0.11499999999999999,
+        "IntermarketAgent": 0.0,
+        "SessionBreakoutAgent": 0.0,
+        "DivergenceAgent": 0.38117608063796893,
+        "ScalpingAgent": -0.5431151543041759,
+        "VwapScalpAgent": 0.8724191273804263,
+        "SqueezeBreakoutAgent": -0.49806458323612685,
+        "OrderFlowAgent": -0.3605715730905412
+      },
+      "ts": 1774524563.6641517
+    },
+    "55943478950": {
+      "symbol": "EURCHF",
+      "direction": "Direction.SHORT",
+      "votes": {
+        "RegimeAgent": 0.03818285265028306,
+        "TrendAgent": -0.7182292190036891,
+        "MomentumAgent": -0.1182507224705429,
+        "MeanReversionAgent": 0.41251597050242006,
+        "VolatilityAgent": 0.19,
+        "BreadthAgent": 0.06966278161665194,
+        "PatternAgent": -0.45,
+        "IntermarketAgent": 0.0,
+        "SessionBreakoutAgent": 0.0,
+        "DivergenceAgent": 0.0,
+        "ScalpingAgent": -0.37,
+        "VwapScalpAgent": -0.4658450573386348,
+        "SqueezeBreakoutAgent": 0.19999999999999998,
+        "OrderFlowAgent": -0.19997857993726983
+      },
+      "ts": 1774524564.2471623
+    },
+    "55945941380": {
+      "symbol": "EURUSD",
+      "direction": "Direction.LONG",
+      "votes": {
+        "RegimeAgent": -0.7006032705966156,
+        "TrendAgent": -0.5030129785317423,
+        "MomentumAgent": -0.10282058981747533,
+        "MeanReversionAgent": 0.04758759620712934,
+        "VolatilityAgent": 0.28,
+        "BreadthAgent": 0.06966278161665194,
+        "PatternAgent": 0.33000000000000007,
+        "IntermarketAgent": -0.18619272074910648,
+        "SessionBreakoutAgent": 0.0,
+        "DivergenceAgent": 0.0,
+        "ScalpingAgent": 0.6599999999999999,
+        "VwapScalpAgent": 0.7129343053006548,
+        "SqueezeBreakoutAgent": 0.39999999999999997,
+        "OrderFlowAgent": 0.1800752316319544
+      },
+      "ts": 1774530925.6443882
+    },
+    "55945941708": {
+      "symbol": "AUDUSD",
+      "direction": "Direction.LONG",
+      "votes": {
+        "RegimeAgent": -0.9114442733559062,
+        "TrendAgent": -0.7573551942540785,
+        "MomentumAgent": -0.10533522106814551,
+        "MeanReversionAgent": 0.17973337376066584,
+        "VolatilityAgent": 0.28,
+        "BreadthAgent": 0.06966278161665194,
+        "PatternAgent": -0.11499999999999999,
+        "IntermarketAgent": -0.26525995548946685,
+        "SessionBreakoutAgent": 0.0,
+        "DivergenceAgent": 0.0,
+        "ScalpingAgent": 0.5,
+        "VwapScalpAgent": 0.8,
+        "SqueezeBreakoutAgent": 0.39999999999999997,
+        "OrderFlowAgent": 0.1802026078525015
+      },
+      "ts": 1774530926.2621586
+    },
+    "55946610144": {
+      "symbol": "AUDUSD",
+      "direction": "Direction.LONG",
+      "votes": {
+        "RegimeAgent": -0.8505785569843565,
+        "TrendAgent": -0.7571097144504003,
+        "MomentumAgent": -0.10380911811532573,
+        "MeanReversionAgent": 0.29047675478626245,
+        "VolatilityAgent": 0.44,
+        "BreadthAgent": 0.06966278161665194,
+        "PatternAgent": 0.435,
+        "IntermarketAgent": -0.2572163484528207,
+        "SessionBreakoutAgent": 0.0,
+        "DivergenceAgent": 0.0,
+        "ScalpingAgent": -0.1372054994934631,
+        "VwapScalpAgent": 0.8175210143042748,
+        "SqueezeBreakoutAgent": 0.5228678008609082,
+        "OrderFlowAgent": -0.16998380637045818
+      },
+      "ts": 1774532492.5967486
+    },
+    "55946766162": {
+      "symbol": "EURUSD",
+      "direction": "Direction.LONG",
+      "votes": {
+        "RegimeAgent": -0.13797517882439367,
+        "TrendAgent": -0.5021577421631555,
+        "MomentumAgent": 0.3814727784649674,
+        "MeanReversionAgent": -0.740355490448531,
+        "VolatilityAgent": 0.44,
+        "BreadthAgent": 0.06966278161665194,
+        "PatternAgent": -0.11499999999999999,
+        "IntermarketAgent": -0.17432983630806428,
+        "SessionBreakoutAgent": 0.0,
+        "DivergenceAgent": 0.0,
+        "ScalpingAgent": 0.6599999999999999,
+        "VwapScalpAgent": 0.3214692665459768,
+        "SqueezeBreakoutAgent": 0.39999999999999997,
+        "OrderFlowAgent": 0.3602717527881524
+      },
+      "ts": 1774532729.9788868
+    },
+    "55946839800": {
+      "symbol": "AUDUSD",
+      "direction": "Direction.LONG",
+      "votes": {
+        "RegimeAgent": -0.6396932872837845,
+        "TrendAgent": -0.756086107832687,
+        "MomentumAgent": 0.3797111998772733,
+        "MeanReversionAgent": -0.23798469255453514,
+        "VolatilityAgent": 0.32,
+        "BreadthAgent": 0.06966278161665194,
+        "PatternAgent": 0.33000000000000007,
+        "IntermarketAgent": -0.25283634832067525,
+        "SessionBreakoutAgent": 0.0,
+        "DivergenceAgent": 0.0,
+        "ScalpingAgent": 0.6599999999999999,
+        "VwapScalpAgent": 0.0,
+        "SqueezeBreakoutAgent": 0.39999999999999997,
+        "OrderFlowAgent": 0.24013350864771926
+      },
+      "ts": 1774532851.5471818
+    },
+    "55947690420": {
+      "symbol": "EURUSD",
+      "direction": "Direction.LONG",
+      "votes": {
+        "RegimeAgent": -0.39736473567260777,
+        "TrendAgent": -0.5034206304345994,
+        "MomentumAgent": 0.3836614820226099,
+        "MeanReversionAgent": -0.4628954885690633,
+        "VolatilityAgent": 0.28,
+        "BreadthAgent": 0.05923344719503491,
+        "PatternAgent": -0.11499999999999999,
+        "IntermarketAgent": -0.1569483186170032,
+        "SessionBreakoutAgent": 0.0,
+        "DivergenceAgent": 0.0,
+        "ScalpingAgent": 0.4631574968041344,
+        "VwapScalpAgent": 0.0,
+        "SqueezeBreakoutAgent": 0.6798698450861954,
+        "OrderFlowAgent": 0.28339556645653896
+      },
+      "ts": 1774534591.8381808
+    },
+    "55947831762": {
+      "symbol": "NZDUSD",
+      "direction": "Direction.LONG",
+      "votes": {
+        "RegimeAgent": -0.29620251573104517,
+        "TrendAgent": -0.7511161169997475,
+        "MomentumAgent": 0.2856809786166113,
+        "MeanReversionAgent": -0.2616575239441014,
+        "VolatilityAgent": 0.24,
+        "BreadthAgent": 0.05923344719503491,
+        "PatternAgent": 0.16499999999999998,
+        "IntermarketAgent": -0.18015879657192266,
+        "SessionBreakoutAgent": 0.0,
+        "DivergenceAgent": 0.3599383686087593,
+        "ScalpingAgent": 0.020000000000000007,
+        "VwapScalpAgent": 0.6506485894804227,
+        "SqueezeBreakoutAgent": 0.3072649795908488,
+        "OrderFlowAgent": 0.20018393347969637
+      },
+      "ts": 1774534892.2548954
+    },
+    "55948765320": {
+      "symbol": "EURJPY",
+      "direction": "Direction.LONG",
+      "votes": {
+        "RegimeAgent": -0.20713320983275388,
+        "TrendAgent": 0.5647618677284076,
+        "MomentumAgent": 0.5021081592564458,
+        "MeanReversionAgent": -0.22512911833478,
+        "VolatilityAgent": 0.29,
+        "BreadthAgent": 0.05923344719503491,
+        "PatternAgent": 0.6100000000000001,
+        "IntermarketAgent": -0.13405252902625311,
+        "SessionBreakoutAgent": 0.0,
+        "DivergenceAgent": 0.0,
+        "ScalpingAgent": 0.25052122204973537,
+        "VwapScalpAgent": 0.500036511994001,
+        "SqueezeBreakoutAgent": 0.6029130233509956,
+        "OrderFlowAgent": 0.3600729697153964
+      },
+      "ts": 1774536693.130961
+    },
+    "55948789734": {
+      "symbol": "EURUSD",
+      "direction": "Direction.LONG",
+      "votes": {
+        "RegimeAgent": -0.13828026013347017,
+        "TrendAgent": -0.5030802842205148,
+        "MomentumAgent": 0.5227397209213719,
+        "MeanReversionAgent": -0.2523621507047195,
+        "VolatilityAgent": 0.28,
+        "BreadthAgent": 0.05923344719503491,
+        "PatternAgent": 0.44,
+        "IntermarketAgent": -0.1562583533440492,
+        "SessionBreakoutAgent": 0.0,
+        "DivergenceAgent": 0.0,
+        "ScalpingAgent": 0.358237040978715,
+        "VwapScalpAgent": 0.30046620648142497,
+        "SqueezeBreakoutAgent": 0.39999999999999997,
+        "OrderFlowAgent": 0.27010914193648977
+      },
+      "ts": 1774536752.5285177
+    },
+    "55948859242": {
+      "symbol": "GBPUSD",
+      "direction": "Direction.LONG",
+      "votes": {
+        "RegimeAgent": 0.22962221890094997,
+        "TrendAgent": -0.5004705633370388,
+        "MomentumAgent": 0.283644496289142,
+        "MeanReversionAgent": 0.08599553090836641,
+        "VolatilityAgent": -0.32,
+        "BreadthAgent": 0.05923344719503491,
+        "PatternAgent": 0.435,
+        "IntermarketAgent": -0.13727818794112479,
+        "SessionBreakoutAgent": 0.0,
+        "DivergenceAgent": 0.0,
+        "ScalpingAgent": -0.46967913154849067,
+        "VwapScalpAgent": -0.6618307571821871,
+        "SqueezeBreakoutAgent": -0.39999999999999997,
+        "OrderFlowAgent": -0.18003143830233173
+      },
+      "ts": 1774536873.402595
+    },
+    "55963659936": {
+      "symbol": "USDJPY",
+      "direction": "Direction.LONG",
+      "votes": {
+        "RegimeAgent": 0.5017049818402894,
+        "TrendAgent": 0.7259744682673256,
+        "MomentumAgent": 0.4869905074253015,
+        "MeanReversionAgent": -0.3988331593643693,
+        "VolatilityAgent": 0.29,
+        "BreadthAgent": 0.017947052140380226,
+        "PatternAgent": -0.11499999999999999,
+        "IntermarketAgent": 0.0,
+        "SessionBreakoutAgent": 0.0,
+        "DivergenceAgent": 0.0,
+        "ScalpingAgent": 0.10480995627297678,
+        "VwapScalpAgent": -0.7187841274070057,
+        "SqueezeBreakoutAgent": 0.39999999999999997,
+        "OrderFlowAgent": 0.3605509565914887
+      },
+      "ts": 1774600599.7808814
+    },
+    "55963660005": {
+      "symbol": "USDCHF",
+      "direction": "Direction.LONG",
+      "votes": {
+        "RegimeAgent": 0.4119925761870776,
+        "TrendAgent": 0.533156396867253,
+        "MomentumAgent": 0.4949501459668193,
+        "MeanReversionAgent": -0.30235406043571844,
+        "VolatilityAgent": 0.41,
+        "BreadthAgent": 0.017947052140380226,
+        "PatternAgent": 0.45,
+        "IntermarketAgent": 0.0,
+        "SessionBreakoutAgent": 0.0,
+        "DivergenceAgent": -0.33401371140933567,
+        "ScalpingAgent": 0.22000000000000003,
+        "VwapScalpAgent": -0.6628596268759039,
+        "SqueezeBreakoutAgent": 0.39999999999999997,
+        "OrderFlowAgent": 0.36036972295929276
+      },
+      "ts": 1774600600.0182986
+    },
+    "55963745248": {
+      "symbol": "AUDJPY",
+      "direction": "Direction.LONG",
+      "votes": {
+        "RegimeAgent": -0.07311036033788343,
+        "TrendAgent": 0.6891490033032277,
+        "MomentumAgent": -0.28095847050576045,
+        "MeanReversionAgent": -0.20206379236603397,
+        "VolatilityAgent": 0.27,
+        "BreadthAgent": 0.017947052140380226,
+        "PatternAgent": 0.17000000000000004,
+        "IntermarketAgent": -0.20153677847058513,
+        "SessionBreakoutAgent": 0.0,
+        "DivergenceAgent": 0.38117607867764774,
+        "ScalpingAgent": 0.14085102407966024,
+        "VwapScalpAgent": 0.34333260193223947,
+        "SqueezeBreakoutAgent": 0.425,
+        "OrderFlowAgent": 0.1501906421918405
+      },
+      "ts": 1774600901.041346
+    },
+    "55963745442": {
+      "symbol": "EURCHF",
+      "direction": "Direction.SHORT",
+      "votes": {
+        "RegimeAgent": 0.2922503160039198,
+        "TrendAgent": -0.6534456191924277,
+        "MomentumAgent": 0.7030122173669342,
+        "MeanReversionAgent": -0.2637347439396878,
+        "VolatilityAgent": -0.35,
+        "BreadthAgent": 0.017947052140380226,
+        "PatternAgent": 0.435,
+        "IntermarketAgent": -0.09877995886933194,
+        "SessionBreakoutAgent": 0.0,
+        "DivergenceAgent": 0.0,
+        "ScalpingAgent": -0.23655223983106252,
+        "VwapScalpAgent": 0.22613095886588994,
+        "SqueezeBreakoutAgent": -0.6165307244580231,
+        "OrderFlowAgent": -0.1500518580657813
+      },
+      "ts": 1774600901.555607
+    },
+    "55963745534": {
+      "symbol": "CHFJPY",
+      "direction": "Direction.LONG",
+      "votes": {
+        "RegimeAgent": -0.21479901551131575,
+        "TrendAgent": 0.6853761859369925,
+        "MomentumAgent": -0.7444859999678352,
+        "MeanReversionAgent": 0.14011638396527185,
+        "VolatilityAgent": 0.39,
+        "BreadthAgent": 0.017947052140380226,
+        "PatternAgent": 0.12,
+        "IntermarketAgent": 0.13501251905372966,
+        "SessionBreakoutAgent": 0.0,
+        "DivergenceAgent": 0.0,
+        "ScalpingAgent": -0.06952768546506032,
+        "VwapScalpAgent": -0.127591752662389,
+        "SqueezeBreakoutAgent": 0.5,
+        "OrderFlowAgent": 0.010019534169847594
+      },
+      "ts": 1774600901.9589584
+    },
+    "55976554080": {
+      "symbol": "XAUUSD",
+      "direction": "Direction.LONG",
+      "votes": {
+        "RegimeAgent": 0.12101892514042546,
+        "TrendAgent": 0.7131852459145083,
+        "MomentumAgent": -0.7808083602769593,
+        "MeanReversionAgent": -0.13557194421051066,
+        "VolatilityAgent": -0.16000000000000003,
+        "BreadthAgent": 0.0021271252902994196,
+        "PatternAgent": 0.11499999999999999,
+        "IntermarketAgent": 0.0,
+        "SessionBreakoutAgent": 0.0,
+        "DivergenceAgent": 0.0,
+        "ScalpingAgent": -0.21012652874997872,
+        "VwapScalpAgent": -0.7503570342284099,
+        "SqueezeBreakoutAgent": -0.39999999999999997,
+        "OrderFlowAgent": -0.23077897952352347
+      },
+      "ts": 1774632310.3454676
+    },
+    "55976555156": {
+      "symbol": "GBPJPY",
+      "direction": "Direction.SHORT",
+      "votes": {
+        "RegimeAgent": 0.1140132183052712,
+        "TrendAgent": -0.24115536902340567,
+        "MomentumAgent": 0.0808402044811461,
+        "MeanReversionAgent": -0.7410421963035141,
+        "VolatilityAgent": 0.29,
+        "BreadthAgent": 0.0021271252902994196,
+        "PatternAgent": 0.6100000000000001,
+        "IntermarketAgent": 0.0,
+        "SessionBreakoutAgent": 0.0,
+        "DivergenceAgent": 0.4992755506257235,
+        "ScalpingAgent": 0.5412268703746994,
+        "VwapScalpAgent": 0.2833796312748592,
+        "SqueezeBreakoutAgent": 0.42265919086408615,
+        "OrderFlowAgent": 0.36014088679680045
+      },
+      "ts": 1774632313.216796
+    }
+  },
+  "agent_stats": {
+    "RegimeAgent": {
+      "n": 5,
+      "correct": 2,
+      "abstain": 2,
+      "total_contribution": 1.229541681664738,
+      "last_updated": "2026-03-27 10:24"
+    },
+    "TrendAgent": {
+      "n": 7,
+      "correct": 2,
+      "abstain": 0,
+      "total_contribution": 1.153973865914669,
+      "last_updated": "2026-03-27 10:24"
+    },
+    "MomentumAgent": {
+      "n": 7,
+      "correct": 4,
+      "abstain": 0,
+      "total_contribution": 1.1575132267902055,
+      "last_updated": "2026-03-27 10:24"
+    },
+    "MeanReversionAgent": {
+      "n": 7,
+      "correct": 3,
+      "abstain": 0,
+      "total_contribution": 1.2121654075748067,
+      "last_updated": "2026-03-27 10:24"
+    },
+    "VolatilityAgent": {
+      "n": 7,
+      "correct": 2,
+      "abstain": 0,
+      "total_contribution": 0.51,
+      "last_updated": "2026-03-27 10:24"
+    },
+    "BreadthAgent": {
+      "n": 6,
+      "correct": 3,
+      "abstain": 1,
+      "total_contribution": 0.18812967600672176,
+      "last_updated": "2026-03-27 09:35"
+    },
+    "PatternAgent": {
+      "n": 7,
+      "correct": 4,
+      "abstain": 0,
+      "total_contribution": 1.12,
+      "last_updated": "2026-03-27 10:24"
+    },
+    "IntermarketAgent": {
+      "n": 3,
+      "correct": 0,
+      "abstain": 4,
+      "total_contribution": 0.0,
+      "last_updated": "2026-03-27 10:24"
+    },
+    "SessionBreakoutAgent": {
+      "n": 0,
+      "correct": 0,
+      "abstain": 7,
+      "total_contribution": 0.0,
+      "last_updated": null
+    },
+    "DivergenceAgent": {
+      "n": 2,
+      "correct": 1,
+      "abstain": 5,
+      "total_contribution": 0.3340137113345887,
+      "last_updated": "2026-03-27 09:35"
+    },
+    "ScalpingAgent": {
+      "n": 7,
+      "correct": 3,
+      "abstain": 0,
+      "total_contribution": 0.6662547696900523,
+      "last_updated": "2026-03-27 10:24"
+    },
+    "VwapScalpAgent": {
+      "n": 6,
+      "correct": 0,
+      "abstain": 1,
+      "total_contribution": 0.0,
+      "last_updated": "2026-03-27 10:24"
+    },
+    "SqueezeBreakoutAgent": {
+      "n": 7,
+      "correct": 2,
+      "abstain": 0,
+      "total_contribution": 0.675953533184614,
+      "last_updated": "2026-03-27 10:24"
+    },
+    "OrderFlowAgent": {
+      "n": 6,
+      "correct": 2,
+      "abstain": 1,
+      "total_contribution": 0.6316383565642348,
+      "last_updated": "2026-03-27 10:24"
+    }
+  }
+}

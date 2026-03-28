@@ -77,6 +77,17 @@ agents:
     BreadthAgent: 1.1          # Slightly higher weight for market context
     PatternAgent: 1.0          # Standard weight
 
+# Adaptive agent weight learning
+adaptive_weights:
+  enabled:               true
+  sensitivity:           2.0
+  min_trades:            30
+  max_mult:              2.50
+  min_mult:              0.40
+  shrink_n:              60
+  update_interval_hours: 4.0
+  log_updates:           true
+
 # Logging configuration
 log_level: "INFO"              # Logging level (DEBUG, INFO, WARNING, ERROR)
 log_file: "tradingagents.log"  # Log file path (optional)

@@ -16,6 +16,7 @@ from .scalping_agent import ScalpingAgent
 from .vwap_agent import VwapScalpAgent
 from .squeeze_agent import SqueezeBreakoutAgent
 from .orderflow_agent import OrderFlowAgent
+from .llm_sentiment_agent import LLMSentimentAgent
 
 __all__ = [
     "RegimeAgent",
@@ -32,4 +33,5 @@ __all__ = [
     "VwapScalpAgent",
     "SqueezeBreakoutAgent",
     "OrderFlowAgent",
+    "LLMSentimentAgent",
 ]

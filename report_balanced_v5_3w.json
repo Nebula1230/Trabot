@@ -1,0 +1,265 @@
+{
+  "generated_at": "2026-03-27T13:55:41.166922Z",
+  "profile": "balanced",
+  "start_date": "2026-03-02",
+  "end_date": "2026-03-20",
+  "initial_equity": 100000.0,
+  "final_equity": 99572.4679,
+  "summary": {
+    "total_return_pct": -0.4275,
+    "max_drawdown_pct": 1.142,
+    "total_trades": 14,
+    "avg_win_rate": 0.0667,
+    "avg_profit_factor": 0.075,
+    "avg_sharpe": -6.029
+  },
+  "symbols": [
+    {
+      "symbol": "EURUSD",
+      "metrics": {
+        "total_trades": 3,
+        "win_rate": 0.0,
+        "profit_factor": 0.0,
+        "total_return_pct": -0.304,
+        "max_drawdown_pct": 0.381,
+        "sharpe": -7.988,
+        "calmar": -16.169,
+        "avg_win_r": 0.0,
+        "avg_loss_r": -1.014,
+        "expectancy_r": -1.014
+      },
+      "trades": [
+        {
+          "entry_time": "2026-03-04T20:18:00+00:00",
+          "exit_time": "2026-03-04T21:18:00+00:00",
+          "direction": "short",
+          "entry_price": 1.16264,
+          "exit_price": 1.16299,
+          "stop_loss": 1.16299,
+          "take_profit": 1.16187,
+          "quantity": 0.96,
+          "pnl": -33.6,
+          "pnl_r": -1.008,
+          "exit_reason": "sl",
+          "confidence": 0.8413
+        },
+        {
+          "entry_time": "2026-03-11T15:48:00+00:00",
+          "exit_time": "2026-03-11T15:53:00+00:00",
+          "direction": "short",
+          "entry_price": 1.15798,
+          "exit_price": 1.1586,
+          "stop_loss": 1.1586,
+          "take_profit": 1.15662,
+          "quantity": 0.54,
+          "pnl": -33.48,
+          "pnl_r": -1.0054,
+          "exit_reason": "sl",
+          "confidence": 0.8474
+        },
+        {
+          "entry_time": "2026-03-18T19:17:00+00:00",
+          "exit_time": "2026-03-18T19:19:00+00:00",
+          "direction": "short",
+          "entry_price": 1.15041,
+          "exit_price": 1.15086,
+          "stop_loss": 1.15086,
+          "take_profit": 1.14944,
+          "quantity": 0.76,
+          "pnl": -34.2,
+          "pnl_r": -1.0281,
+          "exit_reason": "sl",
+          "confidence": 0.8449
+        }
+      ]
+    },
+    {
+      "symbol": "GBPUSD",
+      "metrics": {
+        "total_trades": 1,
+        "win_rate": 0.0,
+        "profit_factor": 0.0,
+        "total_return_pct": -0.1,
+        "max_drawdown_pct": 0.139,
+        "sharpe": -4.243,
+        "calmar": -14.611,
+        "avg_win_r": 0.0,
+        "avg_loss_r": -1.002,
+        "expectancy_r": -1.002
+      },
+      "trades": [
+        {
+          "entry_time": "2026-03-11T10:48:00+00:00",
+          "exit_time": "2026-03-11T10:58:00+00:00",
+          "direction": "short",
+          "entry_price": 1.341315,
+          "exit_price": 1.34197,
+          "stop_loss": 1.34197,
+          "take_profit": 1.33985,
+          "quantity": 0.51,
+          "pnl": -33.405,
+          "pnl_r": -1.0022,
+          "exit_reason": "sl",
+          "confidence": 0.8432
+        }
+      ]
+    },
+    {
+      "symbol": "USDJPY",
+      "metrics": {
+        "total_trades": 10,
+        "win_rate": 0.2,
+        "profit_factor": 0.225,
+        "total_return_pct": -0.879,
+        "max_drawdown_pct": 1.142,
+        "sharpe": -5.856,
+        "calmar": -15.611,
+        "avg_win_r": 1.792,
+        "avg_loss_r": -1.433,
+        "expectancy_r": -0.788
+      },
+      "trades": [
+        {
+          "entry_time": "2026-03-06T16:27:00+00:00",
+          "exit_time": "2026-03-06T16:30:00+00:00",
+          "direction": "long",
+          "entry_price": 158.0755,
+          "exit_price": 157.975,
+          "stop_loss": 157.975,
+          "take_profit": 158.301,
+          "quantity": 0.51,
+          "pnl": -46.6421,
+          "pnl_r": -1.4336,
+          "exit_reason": "sl",
+          "confidence": 0.7928
+        },
+        {
+          "entry_time": "2026-03-06T19:42:00+00:00",
+          "exit_time": "2026-03-06T19:45:00+00:00",
+          "direction": "long",
+          "entry_price": 157.8475,
+          "exit_price": 157.79,
+          "stop_loss": 157.79,
+          "take_profit": 157.977,
+          "quantity": 0.89,
+          "pnl": -46.5693,
+          "pnl_r": -1.4334,
+          "exit_reason": "sl",
+          "confidence": 0.7928
+        },
+        {
+          "entry_time": "2026-03-09T11:37:00+00:00",
+          "exit_time": "2026-03-09T11:40:00+00:00",
+          "direction": "short",
+          "entry_price": 158.2725,
+          "exit_price": 158.379,
+          "stop_loss": 158.379,
+          "take_profit": 158.036,
+          "quantity": 0.49,
+          "pnl": -47.4883,
+          "pnl_r": -1.4286,
+          "exit_reason": "sl",
+          "confidence": 0.765
+        },
+        {
+          "entry_time": "2026-03-09T14:22:00+00:00",
+          "exit_time": "2026-03-09T14:42:00+00:00",
+          "direction": "short",
+          "entry_price": 158.3945,
+          "exit_price": 158.462,
+          "stop_loss": 158.462,
+          "take_profit": 158.241,
+          "quantity": 0.77,
+          "pnl": -47.2972,
+          "pnl_r": -1.4249,
+          "exit_reason": "sl",
+          "confidence": 0.765
+        },
+        {
+          "entry_time": "2026-03-09T15:37:00+00:00",
+          "exit_time": "2026-03-09T15:40:00+00:00",
+          "direction": "short",
+          "entry_price": 158.2005,
+          "exit_price": 158.307,
+          "stop_loss": 158.307,
+          "take_profit": 157.967,
+          "quantity": 0.5,
+          "pnl": -48.4575,
+          "pnl_r": -1.462,
+          "exit_reason": "sl",
+          "confidence": 0.765
+        },
+        {
+          "entry_time": "2026-03-10T07:17:00+00:00",
+          "exit_time": "2026-03-10T07:32:00+00:00",
+          "direction": "short",
+          "entry_price": 157.6575,
+          "exit_price": 157.701,
+          "stop_loss": 157.701,
+          "take_profit": 157.561,
+          "quantity": 1.2,
+          "pnl": -47.502,
+          "pnl_r": -1.4352,
+          "exit_reason": "sl",
+          "confidence": 0.7572
+        },
+        {
+          "entry_time": "2026-03-10T20:47:00+00:00",
+          "exit_time": "2026-03-10T20:51:00+00:00",
+          "direction": "long",
+          "entry_price": 157.9045,
+          "exit_price": 157.806,
+          "stop_loss": 157.806,
+          "take_profit": 158.122,
+          "quantity": 0.53,
+          "pnl": -47.5065,
+          "pnl_r": -1.4374,
+          "exit_reason": "sl",
+          "confidence": 0.7572
+        },
+        {
+          "entry_time": "2026-03-12T14:22:00+00:00",
+          "exit_time": "2026-03-12T15:03:00+00:00",
+          "direction": "long",
+          "entry_price": 158.8895,
+          "exit_price": 158.83,
+          "stop_loss": 158.83,
+          "take_profit": 159.026,
+          "quantity": 0.86,
+          "pnl": -46.5647,
+          "pnl_r": -1.411,
+          "exit_reason": "sl",
+          "confidence": 0.7814
+        },
+        {
+          "entry_time": "2026-03-17T07:42:00+00:00",
+          "exit_time": "2026-03-17T07:50:00+00:00",
+          "direction": "long",
+          "entry_price": 159.3455,
+          "exit_price": 159.383,
+          "stop_loss": 159.318,
+          "take_profit": 159.405,
+          "quantity": 0.965,
+          "pnl": 32.9306,
+          "pnl_r": 1.9985,
+          "exit_reason": "partial_tp1",
+          "confidence": 0.7463
+        },
+        {
+          "entry_time": "2026-03-17T07:42:00+00:00",
+          "exit_time": "2026-03-17T07:54:00+00:00",
+          "direction": "long",
+          "entry_price": 159.3455,
+          "exit_price": 159.405,
+          "stop_loss": 159.35925,
+          "take_profit": 159.405,
+          "quantity": 0.965,
+          "pnl": 52.2499,
+          "pnl_r": 1.5855,
+          "exit_reason": "tp",
+          "confidence": 0.7463
+        }
+      ]
+    }
+  ]
+}

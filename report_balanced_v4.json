@@ -1,0 +1,66 @@
+{
+  "generated_at": "2026-03-27T12:55:17.562656Z",
+  "profile": "balanced",
+  "start_date": "2026-03-16",
+  "end_date": "2026-03-20",
+  "initial_equity": 100000.0,
+  "final_equity": 100000.0,
+  "summary": {
+    "total_return_pct": 0.0,
+    "max_drawdown_pct": 0.0,
+    "total_trades": 0,
+    "avg_win_rate": 0.0,
+    "avg_profit_factor": 0.0,
+    "avg_sharpe": 0.0
+  },
+  "symbols": [
+    {
+      "symbol": "EURUSD",
+      "metrics": {
+        "total_trades": 0,
+        "win_rate": 0.0,
+        "profit_factor": 0.0,
+        "total_return_pct": 0.0,
+        "max_drawdown_pct": 0.0,
+        "sharpe": 0.0,
+        "calmar": 0.0,
+        "avg_win_r": 0.0,
+        "avg_loss_r": 0.0,
+        "expectancy_r": 0.0
+      },
+      "trades": []
+    },
+    {
+      "symbol": "GBPUSD",
+      "metrics": {
+        "total_trades": 0,
+        "win_rate": 0.0,
+        "profit_factor": 0.0,
+        "total_return_pct": 0.0,
+        "max_drawdown_pct": 0.0,
+        "sharpe": 0.0,
+        "calmar": 0.0,
+        "avg_win_r": 0.0,
+        "avg_loss_r": 0.0,
+        "expectancy_r": 0.0
+      },
+      "trades": []
+    },
+    {
+      "symbol": "USDJPY",
+      "metrics": {
+        "total_trades": 0,
+        "win_rate": 0.0,
+        "profit_factor": 0.0,
+        "total_return_pct": 0.0,
+        "max_drawdown_pct": 0.0,
+        "sharpe": 0.0,
+        "calmar": 0.0,
+        "avg_win_r": 0.0,
+        "avg_loss_r": 0.0,
+        "expectancy_r": 0.0
+      },
+      "trades": []
+    }
+  ]
+}

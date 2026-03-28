@@ -91,8 +91,8 @@ realtime:
 mt5:
   host:     "localhost"          # Docker host
   port:     18812                # mt5linux API port (mt5linux default)
-  login:    104910563           # ← your MT5 demo account number
-  password: "CrU-Il2h"          # ← your MT5 demo password
+  login:    5048478471           # ← your MT5 demo account number
+  password: "Wu_wS1Lq"          # ← your MT5 demo password
   server:   "MetaQuotes-Demo"    # ← broker server name, e.g. "ICMarkets-Demo"
   magic_number: 434242           # unique ID so the bot only manages its own orders
   slippage: 10                   # max slippage in points
@@ -155,10 +155,10 @@ alignment:
   short_min_score:  0.08   # min directional score on short timeframe (15m)
   mean_rev_guard:   0.65   # block if mean-reversion score > this (overbought check)
   breadth_min:     -0.60   # block if market breadth below this (weak market)
-  min_win_prob:     0.47   # min win probability required  [raised from 0.45 — sub-50% territory]
-  min_ev:           0.08   # min expected value required
-  min_confidence:   0.46   # agent confidence gate [was missing — safe=0.50, risky=0.42]
-  pullback_tolerance: 0.40
+  min_win_prob:     0.52   # min win probability required  [raised: formula baseline ~0.58 so 0.48 was never blocking anything]
+  min_ev:           0.15   # min expected value required  [raised: 0.10 was below typical formula output for any aligned signal]
+  min_confidence:   0.50   # agent confidence gate [raised from 0.46 — filter weak 1m signals]
+  pullback_tolerance: 0.20  # tightened from 0.40 — dir_mid/short at -0.39 is near-opposed, not a pullback
   # ── Forex session dead-zone (UTC hours) — thresholds tightened to avoid low-liquidity entries
   dead_zone_start_utc: 22   # 22:00 UTC = London/NY close
   dead_zone_end_utc:    6   # 06:00 UTC = before London open
@@ -166,7 +166,7 @@ alignment:
   # ── Agent consensus gate ── require minimum agents to agree before trading
   # Excludes BreadthAgent (market context filter).  With 10 directional agents
   # (9 original + DivergenceAgent) a value of 5 requires majority agreement.
-  min_agent_consensus:      5     # minimum agents voting in trade direction
+  min_agent_consensus:      6     # minimum agents voting in trade direction [raised from 5 — fewer but higher-quality entries]
   consensus_vote_threshold: 0.05  # minimum |dir_score| to count as a vote
 
 # ── Scale-in (pyramiding) ─────────────────────────────────────────
@@ -187,13 +187,13 @@ scale_in:
 # Plus: soft-tighten when conviction is weakening but not yet at close threshold.
 exit_rules:
   conviction_fade_enabled:          true
-  conviction_fade_threshold:        0.10   # close if |D1| < this (trend gone flat)
+  conviction_fade_threshold:        0.05   # close if |D1| < this [lowered from 0.10 — 1m wiggles kept triggering at 0.10]
   mid_short_opposition_enabled:     true
-  mid_short_opposition_threshold:   0.35   # close if BOTH M & S exceed this against trade
+  mid_short_opposition_threshold:   0.50   # close if BOTH M & S exceed this [raised from 0.35 — less hair-trigger on 1m noise]
   # Tighten SL/TP when signal is weakening (between fade and tighten thresholds)
   # instead of waiting to either fully close or do nothing:
   tighten_on_fade_enabled:          true
-  tighten_fade_threshold:           0.20   # tighten when fade_threshold < |D1| < this
+  tighten_fade_threshold:           0.12   # tighten when fade_threshold < |D1| < this [raised from 0.20 — wider window before tightening]
   tighten_tp_atr_mult:              0.5    # new TP = price ± N×ATR (capture nearby profit)
   # Time-stop: close any trade open longer than this without reaching TP.
   # Prevents capital being locked in stalled/sideways trades paying swap.
@@ -264,8 +264,96 @@ kelly:
   min_mult:      0.60    # floor multiplier (still trades but reduced on poor history)
   lookback_days: 60      # MT5 history window for computing stats
 
+# ── Adaptive agent weight learning ──────────────────────────────
+# Adjusts each agent's fusion weight based on its closed-trade hit rate.
+# Agents that vote correctly more often than chance get more influence;
+# agents that vote incorrectly get less.  Changes are gradual (Bayesian
+# shrinkage) and always stay within [base×min_mult, base×max_mult].
+#
+# Formula:
+#   hit_edge  = hit_rate − 0.50          (excess accuracy above chance)
+#   shrinkage = n / (n + shrink_n)       (Bayesian prior pull; builds to 1)
+#   new_w     = base_w × (1 + sensitivity × hit_edge × shrinkage)
+#   new_w     = clamp(new_w, base_w×min_mult, base_w×max_mult)
+#
+# Example: sensitivity=2.0, hit_rate=0.60 (+10pp edge), n=60, shrink_n=60
+#   shrinkage = 0.50, hit_edge = 0.10
+#   new_w = base × (1 + 2.0 × 0.10 × 0.50) = base × 1.10  (+10%)
+#
+adaptive_weights:
+  enabled:               true    # ← enabled
+  sensitivity:           2.0      # hit_rate edge amplification factor (1.0–4.0)
+  min_trades:            30       # minimum closed trades before adjusting weight
+  max_mult:              2.50     # cap: never more than 2.5× base weight
+  min_mult:              0.40     # floor: never less than 40% of base weight
+  shrink_n:              60       # Bayesian shrinkage: "N trades = 50% confidence"
+  update_interval_hours: 4.0      # recompute weights at most every N hours
+  log_updates:           true     # log weight changes at INFO level
+
 # ── Journal / logging ────────────────────────────────────────────
 journal:
   log_dir: "logs"          # folder where trade logs are written
   log_decisions: true      # log every signal cycle (even non-trades)
   log_trades:    true      # log every executed order
+
+# ── LLM Agent Bridge (optional) ──────────────────────────────────
+# Plugs the TradingAgentsGraph LLM pipeline (tradingagents package)
+# as an additional LONG-timeframe overlay agent.  Off by default.
+#
+# Requirements:
+#   pip install langchain-openai langchain-anthropic langgraph
+#   export OPENAI_API_KEY="sk-..."   # or set via .env
+#   The `tradingagents` folder must be on PYTHONPATH (already in this repo).
+#
+# Score mapping:  BUY → +0.70  |  HOLD → 0.00  |  SELL → −0.70
+# The LLM score is fused with TA agents on the LONG timeframe tier.
+# Set weight > 1.0 to give it more influence (e.g. 2.0 = twice a normal agent).
+#
+llm_agents:
+  enabled:        false          # ← set to true to activate
+
+  # Path to the cloned TauricResearch/TradingAgents repo.
+  # git clone https://github.com/TauricResearch/TradingAgents
+  upstream_path:  /home/hkerroum/Documents/proj/scale/finbo/TradingAgents
+
+  # ── Analyst modules ──────────────────────────────────────────────────────────
+  analysts:                      # load a subset for faster cycles
+    - market                     #   technical indicators via yfinance/stockstats
+    - news                       #   global news via Finnhub / Google News
+  # optional additions:
+  #   - social                   #   Reddit/social sentiment (slower, equities)
+  #   - fundamentals             #   balance sheet, insider activity (equities)
+
+  # ── Throttle & weight ────────────────────────────────────────────────────────
+  throttle_hours: 4.0            # re-run at most every N hours per symbol
+  weight:         1.0            # agent weight in fusion (1.0 = one standard agent)
+
+  # ── Reliability / circuit breaker ───────────────────────────────────────────
+  timeout_seconds:     120       # hard wall-clock cap (seconds) per call
+  max_retries:         2         # retries on transient errors (5s / 10s / 20s back-off)
+  cb_fail_threshold:   3         # consecutive failures before opening circuit breaker
+  cb_cooldown_minutes: 15.0      # minutes in OPEN state before half-open probe
+
+  # ── Cloud providers ──────────────────────────────────────────────────────────
+  llm_provider:    openai        # openai | anthropic | google | xai | openrouter
+  deep_think_llm:  gpt-4o-mini
+  quick_think_llm: gpt-4o-mini
+  backend_url:     ""            # leave blank to use provider default
+
+  # ── Local LLM: Ollama ────────────────────────────────────────────────────────
+  # llm_provider:    ollama
+  # deep_think_llm:  llama3.2
+  # quick_think_llm: llama3.2
+  # backend_url:     ""          # defaults to http://localhost:11434/v1
+
+  # ── Local LLM: LM Studio ─────────────────────────────────────────────────────
+  # llm_provider:    lmstudio
+  # deep_think_llm:  lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF
+  # quick_think_llm: lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF
+  # backend_url:     ""          # defaults to http://localhost:1234/v1
+
+  # ── OpenRouter (hosted open-weight models) ───────────────────────────────────
+  # llm_provider:    openrouter
+  # deep_think_llm:  meta-llama/llama-3.1-8b-instruct:free
+  # quick_think_llm: meta-llama/llama-3.1-8b-instruct:free
+  # backend_url:     ""          # defaults to https://openrouter.ai/api/v1

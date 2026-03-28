@@ -1,0 +1,41 @@
+Each symbol per cycle:
+─────────────────────────────────────────────
+  TA agents (14x)         LLM agent (1x)
+  ─────────────           ──────────────
+  RegimeAgent         →   LLMSentimentAgent
+  TrendAgent              (Timeframe.LONG)
+  MomentumAgent
+  MeanReversionAgent
+  VolatilityAgent
+  BreadthAgent
+  PatternAgent
+  IntermarketAgent
+  SessionBreakoutAgent
+  DivergenceAgent
+  ScalpingAgent
+  VwapScalpAgent
+  SqueezeBreakoutAgent
+  OrderFlowAgent
+         ↓                       ↓
+  ─────────────────────────────────────────────
+             FUSION STEP (_fuse_timeframes)
+  ─────────────────────────────────────────────
+  Each agent outputs: dir_score ∈ [-1, 1], conf ∈ [0, 1]
+  
+  Weighted average per tier:
+  
+    score_tier = Σ (dir_score × conf × weight × regime_mult × corr_adj)
+               / Σ (conf × weight × regime_mult × corr_adj)
+  
+  dir_long  ← LONG tier agents  (LLMSentimentAgent lives here)
+  dir_mid   ← MID  tier agents
+  dir_short ← SHORT tier agents
+         ↓
+  ─────────────────────────────────────────────
+             ALIGNMENT CHECK (_check_alignment)
+  ─────────────────────────────────────────────
+  Trade enters only if all 3 tiers agree in direction
+  beyond their thresholds (long_min_score, mid_min_score, short_min_score)
+  AND breadth OK AND mean-rev not blocking
+         ↓
+     TRADE / NO-TRADE

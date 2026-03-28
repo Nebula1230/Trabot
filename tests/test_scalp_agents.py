@@ -715,7 +715,7 @@ class TestScalpProfileConfig:
 
     def test_all_four_profiles_distinct_magic(self):
         magics = set()
-        for p in ["safe", "balanced", "risky", "scalp"]:
+        for p in ["safe", "balanced", "risky", "scalp", "hft"]:
             cfg = load_config_from_yaml("config.demo.yaml", profile=p)
             magics.add(cfg.mt5.magic_number)
         assert len(magics) == 4, "All four profiles must have distinct magic numbers"

@@ -92,9 +92,9 @@ class ScalpingAgent(BaseAgent):
         elif macd_h < 0 and macd_dh < 0:
             macd_score = -0.7    # falling negative hist → strong bearish impulse
         elif macd_h > 0 and macd_dh < 0:
-            macd_score = 0.2     # positive but decelerating — weakening
+            macd_score = 0.05    # positive but decelerating — near-neutral (fade risk)
         elif macd_h < 0 and macd_dh > 0:
-            macd_score = -0.2    # negative but recovering — weakening
+            macd_score = -0.05   # negative but recovering — near-neutral (bounce risk)
         else:
             macd_score = 0.0
         evidence["macd_hist"] = round(macd_h, 6)

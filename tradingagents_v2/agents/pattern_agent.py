@@ -260,8 +260,8 @@ class PatternAgent(BaseAgent):
         if len(features.swing_highs) >= 2 and len(features.swing_lows) >= 2:
             confidence += 0.2
 
-        # Higher confidence with clear breakouts
-        if features.last_break in ["high", "low"]:
+        # Higher confidence with a confirmed structural breakout
+        if features.last_break in ["bullish", "bearish"]:
             confidence += 0.2
 
         # Higher confidence with clear BB position

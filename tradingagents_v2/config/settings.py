@@ -2,8 +2,9 @@
 Main configuration settings for the TradingAgents system.
 """
 
+import os
 from typing import List, Dict, Any, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -89,6 +90,97 @@ class AgentConfig(BaseModel):
     custom_prompts: Dict[str, str] = Field(default_factory=dict, description="Custom prompts for agents")
 
 
+_VALID_LLM_PROVIDERS = frozenset({
+    "openai", "anthropic", "google", "ollama", "lmstudio", "openrouter", "xai"
+})
+_VALID_ANALYSTS = frozenset({"market", "social", "news", "fundamentals"})
+
+
+class LLMAgentsConfig(BaseModel):
+    """Configuration for the optional LLM agent bridge (tradingagents package)."""
+
+    enabled: bool = Field(default=False, description="Enable LLM sentiment agent")
+    upstream_path: str = Field(
+        default="",
+        description=(
+            "Absolute path to the cloned TauricResearch/TradingAgents repo root. "
+            "Used to resolve the tradingagents package when a local shadow exists."
+        ),
+    )
+    analysts: List[str] = Field(
+        default_factory=lambda: ["market", "news"],
+        description="Analyst modules: market | social | news | fundamentals",
+    )
+    throttle_hours: float = Field(
+        default=4.0, ge=0.25,
+        description="Re-run LLM pipeline at most every N hours per symbol",
+    )
+    timeout_seconds: int = Field(
+        default=120, ge=10, le=600,
+        description="Hard wall-clock cap (seconds) per call including retries",
+    )
+    max_retries: int = Field(
+        default=2, ge=0, le=5,
+        description="Number of additional retry attempts on transient errors",
+    )
+    cb_fail_threshold: int = Field(
+        default=3, ge=1, le=20,
+        description="Consecutive failures before the circuit breaker opens",
+    )
+    cb_cooldown_minutes: float = Field(
+        default=15.0, ge=1.0, le=240.0,
+        description="Minutes to wait in OPEN state before allowing a probe (HALF-OPEN)",
+    )
+    llm_provider: str = Field(
+        default="openai",
+        description="LLM provider: openai | anthropic | google | ollama | lmstudio | openrouter | xai",
+    )
+    deep_think_llm: str = Field(default="gpt-4o-mini", description="Model for deep (slow) reasoning")
+    quick_think_llm: str = Field(default="gpt-4o-mini", description="Model for fast extraction")
+    backend_url: str = Field(
+        default="",
+        description="LLM API base URL (leave blank to use the provider default)",
+    )
+    weight: float = Field(default=1.0, ge=0.0, le=5.0, description="Agent weight in timeframe fusion")
+
+    # ── Pydantic v2 validators ────────────────────────────────────────────────
+
+    @field_validator("llm_provider", mode="before")
+    @classmethod
+    def _validate_provider(cls, v: str) -> str:
+        v_lower = str(v).lower().strip()
+        if v_lower not in _VALID_LLM_PROVIDERS:
+            raise ValueError(
+                f"llm_provider '{v}' is not supported. "
+                f"Choose from: {sorted(_VALID_LLM_PROVIDERS)}"
+            )
+        return v_lower
+
+    @field_validator("analysts", mode="before")
+    @classmethod
+    def _validate_analysts(cls, v: list) -> list:
+        invalid = [a for a in v if a not in _VALID_ANALYSTS]
+        if invalid:
+            raise ValueError(
+                f"Invalid analyst(s): {invalid}. "
+                f"Choose from: {sorted(_VALID_ANALYSTS)}"
+            )
+        if not v:
+            raise ValueError("analysts list must contain at least one entry")
+        return v
+
+    @field_validator("upstream_path", mode="before")
+    @classmethod
+    def _validate_upstream_path(cls, v: str) -> str:
+        v = str(v).strip()
+        if v and not os.path.isdir(v):
+            raise ValueError(
+                f"llm_agents.upstream_path '{v}' does not exist or is not a directory. "
+                "Clone https://github.com/TauricResearch/TradingAgents first."
+            )
+        return v
+
+
 class JournalConfig(BaseModel):
     """Trade journal / logging configuration."""
     log_dir:       str  = Field(default="logs",  description="Directory for log files")
@@ -124,8 +216,11 @@ class TradingConfig(BaseSettings):
     # Agent configuration
     agents: AgentConfig = Field(default_factory=AgentConfig, description="Agent configuration")
 
+    # LLM agent bridge (optional)
+    llm_agents: LLMAgentsConfig = Field(default_factory=LLMAgentsConfig, description="LLM sentiment agent config")
+
     # Cycle interval
-    interval_seconds: int = Field(default=3600, ge=60, description="Seconds between trading cycles")
+    interval_seconds: int = Field(default=3600, ge=10, description="Seconds between trading cycles")
 
     # Real-time dual-loop config
     realtime: Dict[str, Any] = Field(default_factory=dict, description="Real-time surveillance loop config")
@@ -161,6 +256,15 @@ class TradingConfig(BaseSettings):
 
     # Kelly criterion adaptive position sizing
     kelly: Dict[str, Any] = Field(default_factory=dict, description="Kelly criterion sizing config")
+
+    # Adaptive agent weight learning — uses AgentCalibrationTracker hit-rates
+    # to periodically adjust `agent.weight` based on closed-trade accuracy.
+    # Keys: enabled, sensitivity, min_trades, max_mult, min_mult, shrink_n,
+    #       update_interval_hours, log_updates
+    adaptive_weights: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Adaptive agent weight learning from closed-trade hit-rates",
+    )
 
     # Active risk profile (safe / balanced / risky)
     profile: str = Field(default="balanced", description="Risk profile preset")
