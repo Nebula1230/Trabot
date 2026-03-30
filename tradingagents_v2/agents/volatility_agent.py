@@ -25,7 +25,7 @@ class VolatilityAgent(BaseAgent):
         """Return list of required feature names."""
         return [
             'atr_14', 'atr_5', 'realized_vol', 'bb_width', 'keltner_width',
-            'atr_price_ratio'
+            'atr_price_ratio', 'roc_10'
         ]
 
     async def analyze(self, features: TechnicalFeatures, context: Dict[str, Any] = None) -> AgentOutput:
@@ -39,6 +39,19 @@ class VolatilityAgent(BaseAgent):
         Returns:
             AgentOutput with volatility analysis
         """
+
+        # NaN guard: if any critical feature is NaN/Inf, return neutral
+        _critical = [
+            features.atr_14, features.atr_5, features.realized_vol,
+            features.bb_width, features.keltner_width,
+            features.atr_price_ratio, features.roc_10,
+        ]
+        if any(not np.isfinite(v) for v in _critical):
+            self.logger.debug("[CALC] VolatilityAgent NaN/Inf in features — returning neutral")
+            return AgentOutput(
+                timeframe=self.timeframe, dir_score=0.0, conf=0.1,
+                rationale="Insufficient data (NaN detected)", evidence={},
+            )
 
         # Calculate ATR-based volatility score
         atr_score = self._calculate_atr_volatility(features)
@@ -57,6 +70,14 @@ class VolatilityAgent(BaseAgent):
 
         # Calculate confidence
         confidence = self.calculate_confidence(features, context)
+
+        self.logger.debug(
+            f"[CALC] VolatilityAgent atr_sc={atr_score:+.3f} rv_sc={realized_vol_score:+.3f} "
+            f"bw_sc={band_width_score:+.3f} reg_sc={regime_score:+.3f} "
+            f"→ dir={dir_score:+.4f} conf={confidence:.3f} | "
+            f"atr14={features.atr_14:.6f} atr5={features.atr_5:.6f} "
+            f"rv={features.realized_vol:.5f} roc10={features.roc_10:.5f}"
+        )
 
         # Generate rationale
         rationale = self._generate_rationale(atr_score, realized_vol_score, band_width_score, regime_score, dir_score)
@@ -83,82 +104,87 @@ class VolatilityAgent(BaseAgent):
             evidence=evidence
         )
 
+    def _apr_floor(self, features: TechnicalFeatures) -> float:
+        """Adaptive atr_price_ratio floor.
+
+        FX 1m bars have atr_price_ratio ~0.0003; a fixed 0.001 floor would
+        be 3× the real value and crush all directional scoring.  Use 50% of
+        the actual ratio (min 1e-6) so the floor only guards against
+        degenerate near-zero values, not normal FX levels.
+        """
+        return max(features.atr_price_ratio * 0.5, 1e-6)
+
     def _calculate_atr_volatility(self, features: TechnicalFeatures) -> float:
         """Directional ATR expansion signal.
 
-        ATR5 > ATR14 means volatility is EXPANDING (impulse move underway).
-        ATR5 < ATR14 means volatility is CONTRACTING (consolidation).
-        We combine this with price direction (ROC) to get a directional score:
-          expanding + price up   → bullish confirmation
-          expanding + price down → bearish confirmation
-          contracting            → weak signal (near-neutral)
+        ATR5/ATR14 ratio measures volatility momentum.  We combine expansion
+        with price direction using continuous scoring via tanh, not binary
+        sign gating, so weak expansions produce proportionally weak signals.
         """
         atr_14 = features.atr_14
         atr_5  = features.atr_5
-        roc    = features.roc_10  # price direction proxy
+        roc    = features.roc_10
 
         if atr_14 == 0:
             return 0.0
 
-        expansion_ratio = (atr_5 - atr_14) / atr_14   # positive = expanding
-        price_direction = np.sign(roc) if abs(roc) > 1e-5 else 0.0
+        expansion_ratio = (atr_5 - atr_14) / atr_14
+        # Continuous price direction: tanh(roc / atr_price_ratio) → [-1, +1]
+        apr = self._apr_floor(features)
+        price_dir = float(np.tanh(roc / apr))
 
-        if expansion_ratio > 0.10:       # clearly expanding
-            atr_score = price_direction * 0.6
-        elif expansion_ratio > 0.02:     # mildly expanding
-            atr_score = price_direction * 0.3
-        elif expansion_ratio < -0.15:    # clearly contracting
-            atr_score = price_direction * 0.1   # choppy — dampen
-        else:                            # neutral expansion
-            atr_score = price_direction * 0.2
+        # Expansion multiplier: expanding vol amplifies, contracting dampens
+        if expansion_ratio > 0:
+            vol_mult = min(0.3 + expansion_ratio * 3.0, 0.8)
+        else:
+            vol_mult = max(0.1, 0.3 + expansion_ratio * 2.0)
 
-        return float(np.clip(atr_score, -1.0, 1.0))
+        return float(np.clip(price_dir * vol_mult, -1.0, 1.0))
 
     def _calculate_realized_volatility(self, features: TechnicalFeatures) -> float:
         """Realized volatility regime modifier.
 
-        realized_vol is stored as annualised fraction (e.g. 0.08 = 8% pa).
-        Thresholds are calibrated to annual vol (same scale as RegimeAgent):
-          > 0.20  — very high annual vol (indices / gold in volatile periods) → dampen
-          > 0.08  — elevated annual vol (typical for indices / trending FX)   → boost
-          > 0.04  — normal FX range (EUR/USD, GBP/JPY ~5-10% pa)             → moderate
-          <= 0.04 — very quiet (pre-news, dead zone)                          → mild
-        Score is always paired with price direction (ROC sign).
+        Uses continuous scoring instead of binary sign gating.
+        Elevated vol + clear direction = confirming move.
+        Very high vol dampens (noise), very low vol dampens (no energy).
         """
         realized_vol = features.realized_vol
         roc = features.roc_10
-        price_direction = float(np.sign(roc)) if abs(roc) > 1e-5 else 0.0
+        apr = self._apr_floor(features)
+        price_dir = float(np.tanh(roc / apr))
 
-        if realized_vol > 0.20:    # Very high annual vol (indices/gold) — noisy, dampen
-            realized_score = price_direction * 0.1
-        elif realized_vol > 0.08:  # Elevated annual vol — trending environment
-            realized_score = price_direction * 0.5
-        elif realized_vol > 0.04:  # Normal FX annual vol (EUR/USD ~5-10%)
-            realized_score = price_direction * 0.4
-        else:                       # Very low vol — pre-breakout; mild direction
-            realized_score = price_direction * 0.2
+        # Bell-curve vol suitability: best in 0.06–0.15 annual range
+        if 0.06 <= realized_vol <= 0.15:
+            vol_mult = 0.5   # sweet spot
+        elif 0.04 <= realized_vol < 0.06 or 0.15 < realized_vol <= 0.25:
+            vol_mult = 0.35  # acceptable
+        elif realized_vol > 0.25:
+            vol_mult = 0.10  # too noisy
+        else:
+            vol_mult = 0.20  # too quiet
 
-        return float(np.clip(realized_score, -1.0, 1.0))
+        return float(np.clip(price_dir * vol_mult, -1.0, 1.0))
 
     def _calculate_band_width(self, features: TechnicalFeatures) -> float:
         """Band-width squeeze / expansion directional signal.
 
-        BB-width expanding above Keltner-width suggests a Bollinger squeeze
-        breakout in progress — confirm direction with price ROC.
+        BB-width vs Keltner-width ratio indicates squeeze state.
+        Direction confirmed by continuous ROC scoring.
         """
         bb_width = features.bb_width
         keltner_width = features.keltner_width
         roc = features.roc_10
-        price_direction = float(np.sign(roc)) if abs(roc) > 1e-5 else 0.0
+        apr = self._apr_floor(features)
+        price_dir = float(np.tanh(roc / apr))
 
         if bb_width > 0 and keltner_width > 0:
             ratio = bb_width / keltner_width
             if ratio > 1.2:   # BB wider than KC — expansion / breakout
-                band_score = price_direction * 0.5
+                band_score = price_dir * 0.5
             elif ratio < 0.8: # BB inside KC — squeeze, pre-breakout
-                band_score = price_direction * 0.2
-            else:              # Normal
-                band_score = price_direction * 0.3
+                band_score = price_dir * 0.2
+            else:
+                band_score = price_dir * 0.3
         else:
             band_score = 0.0
 
@@ -167,24 +193,32 @@ class VolatilityAgent(BaseAgent):
     def _calculate_volatility_regime(self, features: TechnicalFeatures) -> float:
         """Volatility regime suitability score.
 
-        For trend-following: we want moderate-to-high vol, trending regime.
-        Score reflects how favourable the vol environment is for the
-        current price direction (ROC).
+        For trend-following: moderate-to-high vol in a trending regime is ideal.
+        Uses continuous direction scoring for smooth output.
         """
         atr_ratio    = features.atr_price_ratio
         realized_vol = features.realized_vol
         roc = features.roc_10
-        price_direction = float(np.sign(roc)) if abs(roc) > 1e-5 else 0.0
+        apr = self._apr_floor(features)
+        price_dir = float(np.tanh(roc / apr))
 
-        # Elevated & rising vol = good for trend-following entry
-        if atr_ratio > 0.005 and realized_vol > 0.01:
+        # Suitability scales with vol and trend quality.
+        # Adaptive thresholds: FX (atr_ratio ~0.0003) needs much lower
+        # cutoffs than indices/crypto (~0.01).
+        _hi = 0.002 if atr_ratio < 0.005 else 0.005
+        _md = 0.001 if atr_ratio < 0.005 else 0.003
+        _lo = 0.0003 if atr_ratio < 0.005 else 0.001
+
+        if atr_ratio > _hi and realized_vol > 0.06:
             suitability = 0.5
-        elif atr_ratio > 0.002 and realized_vol > 0.005:
-            suitability = 0.2
-        else:   # Very low vol — poor trending conditions
+        elif atr_ratio > _md and realized_vol > 0.03:
+            suitability = 0.3
+        elif atr_ratio > _lo:
+            suitability = 0.15
+        else:
             suitability = 0.0
 
-        return float(np.clip(price_direction * suitability, -1.0, 1.0))
+        return float(np.clip(price_dir * suitability, -1.0, 1.0))
 
     def _combine_volatility_scores(self, atr_score: float, realized_vol_score: float,
                                   band_width_score: float, regime_score: float) -> float:
@@ -252,21 +286,24 @@ class VolatilityAgent(BaseAgent):
 
     def calculate_confidence(self, features: TechnicalFeatures, context: Dict[str, Any] = None) -> float:
         """Calculate confidence score for volatility analysis."""
+        import math
+        confidence = 0.40
 
-        # Start with base confidence
-        confidence = 0.5
+        # Proportional ATR/price ratio boost.
+        # Adaptive divisor: FX (apr ~0.0003) vs indices/crypto (apr ~0.01).
+        apr = features.atr_price_ratio
+        _apr_div = 0.001 if apr < 0.005 else 0.003
+        confidence += math.tanh(apr / _apr_div) * 0.20
 
-        # Higher confidence with clear volatility signals
-        if features.atr_price_ratio > 0.02:
-            confidence += 0.2
+        # Proportional realized vol boost (forex typical: 0.03–0.25)
+        rv = features.realized_vol
+        confidence += min(rv / 0.20, 1.0) * 0.15
 
-        # Higher confidence with clear realized volatility
-        if features.realized_vol > 0.015:
-            confidence += 0.2
-
-        # Higher confidence with clear band widths
-        if features.bb_width > 0.05 or features.keltner_width > 0.04:
-            confidence += 0.1
+        # Band width clarity (BB or KC expansion → clearer signal).
+        # Adaptive divisor: FX bb_width ~0.001, indices ~0.03.
+        bw = max(features.bb_width, features.keltner_width)
+        _bw_div = 0.003 if bw < 0.01 else 0.01
+        confidence += min(bw / _bw_div, 1.0) * 0.10
 
         # Ensure confidence is within bounds
         return min(max(confidence, 0.0), 1.0) 

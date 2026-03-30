@@ -711,14 +711,14 @@ class TestScalpProfileConfig:
 
     def test_min_win_prob_allowed(self, cfg):
         # Tightened from 0.42 → 0.52 after live-trading overtrading analysis
-        assert cfg.probability.min_win_prob == pytest.approx(0.52)
+        assert cfg.probability.min_win_prob == pytest.approx(0.54)
 
-    def test_all_four_profiles_distinct_magic(self):
+    def test_all_five_profiles_distinct_magic(self):
         magics = set()
         for p in ["safe", "balanced", "risky", "scalp", "hft"]:
             cfg = load_config_from_yaml("config.demo.yaml", profile=p)
             magics.add(cfg.mt5.magic_number)
-        assert len(magics) == 4, "All four profiles must have distinct magic numbers"
+        assert len(magics) == 5, "All five profiles must have distinct magic numbers"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -822,8 +822,14 @@ class TestScalpGraphRoundTrip:
         empty tiers don't block the signal — this mirrors live-run behaviour.
         """
         scalp_cfg = load_config_from_yaml("config.demo.yaml", profile="scalp")
+        cfg_dict = scalp_cfg.model_dump()
+        # Disable time-based gates so the test result doesn't depend on
+        # the wall-clock hour when the test suite runs.
+        cfg_dict.setdefault("alignment", {})["blocked_hours_utc"] = []
+        cfg_dict["alignment"]["dead_zone_start_utc"] = 99
+        cfg_dict["alignment"]["dead_zone_end_utc"] = 99
         g = TradingGraph(make_scalp_registry(),
-                         scalp_cfg.model_dump(),
+                         cfg_dict,
                          MT5Executor({"simulation": True}))
         state = run(g.run("US30", make_bull_features()))
         assert state["decision"] in ("approved", "rejected", "continue"), \

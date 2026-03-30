@@ -55,7 +55,7 @@ class VwapScalpAgent(BaseAgent):
     _RSI_OS: float = 35.0
 
     def get_required_features(self) -> list:
-        return ["vwap_distance", "rsi_14", "rsi_4", "ema20_slope", "atr_14"]
+        return ["vwap_distance", "rsi_14", "rsi_4", "ema20_slope", "atr_14", "adx_14"]
 
     async def analyze(
         self,
@@ -63,11 +63,21 @@ class VwapScalpAgent(BaseAgent):
         context: Dict[str, Any] = None,
     ) -> AgentOutput:
 
+        # Guard against NaN/Inf in critical floats
+        _critical = [features.vwap_distance, features.rsi_4, features.rsi_14,
+                     features.ema20_slope, features.atr_14, features.adx_14]
+        if any(not np.isfinite(v) for v in _critical):
+            return AgentOutput(
+                timeframe=self.timeframe, dir_score=0.0, conf=0.1,
+                rationale="Insufficient data (NaN detected)", evidence={},
+            )
+
         vd = features.vwap_distance       # positive = above VWAP, negative = below
         rsi = features.rsi_4
         rsi14 = features.rsi_14
         slope = features.ema20_slope
         atr = max(features.atr_14, 1e-9)
+        adx = features.adx_14
 
         # Normalise slope to [-1, 1]
         slope_norm = float(np.clip(slope / (atr * 0.2), -1.0, 1.0))
@@ -77,6 +87,7 @@ class VwapScalpAgent(BaseAgent):
             "rsi_4": round(rsi, 1),
             "rsi_14": round(rsi14, 1),
             "ema20_slope_norm": round(slope_norm, 3),
+            "adx_14": round(adx, 1),
         }
 
         abs_vd = abs(vd)
@@ -96,6 +107,11 @@ class VwapScalpAgent(BaseAgent):
             # Fade: vote against current direction
             raw_score = -direction_sign * (0.5 + 0.3 * stretch_factor + 0.2 * rsi_exhaustion)
             conf = float(np.clip(0.55 + 0.35 * stretch_factor + 0.10 * rsi_exhaustion, 0.0, 1.0))
+            # Strong trend = price can stay stretched longer → dampen reversion
+            if adx > 30:
+                trend_dampen = min((adx - 30) / 30.0, 0.5)  # up to 50% reduction
+                raw_score *= (1.0 - trend_dampen)
+                conf *= (1.0 - trend_dampen * 0.5)
             regime = "reversion"
 
         # ── BREAKOUT: away from VWAP but not exhausted ──────────────────
@@ -122,6 +138,9 @@ class VwapScalpAgent(BaseAgent):
                 conf_base += 0.15
             if rsi_not_exhausted:
                 conf_base += 0.10
+            # ADX confirms trend → higher conviction breakout
+            if adx > 25:
+                conf_base += min((adx - 25) / 50.0, 0.10)
             conf = float(np.clip(conf_base, 0.0, 1.0))
             regime = "breakout"
 
@@ -135,6 +154,12 @@ class VwapScalpAgent(BaseAgent):
         dir_score = float(np.clip(raw_score, -1.0, 1.0))
         evidence["regime"] = regime
         evidence["dir_score"] = round(dir_score, 3)
+
+        self.logger.debug(
+            f"[CALC] VwapScalpAgent regime={regime} vd={vd:+.3f}ATR "
+            f"→ dir={dir_score:+.4f} conf={conf:.3f} | "
+            f"rsi4={rsi:.1f} slope_n={slope_norm:+.3f} adx={adx:.1f}"
+        )
 
         direction_word = "LONG" if dir_score > 0.05 else ("SHORT" if dir_score < -0.05 else "FLAT")
         rationale = (

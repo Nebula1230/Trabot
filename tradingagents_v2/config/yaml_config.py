@@ -157,6 +157,30 @@ _PROFILES = {
             "entry_cooldown_minutes": 60,   # 15→60: same as risky, max ~1 entry/session/symbol
             "max_daily_trades":        6,   # 20→6: hard cap; ~2 per symbol per day
         },
+        # Pyramiding: explicitly enabled (inherited from config.demo.yaml).
+        # 2 entries max per symbol; 2nd entry at 50% risk; require profit + full alignment.
+        "scale_in": {
+            "enabled":                  True,
+            "max_positions_per_symbol": 2,
+            "require_profit":           True,
+            "require_full_alignment":   True,   # only pyramid on full-alignment, not pullbacks
+            "risk_fraction":            0.50,
+        },
+        # ── Agent weights: suppress scalp agents in balanced profile ─────────
+        # ScalpingAgent, VwapScalpAgent, SqueezeBreakoutAgent, OrderFlowAgent are
+        # designed for 1m microstructure.  On 15m bars (balanced SHORT tier) their
+        # RSI/ROC thresholds are miscalibrated (too sensitive), producing near-noise
+        # dir_scores that dilute the SHORT fusion signal.  Suppressing to 0.15
+        # keeps them as faint veto-guards without drowning out PatternAgent,
+        # MeanReversionAgent, and VolatilityAgent.
+        "agents": {
+            "agent_weights": {
+                "ScalpingAgent":        0.15,
+                "VwapScalpAgent":       0.15,
+                "SqueezeBreakoutAgent": 0.15,
+                "OrderFlowAgent":       0.15,
+            },
+        },
         "alignment": {
             # Thresholds calibrated to the actual fusion score distribution produced
             # by 13 agents on 1H/D1 bars.  With ~5 scalp agents outputting near-zero
@@ -167,9 +191,14 @@ _PROFILES = {
             "short_min_score":        0.08,   # short-term not strongly against
             # Formula deducts 0.06 for pullback-entry type; with base ~0.54 the result
             # is ~0.48.  The EV gate (min_ev=0.10) is the real quality filter.
-            "min_win_prob":           0.46,   # lowered from 0.52 — pullback entries cluster 0.46-0.50
+            "min_win_prob":           0.46,   # with lower base (0.45) this is net tighter than before
             "min_ev":                 0.10,   # positive EV after spread
             "min_confidence":         0.50,   # agent confidence gate
+            # Pullback tolerance: how far mid/short can oppose the trade direction.
+            # 0.12 = tighter than default 0.20 — requires near-neutral or agreeing
+            # intraday momentum, prevents entering "pullbacks" that are actually
+            # counter-trend moves.
+            "pullback_tolerance":     0.12,
             # 2 = minimum real consensus; pullback entries by definition have only
             # D1-tier agents pointing in trade direction while intraday agents see
             # the opposite move — requiring 4 blocked every valid pullback setup.
@@ -179,6 +208,27 @@ _PROFILES = {
             "require_full_alignment": False,
             # D1 ADX gate disabled — was blocking all trades on major TF turns
             "adx_trend_min":          0.0,
+            # Max SL distance cap: default 3.5×ATR prevents absurd stops. Balanced
+            # uses a higher cap because it relies on time-stops (not SL hits) to
+            # exit most trades. Wider SL → smaller position → smaller R-loss on
+            # time-stop. Only cap at 5.0×ATR to prevent total sizing breakdown.
+            "max_sl_atr_mult":        5.0,
+            # Min R:R floor for TP placement: structural TP uses this floor instead
+            # of the theoretical recipe R:R (2.3+).  1.0 = just prevent TP closer
+            # than SL. On 1H bars with 10h time-stop, most trades exit at time-stop
+            # anyway — an achievable TP increases the chance of at least 1 TP hit.
+            "min_rr_floor":           1.0,
+            # ── Counter-trend scalp: intraday trades against D1 trend ─────
+            # When MID+SHORT both strongly oppose D1, allow a quick scalp in
+            # the intraday direction.  Conservative thresholds + penalty.
+            "counter_trend": {
+                "enabled":          True,
+                "mid_min_score":    0.25,   # MID must strongly oppose D1
+                "short_min_score":  0.12,   # SHORT must also oppose D1
+                "long_min_score":   0.15,   # D1 must be clearly directional
+                "win_prob_penalty": 0.08,   # penalty for fighting D1
+                "max_rr":           1.5,    # tight TP — exit fast
+            },
         },
         "exit_rules": {
             # Disable conviction fade: D1 score oscillates at 1m surveillance.
@@ -210,8 +260,8 @@ _PROFILES = {
             # D1-signal profile: the thesis takes hours to change. Re-entering
             # the same direction every 5-10 min just accumulates spread costs.
             # 60-min cooldown allows at most 1 entry per session window.
-            "entry_cooldown_minutes":  60,   # min 60 min between entries on same symbol
-            "max_daily_trades":        6,    # hard daily cap: ~2 per symbol per day
+            "entry_cooldown_minutes":  90,   # min 90 min between entries on same symbol (was 60 — too many repeat entries)
+            "max_daily_trades":        4,    # hard daily cap (was 6 — D1 signals don't justify 6 entries/day)
             # Weekly ceiling: 5 days × -1.99% (just below daily halt) = -9.9%.
             # Risky allows a worse week than safe, but caps runaway loss streaks.
             "max_weekly_drawdown_pct": 4.00,
@@ -223,31 +273,60 @@ _PROFILES = {
         # At p=0.48, R=1.8 (net): 0.48×1.8 − 0.52 = 0.864 − 0.52 = 0.344  ✓
         # At p=0.48, R=1.5 (net): 0.48×1.5 − 0.52 = 0.720 − 0.52 = 0.200  ✓
         "alignment": {
-            "long_min_score":    0.15,   # real D1 signal (lowered from 0.25 — above typical 13-agent range)
-            "mid_min_score":     0.12,   # 1H directional confirmation
-            "short_min_score":   0.10,   # 15m not strongly against
-            "min_win_prob":      0.42,   # lowered from 0.46 — pullback entries cluster 0.39-0.45 after penalty
-            "min_ev":            0.12,   # real edge after spread
-            "min_confidence":    0.52,   # agent confidence gate
-            "min_agent_consensus": 2,    # lowered from 4: pullback entries have only D1 agents in direction
+            "long_min_score":    0.20,   # require convincing D1 signal (was 0.15 — too loose, 9 EURUSD shorts SL'd)
+            "mid_min_score":     0.15,   # real mid confirmation (was 0.12)
+            "short_min_score":   0.08,   # short tier not strongly opposed (was 0.06)
+            "min_win_prob":      0.48,   # gate out weak setups (was 0.42 — never blocked anything)
+            "min_ev":            0.12,   # require real edge after spread (was 0.08)
+            "min_confidence":    0.50,   # agent confidence gate (was 0.48)
+            "min_agent_consensus": 3,    # require 3 agents agreeing (was 2; 4 was too strict → missed good trades)
             # Full alignment disabled — was producing 0 trades
             "require_full_alignment": False,
             # ADX gate disabled — was blocking all entries on trend reversals
             "adx_trend_min":     0.0,
             "pullback_tolerance": 0.15,  # allow modest pullback entries
-            "mean_rev_block_threshold": 0.65,  # relaxed from 0.50 — let more trades through
+            "mean_rev_block_threshold": 0.55,  # tightened from 0.65 — block more counter-trend entries
             # Live-trading note: dead zone raises thresholds 1.4× during 22-06 UTC
             "dead_zone_factor":  1.40,   # was 1.20 — too loose for 22:00-06:00 UTC
+            # ── Counter-trend scalp: DISABLED for risky ─────────────────
+            # Backtest (Mar 16-20): 8/8 CT trades = ALL losers (-$108).
+            # With --mid-tf 1m there's no real multi-TF divergence; MID+SHORT
+            # "opposing" D1 is just 1m noise.  D1-based profiles shouldn't
+            # fight the daily trend for scalp-sized gains.
+            "counter_trend": {
+                "enabled":          False,
+                "mid_min_score":    0.20,
+                "short_min_score":  0.10,
+                "long_min_score":   0.15,
+                "win_prob_penalty": 0.08,
+                "max_rr":           1.5,
+            },
         },
         # ── Pyramiding ────────────────────────────────────────────────────────
         # scale_in at 50% (down from 75%) keeps per-symbol risk sane:
         #   3 entries on EURUSD: 0.20% + 0.10% + 0.10% = 0.40%  (was 0.50%)
         "scale_in": {
             "enabled":                  True,
-            "max_positions_per_symbol": 3,     # 3 entries max per symbol
+            "max_positions_per_symbol": 2,     # 2 entries max per symbol (was 3 — caused cluster losses)
             "require_profit":           True,  # only scale into winners
+            "min_profit_r":             0.3,   # existing position must be ≥+0.3R (not just >$0)
             "require_full_alignment":   False, # pullback entries can also scale in
             "risk_fraction":            0.50,  # 50% of base risk (was 75%)
+        },
+        # ── Agent weights ─────────────────────────────────────────────────────
+        # Risky targets D1 swing signals. The 4 scalp-specific agents
+        # (ScalpingAgent, VwapScalpAgent, SqueezeBreakoutAgent, OrderFlowAgent)
+        # are designed for 1m microstructure — on D1/1H signals they produce
+        # noise that dilutes or contradicts swing direction.
+        # Suppress them to 0.20 (same ballpark as balanced=0.15) so they still
+        # provide a veto signal but don't dominate the fusion.
+        "agents": {
+            "agent_weights": {
+                "ScalpingAgent":        0.20,
+                "VwapScalpAgent":       0.20,
+                "SqueezeBreakoutAgent": 0.20,
+                "OrderFlowAgent":       0.20,
+            },
         },
         # ── Proactive exit rules ──────────────────────────────────────────────
         # Loosened vs balanced to let winners run, but not so loose that trend
@@ -258,6 +337,11 @@ _PROFILES = {
             # dir_long temporarily dips below threshold. Rely instead on D1 flip,
             # mid+short opposition, time-stop, SL and TP.
             "conviction_fade_enabled":        False,
+            # Tighten-on-fade also disabled: it depends on the same conviction
+            # signal as conviction_fade.  With fade disabled the tighten window
+            # (fade_thresh < |D1| < tighten_thresh) fires on noise — modifying
+            # SL/TP every surveillance tick and mangling the staged trail logic.
+            "tighten_on_fade_enabled":        False,
             "conviction_fade_threshold":      0.10,
             "tighten_fade_threshold":         0.18,
             "mid_short_opposition_threshold": 0.45,   # raised: less hair-trigger on 1m noise
@@ -293,6 +377,15 @@ _PROFILES = {
             "partial_tp2_fraction": 0.40,   # close 40% of remainder at +2.5R
             "windfall_exit_enabled": True,
             "windfall_r_mult":      4.0,    # let risky ride big moves
+            # ── Early breakeven: move SL to entry at +0.5R ──────────────
+            # Without this, trades that briefly go +0.3-0.9R then reverse
+            # hit full -1R SL.  +0.5R BE protects sooner.
+            "early_be_r": 0.5,
+            # ── Time-based SL tightening ──────────────────────────────────
+            # After stale_sl_hours (if trade still losing), cap SL at
+            # -0.75R instead of full -1R.  Saves ~25% on late SL losses.
+            "stale_sl_hours":  4.0,
+            "stale_sl_r_mult": 0.75,
         },
         # ── Macro fear guard ─────────────────────────────────────────────────
         # Start reducing earlier (0.40 vs 0.55) and floor at 40% (vs 60%).
@@ -381,16 +474,22 @@ _PROFILES = {
             # near-random entries with average win_prob=0.52 — not enough edge
             # to cover spread + slippage on fast scalp moves.
             "long_min_score":    -1.0,   # disable LONG tier gate (no LONG agents in scalp)
-            "mid_min_score":      0.10,  # require 15m directional confirmation (v11: 0.05 → 0.12; catches long entries in 15m downtrend)
-            "short_min_score":    0.25,  # need a real 1m signal (was 0.05)
-            "min_win_prob":       0.52,  # must cover spread cost (was 0.42)
-            "min_ev":             0.20,  # true net EV after spread (was 0.03)
-            "min_confidence":     0.60,  # short-tier agent confidence gate; 0.50→0.60 filters 0.55-0.58 conf SL-hit cluster
-            "pullback_tolerance": 0.50,  # tighter pullback acceptance (was 0.75)
-            "dead_zone_factor":   1.50,  # v13: 1.25→1.50 — tighten overnight dead-zone thresholds (22-06 UTC)
+            "mid_min_score":      0.20,  # v17: 0.10→0.20 — require stronger 15m directional confirmation
+            "short_min_score":    0.40,  # v17: 0.25→0.40 — require strong 1m momentum signal
+            "min_win_prob":       0.54,  # v17: 0.52→0.54 — higher win prob gate
+            "min_ev":             0.25,  # v17: 0.20→0.25 — higher min EV
+            "min_confidence":     0.63,  # v17: 0.60→0.63 — filter marginal-confidence entries
+            "pullback_tolerance": 0.40,  # v17: 0.50→0.40 — tighter pullback acceptance
+            "dead_zone_start_utc": 20,   # v14: 22→20 — extend dead zone to catch NY-close noise (20-21 UTC)
+            "dead_zone_factor":   2.00,  # v14b: 1.50→2.00 — require score>0.50 overnight (vs 0.375 before)
             "open_zone_start_utc":  8,   # London open start: false-breakout / spread-widening zone
             "open_zone_end_utc":   10,   # London open end  (08:00-09:59 UTC)
-            "open_zone_factor":   2.00,  # v13: 1.50→2.00 — near-hard-block during London open noise window
+            "open_zone_factor":  10.0,   # v14b: near-hard-block  (short_min → 2.5, impossible for any bar)
+            # Hard-block: ONLY structurally bad hours that lose across ALL weeks.
+            # 8-9: London open false-breakout (confirmed bad on both weeks)
+            # 20-21: NY close / late-Asian noise (confirmed bad on both weeks)
+            # 0: midnight rollover spike bars
+            "blocked_hours_utc": [0, 8, 9, 20, 21],
             "min_agent_consensus": 3,    # at least 3 of non-breadth agents agree
         },
         "agents": {

@@ -87,6 +87,16 @@ class SqueezeBreakoutAgent(BaseAgent):
         context: Dict[str, Any] = None,
     ) -> AgentOutput:
 
+        # Guard against NaN/Inf in critical floats
+        _critical = [features.bb_width, features.keltner_width, features.roc_10,
+                     features.macd_hist, features.macd_hist_delta, features.adx_14,
+                     features.ema20_slope, features.atr_14]
+        if any(not np.isfinite(v) for v in _critical):
+            return AgentOutput(
+                timeframe=self.timeframe, dir_score=0.0, conf=0.1,
+                rationale="Insufficient data (NaN detected)", evidence={},
+            )
+
         bb_w = features.bb_width
         kc_w = max(features.keltner_width, 1e-9)
         ratio = bb_w / kc_w          # > 1 = expanding, < 1 = squeezed
@@ -107,18 +117,21 @@ class SqueezeBreakoutAgent(BaseAgent):
         }
 
         # ── Determine momentum direction ────────────────────────────────
-        # Use ROC as primary direction; corroborate with MACD histogram.
-        roc_dir = np.sign(roc) if abs(roc) > 1e-6 else 0.0
+        # ATR-normalised ROC for instrument independence
+        roc_norm = float(np.clip(roc / (atr * 0.5), -3.0, 3.0))  # ±3 ATR units
+        roc_dir  = np.sign(roc_norm) if abs(roc_norm) > 0.05 else 0.0
         macd_dir = np.sign(macd) if abs(macd) > 1e-9 else 0.0
         macd_accel = np.sign(macd_d) if abs(macd_d) > 1e-9 else 0.0
 
-        # Direction: both agree → strong; one disagrees → weak
+        # Direction strength: continuous via tanh of normalised magnitude
+        roc_strength = float(np.tanh(abs(roc_norm) * 1.5))  # 0-1 smooth
+
         if roc_dir == macd_dir and macd_dir != 0:
             direction = roc_dir
-            direction_strength = 1.0
+            direction_strength = min(1.0, roc_strength * 0.7 + 0.3)  # agreement floor 0.3
         elif roc_dir != 0:
             direction = roc_dir
-            direction_strength = 0.5   # only ROC votes, MACD silent/contra
+            direction_strength = roc_strength * 0.5   # only ROC votes
         else:
             direction = 0.0
             direction_strength = 0.0
@@ -183,6 +196,12 @@ class SqueezeBreakoutAgent(BaseAgent):
         # Clamp
         dir_score = float(np.clip(dir_score, -1.0, 1.0))
         evidence["regime"] = regime
+
+        self.logger.debug(
+            f"[CALC] SqueezeBreakout regime={regime} ratio={ratio:.3f} "
+            f"dir_str={direction_strength:.3f} → dir={dir_score:+.4f} conf={conf:.3f} | "
+            f"roc_n={roc_norm:+.3f} adx={adx:.1f} prev_sq={prev_squeeze_active}"
+        )
 
         direction_word = "LONG" if dir_score > 0.05 else ("SHORT" if dir_score < -0.05 else "FLAT")
         rationale = (

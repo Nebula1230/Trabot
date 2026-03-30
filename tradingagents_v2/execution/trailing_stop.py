@@ -45,12 +45,17 @@ class TrailingStopManager:
                  partial_tp2_fraction: float = 0.50,
                  windfall_exit_enabled: bool = False,
                  windfall_r_mult: float = 3.0,
+                 early_be_r: float = 0.0,
                  profile: str = ""):
         self.executor = executor
         self.profile = profile
         self.atr_multiplier = atr_multiplier
         self.tp_extend_enabled = tp_extend_enabled
         self.tp_extend_atr_mult = tp_extend_atr_mult
+        # ── Early breakeven: move SL to entry at +early_be_r (e.g. +0.5R) ───
+        # Fires BEFORE stage 1 (+1R). Protects trades that briefly run +0.3–0.9R
+        # then reverse to full -1R SL hit.  0 = disabled.
+        self.early_be_r = early_be_r
         # ── Partial TP1: close a fraction at +1R (break-even stage) ──────────
         # Guard: SL still below entry — restart-safe, no state file needed.
         self.partial_tp_enabled  = partial_tp_enabled
@@ -222,8 +227,12 @@ class TrailingStopManager:
                 # Stage 1: break-even
                 new_sl = max(current_sl, entry)
                 stage = 1
+            elif self.early_be_r > 0 and profit >= self.early_be_r * one_r:
+                # Stage 0: early break-even — move SL to entry sooner
+                new_sl = max(current_sl, entry)
+                stage = 0
             else:
-                return  # still inside 1R — don't touch
+                return  # still inside early_be threshold — don't touch
 
             _pfx = f"[{self.profile.upper()}] " if self.profile else ""
 
@@ -314,6 +323,10 @@ class TrailingStopManager:
                 # Stage 1: break-even
                 new_sl = min(current_sl, entry)
                 stage = 1
+            elif self.early_be_r > 0 and profit >= self.early_be_r * one_r:
+                # Stage 0: early break-even — move SL to entry sooner
+                new_sl = min(current_sl, entry)
+                stage = 0
             else:
                 return
 

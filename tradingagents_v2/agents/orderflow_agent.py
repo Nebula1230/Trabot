@@ -66,6 +66,16 @@ class OrderFlowAgent(BaseAgent):
         context: Dict[str, Any] = None,
     ) -> AgentOutput:
 
+        # Guard against NaN/Inf in critical floats
+        _critical = [features.bb_percent_b, features.roc_10, features.realized_vol,
+                     features.atr_14, features.vwap_distance, features.macd_hist,
+                     features.rsi_14]
+        if any(not np.isfinite(v) for v in _critical):
+            return AgentOutput(
+                timeframe=self.timeframe, dir_score=0.0, conf=0.1,
+                rationale="Insufficient data (NaN detected)", evidence={},
+            )
+
         bb_b  = features.bb_percent_b   # close position in rolling BB range
         roc   = features.roc_10         # velocity
         rvol  = features.realized_vol   # realised vol (annualised pct)
@@ -106,8 +116,9 @@ class OrderFlowAgent(BaseAgent):
 
         # ── 2. Rate of change — directional velocity ────────────────────
         # roc_10 is (close/close_10barsago - 1) × 100
-        # Normalise: ±0.5% ROC on a 1m chart is already significant
-        roc_norm = float(np.clip(roc / 0.5, -1.0, 1.0))
+        # ATR-normalised: 2× ATR-price-ratio is significant on any timeframe
+        _atr_ratio = max(features.atr_price_ratio, 0.001)
+        roc_norm = float(np.clip(roc / (_atr_ratio * 2.0), -1.0, 1.0))
         evidence["roc_10"] = round(roc, 4)
         evidence["roc_norm"] = round(roc_norm, 3)
         scores.append(roc_norm * 0.7)   # slightly down-weighted vs body score
@@ -145,16 +156,31 @@ class OrderFlowAgent(BaseAgent):
         scores.append(float(vwap_score))
 
         # ── 5. MACD histogram as order flow accelerator ─────────────────
-        # For very short-term (1m), MACD is slow — use only as a weak filter.
         macd_dir = np.sign(macd) if abs(macd) > 1e-9 else 0.0
         macd_score = float(macd_dir) * 0.3
         evidence["macd_hist_dir"] = float(macd_dir)
         scores.append(macd_score)
 
-        # ── 6. Aggregate ────────────────────────────────────────────────
-        dir_score = float(np.clip(np.mean(scores), -1.0, 1.0))
+        # ── 6. RSI-based flow momentum ─────────────────────────────────
+        # RSI away from midpoint confirms directional pressure.
+        if rsi > 60:
+            rsi_flow = min((rsi - 50) / 30, 0.5)
+        elif rsi < 40:
+            rsi_flow = max((rsi - 50) / 30, -0.5)
+        else:
+            rsi_flow = 0.0
+        evidence["rsi_flow"] = round(rsi_flow, 3)
+        scores.append(rsi_flow)
 
-        # ── 7. Confidence ───────────────────────────────────────────────
+        # ── 7. Aggregate ────────────────────────────────────────────────
+        # Weighted: body commitment and vol expansion are most informative.
+        _w = [0.25, 0.15, 0.22, 0.15, 0.10, 0.13]  # body, roc, vol, vwap, macd, rsi
+        dir_score = float(np.clip(
+            sum(s * w for s, w in zip(scores, _w)) / sum(_w),
+            -1.0, 1.0
+        ))
+
+        # ── 8. Confidence ───────────────────────────────────────────────
         # High when: body + roc + vol all agree AND VWAP aligned
         agreement = 1.0 - float(np.std(scores)) / 0.6
         agreement = float(np.clip(agreement, 0.1, 1.0))
@@ -170,6 +196,13 @@ class OrderFlowAgent(BaseAgent):
             agreement *= 0.7
 
         conf = float(np.clip(agreement * 0.80, 0.0, 1.0))
+
+        self.logger.debug(
+            f"[CALC] OrderFlowAgent body={body_score:+.3f} roc_n={roc_norm:+.3f} "
+            f"vol={float(vol_score):+.3f} vwap={float(vwap_score):+.3f} "
+            f"macd={macd_score:+.3f} rsi_f={rsi_flow:+.3f} "
+            f"→ dir={dir_score:+.4f} conf={conf:.3f} | vol_ratio={float(vol_ratio):.2f}"
+        )
 
         direction_word = "LONG" if dir_score > 0.05 else ("SHORT" if dir_score < -0.05 else "FLAT")
         rationale = (

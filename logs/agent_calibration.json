@@ -398,106 +398,376 @@
         "OrderFlowAgent": 0.36014088679680045
       },
       "ts": 1774632313.216796
+    },
+    "12345": {
+      "symbol": "NASDAQ:AAPL",
+      "direction": "Direction.SHORT",
+      "votes": {
+        "RegimeAgent": -0.10817048275970498,
+        "TrendAgent": -0.8020953757900561,
+        "MomentumAgent": -0.18912243681206636,
+        "MeanReversionAgent": 0.14164499618532653,
+        "VolatilityAgent": -0.24226253662694902,
+        "BreadthAgent": 0.59480361667207,
+        "PatternAgent": 0.355,
+        "IntermarketAgent": 0.0,
+        "SessionBreakoutAgent": -0.013406385566557022,
+        "DivergenceAgent": -0.09656844725813322,
+        "ScalpingAgent": 0.25953869457713163,
+        "VwapScalpAgent": -0.5323830702013082,
+        "SqueezeBreakoutAgent": 0.0,
+        "OrderFlowAgent": -0.31226623991385627
+      },
+      "ts": 1774818927.7618146
+    },
+    "56000123753": {
+      "symbol": "USDCHF",
+      "direction": "Direction.LONG",
+      "votes": {
+        "RegimeAgent": 0.41145798819724244,
+        "TrendAgent": 0.9879999999537126,
+        "MomentumAgent": 0.648493636390016,
+        "MeanReversionAgent": -0.2632430508919973,
+        "VolatilityAgent": 0.31124578392279156,
+        "BreadthAgent": 0.012583434090335523,
+        "PatternAgent": 0.34099507435283816,
+        "IntermarketAgent": 0.0,
+        "SessionBreakoutAgent": 0.12295751633986951,
+        "DivergenceAgent": -0.3340137111564681,
+        "ScalpingAgent": -0.2022408894972476,
+        "VwapScalpAgent": 0.4066214265735465,
+        "SqueezeBreakoutAgent": 0.14201375585682488,
+        "OrderFlowAgent": 0.0811530049801443,
+        "CorrelationAgent": 0.048380090805750176
+      },
+      "ts": 1774886201.0057337
+    },
+    "56000124107": {
+      "symbol": "USDCAD",
+      "direction": "Direction.LONG",
+      "votes": {
+        "RegimeAgent": 0.45958495340426536,
+        "TrendAgent": 0.9578278323515335,
+        "MomentumAgent": 0.6654282053987605,
+        "MeanReversionAgent": -0.26339661050794916,
+        "VolatilityAgent": 0.3463020271885777,
+        "BreadthAgent": 0.012583434090335523,
+        "PatternAgent": 0.6061342893171647,
+        "IntermarketAgent": 0.0,
+        "SessionBreakoutAgent": 0.21516754850088762,
+        "DivergenceAgent": -0.4236744591852213,
+        "ScalpingAgent": 0.344,
+        "VwapScalpAgent": -0.4019379174366685,
+        "SqueezeBreakoutAgent": 0.5151981700127912,
+        "OrderFlowAgent": 0.4524944573654086,
+        "CorrelationAgent": 0.025274672773053935
+      },
+      "ts": 1774886201.62068
+    },
+    "56000625093": {
+      "symbol": "USDCHF",
+      "direction": "Direction.LONG",
+      "votes": {
+        "RegimeAgent": 0.4180481736728196,
+        "TrendAgent": 0.987999999955021,
+        "MomentumAgent": 0.6518590798665899,
+        "MeanReversionAgent": -0.2614305110461767,
+        "VolatilityAgent": -0.1871359459035348,
+        "BreadthAgent": 0.012556969235193331,
+        "PatternAgent": 0.30749476293165157,
+        "IntermarketAgent": 0.0,
+        "SessionBreakoutAgent": 0.001633986928097135,
+        "DivergenceAgent": -0.3340137111564681,
+        "ScalpingAgent": -0.2207394418770389,
+        "VwapScalpAgent": 0.44614677975802486,
+        "SqueezeBreakoutAgent": -0.27455787699683304,
+        "OrderFlowAgent": -0.06708865757807156,
+        "CorrelationAgent": 0.04891053554698247
+      },
+      "ts": 1774887596.9003341
+    },
+    "56000625230": {
+      "symbol": "USDCAD",
+      "direction": "Direction.LONG",
+      "votes": {
+        "RegimeAgent": 0.29119145892067355,
+        "TrendAgent": 0.9879999962463591,
+        "MomentumAgent": 0.6983831181701616,
+        "MeanReversionAgent": -0.21708487163441043,
+        "VolatilityAgent": -0.392987583748584,
+        "BreadthAgent": 0.012556969235193331,
+        "PatternAgent": 0.3547327935852071,
+        "IntermarketAgent": 0.0,
+        "SessionBreakoutAgent": 0.32702237521514327,
+        "DivergenceAgent": -0.7061241014376145,
+        "ScalpingAgent": -0.3045594426639588,
+        "VwapScalpAgent": 0.2627237921962659,
+        "SqueezeBreakoutAgent": -0.39999999999999997,
+        "OrderFlowAgent": -0.17454748368758038,
+        "CorrelationAgent": 0.044782538813537845
+      },
+      "ts": 1774887597.4394045
+    },
+    "56000626198": {
+      "symbol": "CHFJPY",
+      "direction": "Direction.SHORT",
+      "votes": {
+        "RegimeAgent": -0.5145087349965417,
+        "TrendAgent": 0.7304335839658591,
+        "MomentumAgent": -0.8473793029378889,
+        "MeanReversionAgent": 0.20354838443787895,
+        "VolatilityAgent": -0.0570162009063819,
+        "BreadthAgent": 0.012556969235193331,
+        "PatternAgent": -0.365,
+        "IntermarketAgent": 0.0,
+        "SessionBreakoutAgent": -0.5694822888283471,
+        "DivergenceAgent": 0.0,
+        "ScalpingAgent": 0.01645696560034278,
+        "VwapScalpAgent": 0.7826043588772275,
+        "SqueezeBreakoutAgent": 0.0,
+        "OrderFlowAgent": -0.0854239187690963,
+        "CorrelationAgent": -0.09840340407238088
+      },
+      "ts": 1774887599.5660477
+    },
+    "56000705659": {
+      "symbol": "EURJPY",
+      "direction": "Direction.SHORT",
+      "votes": {
+        "RegimeAgent": -0.8390787750727519,
+        "TrendAgent": -0.20502345801804997,
+        "MomentumAgent": -0.9584264106480107,
+        "MeanReversionAgent": 0.12999999766044146,
+        "VolatilityAgent": -0.22498313363489036,
+        "BreadthAgent": 0.012556969235193331,
+        "PatternAgent": -0.071875,
+        "IntermarketAgent": -0.17007168727100402,
+        "SessionBreakoutAgent": -1.0,
+        "DivergenceAgent": 0.0,
+        "ScalpingAgent": -0.39433341506301334,
+        "VwapScalpAgent": 0.45642434749090416,
+        "SqueezeBreakoutAgent": 0.0,
+        "OrderFlowAgent": -0.4873788193608986,
+        "CorrelationAgent": -0.017167222042838548
+      },
+      "ts": 1774887897.6494331
+    },
+    "56001385185": {
+      "symbol": "EURCHF",
+      "direction": "Direction.SHORT",
+      "votes": {
+        "RegimeAgent": -0.2942271302958489,
+        "TrendAgent": -0.5720002699633975,
+        "MomentumAgent": -0.3501309002415792,
+        "MeanReversionAgent": 0.2249814861570017,
+        "VolatilityAgent": -0.22475999313715905,
+        "BreadthAgent": 0.00799357443971932,
+        "PatternAgent": -0.4772634077924918,
+        "IntermarketAgent": -0.09729396109859507,
+        "SessionBreakoutAgent": 0.008687597503899872,
+        "DivergenceAgent": 0.2420644818498348,
+        "ScalpingAgent": 0.218,
+        "VwapScalpAgent": 0.4287142973435636,
+        "SqueezeBreakoutAgent": -0.25995064216960545,
+        "OrderFlowAgent": -0.2135498632465621,
+        "CorrelationAgent": 0.2651912440290031
+      },
+      "ts": 1774890008.9660175
+    },
+    "56001606713": {
+      "symbol": "EURUSD",
+      "direction": "Direction.SHORT",
+      "votes": {
+        "RegimeAgent": -0.5319491349985783,
+        "TrendAgent": -0.9384177190161122,
+        "MomentumAgent": -0.7866561524094486,
+        "MeanReversionAgent": 0.29796198924012957,
+        "VolatilityAgent": -0.16230833529841499,
+        "BreadthAgent": 0.011311023605331361,
+        "PatternAgent": -0.4073134876421268,
+        "IntermarketAgent": 0.0,
+        "SessionBreakoutAgent": -0.2264705882353038,
+        "DivergenceAgent": 0.10874709663233272,
+        "ScalpingAgent": 0.242,
+        "VwapScalpAgent": 0.5499120720596541,
+        "SqueezeBreakoutAgent": -0.20417191340646776,
+        "OrderFlowAgent": -0.09573734202056525,
+        "CorrelationAgent": 0.022560957195425828
+      },
+      "ts": 1774890647.383789
+    },
+    "56001765946": {
+      "symbol": "GBPUSD",
+      "direction": "Direction.SHORT",
+      "votes": {
+        "RegimeAgent": -0.7133923071475036,
+        "TrendAgent": -0.9520246027789386,
+        "MomentumAgent": -0.8173089819998708,
+        "MeanReversionAgent": 0.22395202251102575,
+        "VolatilityAgent": -0.267999169458839,
+        "BreadthAgent": 0.007686722488764791,
+        "PatternAgent": -0.3875,
+        "IntermarketAgent": -0.12725593107708846,
+        "SessionBreakoutAgent": -0.23578260869566023,
+        "DivergenceAgent": 0.11952445081288943,
+        "ScalpingAgent": -0.168,
+        "VwapScalpAgent": 0.8,
+        "SqueezeBreakoutAgent": -0.339313159462774,
+        "OrderFlowAgent": -0.33723773490305226,
+        "CorrelationAgent": -0.2759972607141116
+      },
+      "ts": 1774890980.616206
+    },
+    "56001766882": {
+      "symbol": "EURCHF",
+      "direction": "Direction.SHORT",
+      "votes": {
+        "RegimeAgent": -0.26197066167111405,
+        "TrendAgent": -0.5720002453916252,
+        "MomentumAgent": -0.32351658343153833,
+        "MeanReversionAgent": 0.28343913529005316,
+        "VolatilityAgent": 0.02227231168117821,
+        "BreadthAgent": 0.007686722488764791,
+        "PatternAgent": -0.4161085035835311,
+        "IntermarketAgent": -0.09629161304119783,
+        "SessionBreakoutAgent": 0.012334243369734578,
+        "DivergenceAgent": 0.2420644818498348,
+        "ScalpingAgent": 0.242,
+        "VwapScalpAgent": 0.5529021944580313,
+        "SqueezeBreakoutAgent": 0.24508571303784465,
+        "OrderFlowAgent": 0.008144925797905388,
+        "CorrelationAgent": 0.268885368530152
+      },
+      "ts": 1774890984.1084251
+    },
+    "56001767232": {
+      "symbol": "CHFJPY",
+      "direction": "Direction.SHORT",
+      "votes": {
+        "RegimeAgent": -0.5134769442215109,
+        "TrendAgent": 0.7304082109879942,
+        "MomentumAgent": -0.7835560260658286,
+        "MeanReversionAgent": 0.24782118791429217,
+        "VolatilityAgent": -0.20224092981706332,
+        "BreadthAgent": 0.007686722488764791,
+        "PatternAgent": -0.365,
+        "IntermarketAgent": 0.09041991009378711,
+        "SessionBreakoutAgent": -0.3247048138056344,
+        "DivergenceAgent": 0.0,
+        "ScalpingAgent": 0.016194486503964947,
+        "VwapScalpAgent": 0.8,
+        "SqueezeBreakoutAgent": 0.0,
+        "OrderFlowAgent": -0.11727535839463657,
+        "CorrelationAgent": -0.48979217617875154
+      },
+      "ts": 1774890985.6411047
     }
   },
   "agent_stats": {
     "RegimeAgent": {
-      "n": 5,
-      "correct": 2,
+      "n": 8,
+      "correct": 4,
       "abstain": 2,
-      "total_contribution": 1.229541681664738,
-      "last_updated": "2026-03-27 10:24"
+      "total_contribution": 1.5520782048344983,
+      "last_updated": "2026-03-28 22:47"
     },
     "TrendAgent": {
-      "n": 7,
-      "correct": 2,
-      "abstain": 0,
-      "total_contribution": 1.153973865914669,
-      "last_updated": "2026-03-27 10:24"
-    },
-    "MomentumAgent": {
-      "n": 7,
+      "n": 10,
       "correct": 4,
       "abstain": 0,
-      "total_contribution": 1.1575132267902055,
-      "last_updated": "2026-03-27 10:24"
+      "total_contribution": 2.6489029233994223,
+      "last_updated": "2026-03-28 22:47"
+    },
+    "MomentumAgent": {
+      "n": 9,
+      "correct": 6,
+      "abstain": 1,
+      "total_contribution": 1.5305760501504757,
+      "last_updated": "2026-03-28 22:47"
     },
     "MeanReversionAgent": {
-      "n": 7,
-      "correct": 3,
-      "abstain": 0,
-      "total_contribution": 1.2121654075748067,
-      "last_updated": "2026-03-27 10:24"
+      "n": 9,
+      "correct": 4,
+      "abstain": 1,
+      "total_contribution": 1.3178580079378588,
+      "last_updated": "2026-03-28 22:47"
     },
     "VolatilityAgent": {
-      "n": 7,
-      "correct": 2,
+      "n": 10,
+      "correct": 4,
       "abstain": 0,
-      "total_contribution": 0.51,
-      "last_updated": "2026-03-27 10:24"
+      "total_contribution": 1.1818010621921733,
+      "last_updated": "2026-03-28 22:47"
     },
     "BreadthAgent": {
-      "n": 6,
+      "n": 9,
       "correct": 3,
       "abstain": 1,
       "total_contribution": 0.18812967600672176,
-      "last_updated": "2026-03-27 09:35"
+      "last_updated": "2026-03-28 22:47"
     },
     "PatternAgent": {
-      "n": 7,
-      "correct": 4,
+      "n": 10,
+      "correct": 5,
       "abstain": 0,
-      "total_contribution": 1.12,
-      "last_updated": "2026-03-27 10:24"
+      "total_contribution": 1.5250000000000001,
+      "last_updated": "2026-03-28 22:47"
     },
     "IntermarketAgent": {
       "n": 3,
       "correct": 0,
-      "abstain": 4,
+      "abstain": 7,
       "total_contribution": 0.0,
       "last_updated": "2026-03-27 10:24"
     },
     "SessionBreakoutAgent": {
       "n": 0,
       "correct": 0,
-      "abstain": 7,
+      "abstain": 10,
       "total_contribution": 0.0,
       "last_updated": null
     },
     "DivergenceAgent": {
-      "n": 2,
-      "correct": 1,
-      "abstain": 5,
-      "total_contribution": 0.3340137113345887,
-      "last_updated": "2026-03-27 09:35"
+      "n": 3,
+      "correct": 2,
+      "abstain": 7,
+      "total_contribution": 0.4305821585927219,
+      "last_updated": "2026-03-28 12:54"
     },
     "ScalpingAgent": {
-      "n": 7,
-      "correct": 3,
+      "n": 10,
+      "correct": 4,
       "abstain": 0,
-      "total_contribution": 0.6662547696900523,
-      "last_updated": "2026-03-27 10:24"
+      "total_contribution": 1.2518475240481892,
+      "last_updated": "2026-03-28 22:47"
     },
     "VwapScalpAgent": {
-      "n": 6,
-      "correct": 0,
+      "n": 9,
+      "correct": 1,
       "abstain": 1,
-      "total_contribution": 0.0,
-      "last_updated": "2026-03-27 10:24"
+      "total_contribution": 0.4846627006070153,
+      "last_updated": "2026-03-28 22:47"
     },
     "SqueezeBreakoutAgent": {
-      "n": 7,
-      "correct": 2,
-      "abstain": 0,
-      "total_contribution": 0.675953533184614,
-      "last_updated": "2026-03-27 10:24"
+      "n": 9,
+      "correct": 3,
+      "abstain": 1,
+      "total_contribution": 0.8270433580248895,
+      "last_updated": "2026-03-28 22:47"
     },
     "OrderFlowAgent": {
-      "n": 6,
-      "correct": 2,
+      "n": 9,
+      "correct": 4,
       "abstain": 1,
-      "total_contribution": 0.6316383565642348,
-      "last_updated": "2026-03-27 10:24"
+      "total_contribution": 1.1216613243189695,
+      "last_updated": "2026-03-28 22:47"
+    },
+    "CorrelationAgent": {
+      "n": 0,
+      "correct": 0,
+      "abstain": 0,
+      "total_contribution": 0.0,
+      "last_updated": null
     }
   }
 }

@@ -23,10 +23,9 @@ class PatternAgent(BaseAgent):
 
     def get_required_features(self) -> list:
         """Return list of required feature names."""
-        # last_break is Optional — None means neutral (no clear breakout), not missing
         return [
             'swing_highs', 'swing_lows', 'bb_percent_b',
-            'atr_14', 'ema20', 'ema50'
+            'atr_14', 'ema20', 'ema50', 'adx_14', 'vwap_distance',
         ]
 
     async def analyze(self, features: TechnicalFeatures, context: Dict[str, Any] = None) -> AgentOutput:
@@ -41,6 +40,15 @@ class PatternAgent(BaseAgent):
             AgentOutput with pattern analysis
         """
 
+        # Guard against NaN/Inf in critical floats
+        _critical = [features.bb_percent_b, features.ema20, features.ema50,
+                     features.adx_14, features.vwap_distance, features.atr_14]
+        if any(not np.isfinite(v) for v in _critical):
+            return AgentOutput(
+                timeframe=self.timeframe, dir_score=0.0, conf=0.1,
+                rationale="Insufficient data (NaN detected)", evidence={},
+            )
+
         # Calculate swing pattern score
         swing_score = self._calculate_swing_patterns(features)
 
@@ -54,10 +62,17 @@ class PatternAgent(BaseAgent):
         sr_score = self._calculate_support_resistance(features)
 
         # Combine scores for final pattern score
-        dir_score = self._combine_pattern_scores(swing_score, breakout_score, consolidation_score, sr_score)
+        dir_score = self._combine_pattern_scores(swing_score, breakout_score, consolidation_score, sr_score, features)
 
         # Calculate confidence
         confidence = self.calculate_confidence(features, context)
+
+        self.logger.debug(
+            f"[CALC] PatternAgent swing={swing_score:+.3f} breakout={breakout_score:+.3f} "
+            f"consol={consolidation_score:+.3f} sr={sr_score:+.3f} "
+            f"\u2192 dir={dir_score:+.4f} conf={confidence:.3f} | "
+            f"break={features.last_break} bb%b={features.bb_percent_b:.3f}"
+        )
 
         # Generate rationale
         rationale = self._generate_rationale(swing_score, breakout_score, consolidation_score, sr_score, dir_score)
@@ -86,33 +101,40 @@ class PatternAgent(BaseAgent):
         )
 
     def _calculate_swing_patterns(self, features: TechnicalFeatures) -> float:
-        """Calculate score based on swing high/low patterns."""
+        """Calculate score based on swing high/low patterns.
 
+        Detects structural patterns: trending swings (HH/HL, LH/LL),
+        range expansion (widening formation), and range contraction
+        (narrowing wedge/triangle → breakout setup).
+        """
         swing_highs = features.swing_highs
         swing_lows = features.swing_lows
 
-        # Swing pattern analysis
         if len(swing_highs) >= 2 and len(swing_lows) >= 2:
-            # Check for higher highs and higher lows (bullish)
-            if (swing_highs[-1] > swing_highs[-2] and 
-                swing_lows[-1] > swing_lows[-2]):
+            hh = swing_highs[-1] > swing_highs[-2]
+            hl = swing_lows[-1] > swing_lows[-2]
+            lh = swing_highs[-1] < swing_highs[-2]
+            ll = swing_lows[-1] < swing_lows[-2]
+
+            if hh and hl:        # Higher highs + higher lows = bullish trend
                 swing_score = 0.7
-            # Check for lower highs and lower lows (bearish)
-            elif (swing_highs[-1] < swing_highs[-2] and 
-                  swing_lows[-1] < swing_lows[-2]):
+            elif lh and ll:      # Lower highs + lower lows = bearish trend
                 swing_score = -0.7
-            # Check for higher highs but lower lows (potential reversal)
-            elif swing_highs[-1] > swing_highs[-2] and swing_lows[-1] < swing_lows[-2]:
-                swing_score = 0.3
-            # Check for lower highs but higher lows (potential reversal)
-            elif swing_highs[-1] < swing_highs[-2] and swing_lows[-1] > swing_lows[-2]:
-                swing_score = -0.3
+            elif hh and ll:      # Expanding range = volatile, directionless
+                swing_score = 0.0
+            elif lh and hl:      # Narrowing wedge = breakout imminent, neutral bias
+                # Direction depends on prior trend; use EMA alignment as tiebreak
+                swing_score = 0.1 if features.ema20 > features.ema50 else -0.1
+            elif hh:
+                swing_score = 0.35
+            elif ll:
+                swing_score = -0.35
             else:
                 swing_score = 0.0
         else:
             swing_score = 0.0
 
-        return np.clip(swing_score, -1.0, 1.0)
+        return float(np.clip(swing_score, -1.0, 1.0))
 
     def _calculate_breakout_patterns(self, features: TechnicalFeatures) -> float:
         """Calculate score based on breakout patterns."""
@@ -141,65 +163,85 @@ class PatternAgent(BaseAgent):
         return np.clip(breakout_score, -1.0, 1.0)
 
     def _calculate_consolidation_patterns(self, features: TechnicalFeatures) -> float:
-        """Calculate directional score based on consolidation breakout context.
+        """Calculate directional score based on BB position only.
 
-        When price is NOT in the BB midzone (i.e. breaking out of consolidation),
-        return a weak directional bias aligned with the breakout direction.
-        Inside the midzone the score is neutral — the last_break field (already
-        scored in _calculate_breakout_patterns) handles that case.
+        Pure price-position signal — last_break is NOT used here to
+        avoid double-counting with _calculate_breakout_patterns.
+        Inside the BB midzone the score is neutral.
         """
         bb_percent = features.bb_percent_b
-        last_break = features.last_break
 
         if 0.4 < bb_percent < 0.6:
-            # Inside consolidation range — neutral
             return 0.0
 
-        # Outside midzone: confirm the side with a weak directional nudge
+        # Outside midzone: weak directional nudge from BB position alone
         if bb_percent >= 0.6:
-            # Upper half — mild bullish lean
-            consolidation_score = 0.2 if last_break == "bullish" else 0.1
+            consolidation_score = 0.15
         else:
-            # Lower half — mild bearish lean
-            consolidation_score = -0.2 if last_break == "bearish" else -0.1
+            consolidation_score = -0.15
 
         return float(np.clip(consolidation_score, -1.0, 1.0))
 
     def _calculate_support_resistance(self, features: TechnicalFeatures) -> float:
-        """Calculate score based on support/resistance levels."""
+        """Calculate score based on support/resistance levels.
 
-        ema20 = features.ema20
-        ema50 = features.ema50
+        Uses VWAP distance (in ATR units) and EMA alignment to assess
+        whether price is bouncing off or breaking through key levels.
+        Price near VWAP + holding above EMA20 = support holding (bullish).
+        Price far from VWAP in direction of EMA trend = breakout confirmation.
+        """
+        vd = features.vwap_distance   # ATR-normalized distance from VWAP
         bb_percent = features.bb_percent_b
 
-        # Support/resistance analysis using EMAs
-        # Price near EMA20 (short-term support/resistance)
-        if 0.45 < bb_percent < 0.55:  # Price near middle of BB
-            if ema20 > ema50:  # Bullish EMA alignment
-                sr_score = 0.3
-            elif ema20 < ema50:  # Bearish EMA alignment
-                sr_score = -0.3
-            else:
-                sr_score = 0.0
+        # EMA alignment base direction
+        if features.ema20 > features.ema50:
+            ema_dir = 1.0   # bullish alignment
+        elif features.ema20 < features.ema50:
+            ema_dir = -1.0  # bearish alignment
         else:
+            ema_dir = 0.0
+
+        # Near VWAP (within 0.5 ATR): price is testing a key level
+        if abs(vd) < 0.5:
+            # Bouncing off VWAP in direction of EMA = support/resistance holding
+            sr_score = ema_dir * 0.3
+        elif abs(vd) < 1.5:
+            # Moderate distance: confirm with EMA and BB position
+            if vd > 0 and ema_dir > 0 and bb_percent > 0.6:
+                sr_score = 0.4  # above VWAP, bullish EMAs, upper BB = strength
+            elif vd < 0 and ema_dir < 0 and bb_percent < 0.4:
+                sr_score = -0.4  # below VWAP, bearish EMAs, lower BB = weakness
+            else:
+                sr_score = ema_dir * 0.15
+        else:
+            # Far from VWAP: extended, S/R signal is weak
             sr_score = 0.0
 
-        return np.clip(sr_score, -1.0, 1.0)
+        return float(np.clip(sr_score, -1.0, 1.0))
 
     def _combine_pattern_scores(self, swing_score: float, breakout_score: float,
-                               consolidation_score: float, sr_score: float) -> float:
-        """Combine individual pattern scores into final score."""
+                               consolidation_score: float, sr_score: float,
+                               features: TechnicalFeatures = None) -> float:
+        """Combine individual pattern scores into final score.
 
-        # Weighted combination
-        # Swing patterns and breakouts get highest weights
+        ADX-aware: strong trends boost directional patterns;
+        weak ADX dampens to avoid whipsaw signals.
+        """
         combined_score = (
-            swing_score * 0.4 +
-            breakout_score * 0.4 +
-            sr_score * 0.15 +
-            consolidation_score * 0.05
+            swing_score * 0.35 +
+            breakout_score * 0.30 +
+            sr_score * 0.20 +
+            consolidation_score * 0.15
         )
 
-        return np.clip(combined_score, -1.0, 1.0)
+        if features is not None:
+            adx = features.adx_14
+            if adx > 30:
+                combined_score *= min(1.0 + (adx - 30) / 60, 1.25)
+            elif adx < 15:
+                combined_score *= max(0.5, adx / 15)
+
+        return float(np.clip(combined_score, -1.0, 1.0))
 
     def _generate_rationale(self, swing_score: float, breakout_score: float,
                            consolidation_score: float, sr_score: float, dir_score: float) -> str:
@@ -251,22 +293,36 @@ class PatternAgent(BaseAgent):
         return rationale
 
     def calculate_confidence(self, features: TechnicalFeatures, context: Dict[str, Any] = None) -> float:
-        """Calculate confidence score for pattern analysis."""
+        """Calculate confidence score for pattern analysis.
 
-        # Start with base confidence
+        Adds ADX awareness and penalizes conflicting sub-scores.
+        """
         confidence = 0.5
 
         # Higher confidence with clear swing patterns
         if len(features.swing_highs) >= 2 and len(features.swing_lows) >= 2:
-            confidence += 0.2
+            confidence += 0.15
 
         # Higher confidence with a confirmed structural breakout
         if features.last_break in ["bullish", "bearish"]:
-            confidence += 0.2
+            confidence += 0.15
 
         # Higher confidence with clear BB position
         if features.bb_percent_b < 0.3 or features.bb_percent_b > 0.7:
             confidence += 0.1
 
-        # Ensure confidence is within bounds
-        return min(max(confidence, 0.0), 1.0) 
+        # ADX awareness: strong trend = more trustworthy patterns
+        adx = features.adx_14
+        if adx > 30:
+            confidence += min((adx - 30) / 60, 0.10)
+        elif adx < 15:
+            confidence -= 0.10
+
+        # Penalize conflicting sub-scores (swing vs breakout disagree)
+        swing_score = self._calculate_swing_patterns(features)
+        breakout_score = self._calculate_breakout_patterns(features)
+        if swing_score != 0.0 and breakout_score != 0.0:
+            if np.sign(swing_score) != np.sign(breakout_score):
+                confidence -= 0.15
+
+        return float(np.clip(confidence, 0.0, 1.0)) 

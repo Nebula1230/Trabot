@@ -39,6 +39,19 @@ class BreadthAgent(BaseAgent):
             AgentOutput with breadth analysis
         """
 
+        # NaN guard: if any critical feature is NaN/Inf, return neutral
+        _critical = [
+            features.index_trend, features.advance_decline,
+            features.above_50ema_pct, features.above_200ema_pct,
+            features.sector_direction,
+        ]
+        if any(not np.isfinite(v) for v in _critical):
+            self.logger.debug("[CALC] BreadthAgent NaN/Inf in features — returning neutral")
+            return AgentOutput(
+                timeframe=self.timeframe, dir_score=0.0, conf=0.1,
+                rationale="Insufficient data (NaN detected)", evidence={},
+            )
+
         # Calculate index trend score
         index_score = self._calculate_index_trend(features)
 
@@ -56,6 +69,12 @@ class BreadthAgent(BaseAgent):
 
         # Calculate confidence
         confidence = self.calculate_confidence(features, context)
+
+        self.logger.debug(
+            f"[CALC] BreadthAgent idx={index_score:+.3f} ad={ad_score:+.3f} "
+            f"ema={ema_score:+.3f} sec={sector_score:+.3f} "
+            f"\u2192 dir={dir_score:+.4f} conf={confidence:.3f}"
+        )
 
         # Generate rationale
         rationale = self._generate_rationale(index_score, ad_score, ema_score, sector_score, dir_score)
@@ -97,20 +116,10 @@ class BreadthAgent(BaseAgent):
 
         ad_ratio = features.advance_decline
 
-        # Advance/decline analysis.
-        # advance_decline is stored as (up_days/20) - 0.5, i.e. centred at 0.
-        # Positive = more up-days, negative = more down-days.
-        # Thresholds are offset by 0.5 relative to the old [0,1] convention.
-        if ad_ratio > 0.10:   # Strong advance (>60% up-days)
-            ad_score = 0.8
-        elif ad_ratio > 0.05:  # Moderate advance (>55% up-days)
-            ad_score = 0.4
-        elif ad_ratio < -0.10: # Strong decline (<40% up-days)
-            ad_score = -0.8
-        elif ad_ratio < -0.05: # Moderate decline (<45% up-days)
-            ad_score = -0.4
-        else:  # Neutral
-            ad_score = 0.0
+        # Advance/decline: centred at 0.  Continuous tanh mapping.
+        # yfinance range: [-1, 1] (RSP-SPY ratio).  MT5 fallback: [-0.5, 0.5].
+        # Use ×3 so moderate values (±0.3) map to ±0.71 without early saturation.
+        ad_score = float(np.tanh(ad_ratio * 3.0))
 
         return np.clip(ad_score, -1.0, 1.0)
 
@@ -122,10 +131,12 @@ class BreadthAgent(BaseAgent):
 
         # EMA breadth analysis.
         # above_50ema_pct / above_200ema_pct are stored as (close - ema) / ema,
-        # already centred at 0 (positive = price above EMA).  Do NOT subtract 0.5
-        # (that assumed a [0,1] range and would make every value appear bearish).
-        ema_50_score = np.tanh(above_50 * 10)   # ±1% relative → tanh(±0.1)≈±0.10
-        ema_200_score = np.tanh(above_200 * 10)
+        # already centred at 0 (positive = price above EMA).
+        # Real values: ±0.001–0.05 for FX, ±0.01–0.10 for indices.
+        # Use ×5 so a 2% distance (±0.02) maps to tanh(0.1) ≈ 0.10,
+        # and a 10% distance (±0.10) maps to tanh(0.5) ≈ 0.46.
+        ema_50_score = np.tanh(above_50 * 5)
+        ema_200_score = np.tanh(above_200 * 5)
 
         # Combine EMA scores
         ema_score = (ema_50_score + ema_200_score) / 2.0
@@ -148,13 +159,19 @@ class BreadthAgent(BaseAgent):
         """Combine individual breadth scores into final score."""
 
         # Weighted combination
-        # Index trend and advance/decline get highest weights
         combined_score = (
             index_score * 0.35 +
             ad_score * 0.35 +
             ema_score * 0.2 +
             sector_score * 0.1
         )
+
+        # Breadth divergence: index bullish but A/D + EMA bearish → dampen
+        breadth_avg = (ad_score + ema_score) / 2.0
+        if index_score > 0.2 and breadth_avg < -0.1:
+            combined_score *= 0.5   # bullish price, bearish breadth → halve
+        elif index_score < -0.2 and breadth_avg > 0.1:
+            combined_score *= 0.5   # bearish price, bullish breadth → halve
 
         return np.clip(combined_score, -1.0, 1.0)
 
@@ -209,21 +226,18 @@ class BreadthAgent(BaseAgent):
 
     def calculate_confidence(self, features: TechnicalFeatures, context: Dict[str, Any] = None) -> float:
         """Calculate confidence score for breadth analysis."""
+        confidence = 0.45
 
-        # Start with base confidence
-        confidence = 0.5
+        # Proportional boost from index trend clarity (0.0–0.2)
+        idx = abs(features.index_trend)
+        confidence += min(idx / 0.8, 1.0) * 0.20
 
-        # Higher confidence with clear index trend
-        if abs(features.index_trend) > 0.3:
-            confidence += 0.2
+        # Proportional boost from advance/decline magnitude (0.0–0.15)
+        ad = abs(features.advance_decline)
+        confidence += min(ad / 0.5, 1.0) * 0.15
 
-        # Higher confidence with clear advance/decline
-        if abs(features.advance_decline - 0.5) > 0.1:
-            confidence += 0.2
+        # Proportional boost from EMA breadth (0.0–0.10)
+        ema_b = abs(features.above_50ema_pct)
+        confidence += min(ema_b / 0.15, 1.0) * 0.10
 
-        # Higher confidence with clear EMA breadth
-        if abs(features.above_50ema_pct - 0.5) > 0.15:
-            confidence += 0.1
-
-        # Ensure confidence is within bounds
-        return min(max(confidence, 0.0), 1.0) 
+        return min(max(confidence, 0.0), 0.95) 

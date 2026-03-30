@@ -25,7 +25,7 @@ class MeanReversionAgent(BaseAgent):
         """Return list of required feature names."""
         return [
             'bb_percent_b', 'keltner_width', 'rsi_14', 'vwap_distance',
-            'atr_14', 'realized_vol'
+            'atr_14', 'realized_vol', 'bb_width', 'adx_14',
         ]
 
     async def analyze(self, features: TechnicalFeatures, context: Dict[str, Any] = None) -> AgentOutput:
@@ -39,6 +39,15 @@ class MeanReversionAgent(BaseAgent):
         Returns:
             AgentOutput with mean reversion analysis
         """
+
+        # Guard against NaN/Inf in critical floats
+        _critical = [features.bb_percent_b, features.keltner_width, features.rsi_14,
+                     features.vwap_distance, features.atr_14, features.realized_vol]
+        if any(not np.isfinite(v) for v in _critical):
+            return AgentOutput(
+                timeframe=self.timeframe, dir_score=0.0, conf=0.1,
+                rationale="Insufficient data (NaN detected)", evidence={},
+            )
 
         # Calculate BB extension score
         bb_score = self._calculate_bb_extension(features)
@@ -56,10 +65,18 @@ class MeanReversionAgent(BaseAgent):
         vol_adjustment = self._calculate_volatility_adjustment(features)
 
         # Combine scores for final mean reversion score
-        dir_score = self._combine_reversion_scores(bb_score, keltner_score, rsi_score, vwap_score, vol_adjustment)
+        dir_score = self._combine_reversion_scores(bb_score, keltner_score, rsi_score, vwap_score, vol_adjustment, features)
 
         # Calculate confidence
         confidence = self.calculate_confidence(features, context)
+
+        self.logger.debug(
+            f"[CALC] MeanReversionAgent bb={bb_score:+.3f} kc={keltner_score:+.3f} "
+            f"rsi={rsi_score:+.3f} vwap={vwap_score:+.3f} vol_adj={vol_adjustment:.3f} "
+            f"→ dir={dir_score:+.4f} conf={confidence:.3f} | "
+            f"bb%b={features.bb_percent_b:.3f} rsi14={features.rsi_14:.1f} "
+            f"vwap_dist={features.vwap_distance:.5f} realized_vol={features.realized_vol:.5f}"
+        )
 
         # Generate rationale
         rationale = self._generate_rationale(bb_score, keltner_score, rsi_score, vwap_score, vol_adjustment, dir_score)
@@ -190,23 +207,41 @@ class MeanReversionAgent(BaseAgent):
 
     def _combine_reversion_scores(self, bb_score: float, keltner_score: float,
                                  rsi_score: float, vwap_score: float, 
-                                 vol_adjustment: float) -> float:
-        """Combine individual reversion scores into final score."""
+                                 vol_adjustment: float,
+                                 features: TechnicalFeatures = None) -> float:
+        """Combine reversion scores with confluence gating.
 
-        # Weighted combination of indicator scores
+        Hedge fund grade: require at least 2 out of 4 indicators to agree
+        on direction before producing a meaningful signal.  A single OB/OS
+        indicator alone is not a trade — it needs confirmation.
+        ADX > 30 attenuates the signal (strong trends override MR).
+        """
         raw = (
-            bb_score * 0.4 +
-            rsi_score * 0.3 +
-            vwap_score * 0.2 +
-            keltner_score * 0.1
+            bb_score * 0.35 +
+            rsi_score * 0.30 +
+            vwap_score * 0.20 +
+            keltner_score * 0.15
         )
 
-        # vol_adjustment (±0.3 or 0) scales how much we trust the reversion signal.
-        # High vol (indices) → *0.85 (reversion less reliable).
-        # Very low vol (quiet FX) → *1.10 (reversion very reliable).
-        # Using a multiplier rather than an additive offset prevents pushing the
-        # score away from zero in instruments that are not extended at all.
+        # vol_adjustment scales trust in the reversion signal
         combined_score = raw * (1.0 + vol_adjustment * 0.50)
+
+        # ── Confluence gate: require 2+ indicators to agree on direction ──
+        indicators = [bb_score, keltner_score, rsi_score, vwap_score]
+        bull_count = sum(1 for s in indicators if s > 0.15)
+        bear_count = sum(1 for s in indicators if s < -0.15)
+        if combined_score > 0 and bull_count < 2:
+            combined_score *= 0.30   # weak isolated signal → heavy dampen
+        elif combined_score < 0 and bear_count < 2:
+            combined_score *= 0.30
+
+        # ── ADX gate: mean-reversion is unreliable in strong trends ───────
+        if features is not None:
+            adx = features.adx_14
+            if adx > 35:
+                combined_score *= max(0.20, 1.0 - (adx - 35) / 30)
+            elif adx > 25:
+                combined_score *= 0.70
 
         return float(np.clip(combined_score, -1.0, 1.0))
 
@@ -277,8 +312,8 @@ class MeanReversionAgent(BaseAgent):
         if abs(features.vwap_distance) > 0.02:
             confidence += 0.1
 
-        # Lower confidence in high volatility
-        if features.realized_vol > 0.03:
+        # Lower confidence in high volatility (annualised; FX normal is 6-10%)
+        if features.realized_vol > 0.12:
             confidence -= 0.1
 
         # Ensure confidence is within bounds

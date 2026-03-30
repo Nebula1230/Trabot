@@ -56,23 +56,46 @@ class IntermarketAgent(BaseAgent):
         c = features.crude_dir
         y = features.yield_dir
 
+        # Guard against NaN/Inf in macro signals
+        _inputs = [d, v, c, y]
+        if any(not np.isfinite(x) for x in _inputs):
+            return AgentOutput(
+                timeframe=self.timeframe, dir_score=0.0, conf=0.1,
+                rationale="Insufficient data (NaN detected)", evidence={},
+            )
+
         # Weighted blend of pre-mapped macro signals
         total_w = self._W_DXY + self._W_VIX + self._W_CRUDE + self._W_YIELD
         raw = (d * self._W_DXY + v * self._W_VIX +
                c * self._W_CRUDE + y * self._W_YIELD) / total_w
 
         # tanh compression: keeps output in (-1, 1) and penalises extreme single-factor spikes
-        dir_score = float(np.tanh(raw * 2.0))
+        dir_score = float(np.tanh(raw * 1.4))
 
-        # Confidence: how many factors are informative (non-zero) AND agree on direction
+        self.logger.debug(
+            f"[CALC] IntermarketAgent dxy={d:+.3f} vix={v:+.3f} crude={c:+.3f} "
+            f"yield={y:+.3f} raw={raw:+.4f} \u2192 dir={dir_score:+.4f}"
+        )
+
+        # Confidence: how many factors are informative AND agree + magnitude scaling
         active  = [s for s in (d, v, c, y) if abs(s) > 0.05]
         if not active:
-            confidence = 0.35   # all neutral — very low confidence
+            confidence = 0.25   # all neutral — very low confidence
         else:
-            sign_std    = float(np.std([np.sign(s) for s in active]))  # 0 = perfect agreement
-            agreement   = max(0.0, 1.0 - sign_std * 0.7)
-            magnitude   = float(np.mean([abs(s) for s in active]))
-            confidence  = float(np.clip(0.35 + magnitude * 0.35 + agreement * 0.30, 0.35, 0.90))
+            # Agreement: fraction of active signals sharing the majority sign
+            pos = sum(1 for s in active if s > 0)
+            neg = len(active) - pos
+            agreement_ratio = max(pos, neg) / len(active)
+            # Mean magnitude of active signals
+            magnitude = float(np.mean([abs(s) for s in active]))
+            confidence = 0.30 + agreement_ratio * 0.30 + magnitude * 0.30
+
+            # Dampen when only 1 factor is active (single-source risk)
+            if len(active) == 1:
+                confidence *= 0.65
+                dir_score *= 0.7
+
+            confidence = float(np.clip(confidence, 0.25, 0.90))
 
         # Rationale
         parts = []

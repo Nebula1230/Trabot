@@ -25,7 +25,8 @@ class TrendAgent(BaseAgent):
         """Return list of required feature names."""
         return [
             'swing_highs', 'swing_lows', 'hh_hl_count', 'lh_ll_count',
-            'ema20', 'ema50', 'ema200', 'ema20_slope', 'ema50_slope', 'ema200_slope'
+            'ema20', 'ema50', 'ema200', 'ema20_slope', 'ema50_slope', 'ema200_slope',
+            'adx_14', 'atr_14',
         ]
 
     async def analyze(self, features: TechnicalFeatures, context: Dict[str, Any] = None) -> AgentOutput:
@@ -40,6 +41,16 @@ class TrendAgent(BaseAgent):
             AgentOutput with trend analysis
         """
 
+        # Guard against NaN/Inf in critical floats
+        _critical = [features.ema20, features.ema50, features.ema200,
+                     features.ema20_slope, features.ema50_slope, features.ema200_slope,
+                     features.adx_14, features.atr_14]
+        if any(not np.isfinite(v) for v in _critical):
+            return AgentOutput(
+                timeframe=self.timeframe, dir_score=0.0, conf=0.1,
+                rationale="Insufficient data (NaN detected)", evidence={},
+            )
+
         # Calculate structure score
         structure_score = self._calculate_structure_score(features)
 
@@ -50,10 +61,18 @@ class TrendAgent(BaseAgent):
         slope_score = self._calculate_slope_score(features)
 
         # Combine scores for final directional score
-        dir_score = self._combine_scores(structure_score, ma_score, slope_score)
+        dir_score = self._combine_scores(structure_score, ma_score, slope_score, features)
 
         # Calculate confidence
         confidence = self.calculate_confidence(features, context)
+
+        self.logger.debug(
+            f"[CALC] TrendAgent struct={structure_score:+.3f} ma={ma_score:+.3f} "
+            f"slope={slope_score:+.3f} → dir={dir_score:+.4f} conf={confidence:.3f} | "
+            f"hh={features.hh_hl_count} ll={features.lh_ll_count} "
+            f"break={features.last_break} ema20={features.ema20:.5f} "
+            f"ema50={features.ema50:.5f} ema200={features.ema200:.5f}"
+        )
 
         # Generate rationale
         rationale = self._generate_rationale(structure_score, ma_score, slope_score, dir_score)
@@ -78,27 +97,28 @@ class TrendAgent(BaseAgent):
         )
 
     def _calculate_structure_score(self, features: TechnicalFeatures) -> float:
-        """Calculate score based on market structure (HH/HL vs LH/LL)."""
+        """Calculate score based on market structure (HH/HL vs LH/LL).
 
-        # Higher highs and higher lows indicate bullish structure
-        if features.hh_hl_count > features.lh_ll_count:
-            # Bullish structure
-            structure_score = min(features.hh_hl_count / 3.0, 1.0)
-        elif features.lh_ll_count > features.hh_hl_count:
-            # Bearish structure
-            structure_score = -min(features.lh_ll_count / 3.0, 1.0)
-        else:
-            # Neutral structure
+        Uses the NET ratio of bullish-to-bearish swings instead of a fixed
+        denominator, so the score self-calibrates to the lookback window.
+        """
+        hh = features.hh_hl_count
+        ll = features.lh_ll_count
+        total = hh + ll
+
+        if total == 0:
             structure_score = 0.0
+        else:
+            # Net ratio in [-1, +1]: +1 = all HH/HL, -1 = all LH/LL
+            structure_score = (hh - ll) / total
 
         # Adjust based on last break
-        # last_break is set to "bullish" or "bearish" by _detect_swings
         if features.last_break == "bullish":
             structure_score += 0.2
         elif features.last_break == "bearish":
             structure_score -= 0.2
 
-        return np.clip(structure_score, -1.0, 1.0)
+        return float(np.clip(structure_score, -1.0, 1.0))
 
     def _calculate_ma_alignment(self, features: TechnicalFeatures) -> float:
         """Calculate score based on EMA alignment and stack."""
@@ -122,29 +142,44 @@ class TrendAgent(BaseAgent):
         return float(np.clip(ma_score, -1.0, 1.0))
 
     def _calculate_slope_score(self, features: TechnicalFeatures) -> float:
-        """Calculate score based on EMA slopes."""
+        """Calculate score based on EMA slopes, ATR-normalized.
 
-        # Average slope across EMAs
-        avg_slope = (features.ema20_slope + features.ema50_slope + features.ema200_slope) / 3.0
+        Normalizes slope by ATR so the score is instrument-independent:
+        slope/ATR of 0.05 on EURUSD has the same meaning as on USDJPY.
+        Weighted average: EMA20 is fastest-reacting, EMA200 is slowest.
+        """
+        atr = max(features.atr_14, 1e-9)
+        s20  = features.ema20_slope  / atr
+        s50  = features.ema50_slope  / atr
+        s200 = features.ema200_slope / atr
 
-        # Normalize slope to [-1, 1] range
-        # Assuming slope is in price units per period
-        normalized_slope = np.tanh(avg_slope * 100)  # Scale factor for normalization
+        # Weighted: fast EMA matters most for recent direction
+        avg = s20 * 0.50 + s50 * 0.30 + s200 * 0.20
+        # tanh(avg * 20): a 0.05 ATR/bar slope → tanh(1) ≈ 0.76
+        return float(np.tanh(avg * 20))
 
-        return normalized_slope
+    def _combine_scores(self, structure_score: float, ma_score: float, slope_score: float,
+                         features: TechnicalFeatures = None) -> float:
+        """Combine individual scores into final directional score.
 
-    def _combine_scores(self, structure_score: float, ma_score: float, slope_score: float) -> float:
-        """Combine individual scores into final directional score."""
-
-        # Weighted combination
-        # Structure gets highest weight as it's most reliable
+        ADX-aware weighting: when ADX > 25 (strong trend), boost the score;
+        when ADX < 15 (range-bound), attenuate to avoid whipsaws.
+        """
         combined_score = (
-            structure_score * 0.5 +
-            ma_score * 0.3 +
-            slope_score * 0.2
+            structure_score * 0.45 +
+            ma_score * 0.30 +
+            slope_score * 0.25
         )
 
-        return np.clip(combined_score, -1.0, 1.0)
+        # ADX scaling: strong trend amplifies, weak trend dampens
+        if features is not None:
+            adx = features.adx_14
+            if adx > 25:
+                combined_score *= min(1.0 + (adx - 25) / 50, 1.3)
+            elif adx < 15:
+                combined_score *= max(0.5, adx / 15)
+
+        return float(np.clip(combined_score, -1.0, 1.0))
 
     def _get_ema_alignment(self, features: TechnicalFeatures) -> str:
         """Get human-readable EMA alignment description."""

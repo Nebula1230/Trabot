@@ -24,7 +24,8 @@ class MomentumAgent(BaseAgent):
     def get_required_features(self) -> list:
         """Return list of required feature names."""
         return [
-            'rsi_14', 'rsi_4', 'macd_hist', 'macd_hist_delta', 'roc_10', 'bb_percent_b'
+            'rsi_14', 'rsi_4', 'macd_hist', 'macd_hist_delta', 'roc_10', 'bb_percent_b',
+            'atr_14', 'atr_price_ratio', 'adx_14',
         ]
 
     async def analyze(self, features: TechnicalFeatures, context: Dict[str, Any] = None) -> AgentOutput:
@@ -39,6 +40,19 @@ class MomentumAgent(BaseAgent):
             AgentOutput with momentum analysis
         """
 
+        # NaN guard: if any critical feature is NaN/Inf, return neutral
+        _critical = [
+            features.rsi_14, features.rsi_4, features.macd_hist,
+            features.macd_hist_delta, features.roc_10, features.bb_percent_b,
+            features.atr_14, features.atr_price_ratio, features.adx_14,
+        ]
+        if any(not np.isfinite(v) for v in _critical):
+            self.logger.debug("[CALC] MomentumAgent NaN/Inf in features — returning neutral")
+            return AgentOutput(
+                timeframe=self.timeframe, dir_score=0.0, conf=0.1,
+                rationale="Insufficient data (NaN detected)", evidence={},
+            )
+
         # Calculate RSI momentum score
         rsi_score = self._calculate_rsi_momentum(features)
 
@@ -52,10 +66,18 @@ class MomentumAgent(BaseAgent):
         bb_score = self._calculate_bb_momentum(features)
 
         # Combine scores for final momentum score
-        dir_score = self._combine_momentum_scores(rsi_score, macd_score, roc_score, bb_score)
+        dir_score = self._combine_momentum_scores(rsi_score, macd_score, roc_score, bb_score, features)
 
         # Calculate confidence
         confidence = self.calculate_confidence(features, context)
+
+        self.logger.debug(
+            f"[CALC] MomentumAgent rsi_sc={rsi_score:+.3f} macd_sc={macd_score:+.3f} "
+            f"roc_sc={roc_score:+.3f} bb_sc={bb_score:+.3f} → dir={dir_score:+.4f} "
+            f"conf={confidence:.3f} | rsi14={features.rsi_14:.1f} rsi4={features.rsi_4:.1f} "
+            f"macd_h={features.macd_hist:.6f} macd_hd={features.macd_hist_delta:.6f} "
+            f"roc10={features.roc_10:.5f} bb%b={features.bb_percent_b:.3f} adx={features.adx_14:.1f}"
+        )
 
         # Generate rationale
         rationale = self._generate_rationale(rsi_score, macd_score, roc_score, bb_score, dir_score)
@@ -116,24 +138,26 @@ class MomentumAgent(BaseAgent):
         return np.clip(rsi_score, -1.0, 1.0)
 
     def _calculate_macd_momentum(self, features: TechnicalFeatures) -> float:
-        """Calculate momentum score based on MACD histogram changes."""
+        """Calculate momentum score based on MACD histogram, ATR-normalized.
 
+        Uses tanh normalization instead of binary buckets so that the score
+        scales smoothly with histogram magnitude.  MACD is in price units;
+        dividing by ATR makes the score instrument-independent.
+        """
         macd_hist = features.macd_hist
         macd_delta = features.macd_hist_delta
+        atr = max(features.atr_14, 1e-9)
 
-        # MACD momentum analysis
-        if macd_hist > 0 and macd_delta > 0:  # Increasing bullish momentum
-            macd_score = 0.8
-        elif macd_hist > 0 and macd_delta < 0:  # Decreasing bullish momentum
-            macd_score = 0.2
-        elif macd_hist < 0 and macd_delta < 0:  # Increasing bearish momentum
-            macd_score = -0.8
-        elif macd_hist < 0 and macd_delta > 0:  # Decreasing bearish momentum
-            macd_score = -0.2
-        else:  # Neutral
-            macd_score = 0.0
+        # Normalize histogram to ATR; tanh(hist/atr * 5) maps ±0.2 ATR to ±0.76
+        hist_norm = float(np.tanh(macd_hist / atr * 5))
 
-        return np.clip(macd_score, -1.0, 1.0)
+        # Acceleration component: delta > 0 = momentum increasing
+        delta_norm = float(np.tanh(macd_delta / atr * 10))
+
+        # Blend: histogram direction (70%) + acceleration (30%)
+        macd_score = hist_norm * 0.70 + delta_norm * 0.30
+
+        return float(np.clip(macd_score, -1.0, 1.0))
 
     def _calculate_roc_momentum(self, features: TechnicalFeatures) -> float:
         """Calculate momentum score based on Rate of Change."""
@@ -177,19 +201,30 @@ class MomentumAgent(BaseAgent):
         return np.clip(bb_score, -1.0, 1.0)
 
     def _combine_momentum_scores(self, rsi_score: float, macd_score: float, 
-                                roc_score: float, bb_score: float) -> float:
-        """Combine individual momentum scores into final score."""
+                                roc_score: float, bb_score: float,
+                                features: TechnicalFeatures = None) -> float:
+        """Combine individual momentum scores into final score.
 
-        # Weighted combination
-        # MACD gets highest weight as it's most reliable for momentum
+        Adds confluence bonus when RSI+MACD+ROC all agree on direction,
+        and an exhaustion penalty when ADX is declining (momentum fading).
+        """
         combined_score = (
-            macd_score * 0.4 +
-            rsi_score * 0.3 +
-            roc_score * 0.2 +
-            bb_score * 0.1
+            macd_score * 0.35 +
+            rsi_score * 0.30 +
+            roc_score * 0.20 +
+            bb_score * 0.15
         )
 
-        return np.clip(combined_score, -1.0, 1.0)
+        # Confluence bonus: when 3+ indicators agree, boost by 15%
+        signs = [np.sign(s) for s in [rsi_score, macd_score, roc_score, bb_score] if abs(s) > 0.1]
+        if len(signs) >= 3 and len(set(signs)) == 1:
+            combined_score *= 1.15
+
+        # ADX-based momentum quality: declining ADX = fading momentum → attenuate
+        if features is not None and features.adx_14 < 20:
+            combined_score *= max(0.5, features.adx_14 / 20)
+
+        return float(np.clip(combined_score, -1.0, 1.0))
 
     def _generate_rationale(self, rsi_score: float, macd_score: float, 
                            roc_score: float, bb_score: float, dir_score: float) -> str:
@@ -243,16 +278,20 @@ class MomentumAgent(BaseAgent):
         # Start with base confidence
         confidence = 0.5
 
-        # Higher confidence with clear RSI signals
-        if 30 < features.rsi_14 < 70:
-            confidence += 0.1
+        # Higher confidence when RSI shows clear momentum (extreme readings)
+        if features.rsi_14 > 65 or features.rsi_14 < 35:
+            confidence += 0.15
+        elif features.rsi_14 > 55 or features.rsi_14 < 45:
+            confidence += 0.05
 
-        # Higher confidence with clear MACD momentum
-        if abs(features.macd_hist_delta) > 0.05:
+        # Higher confidence with clear MACD momentum (ATR-normalised)
+        atr = max(features.atr_14, 1e-9)
+        if abs(features.macd_hist_delta) > atr * 0.05:
             confidence += 0.2
 
-        # Higher confidence with clear ROC
-        if abs(features.roc_10) > 0.02:
+        # Higher confidence with clear ROC (ATR-normalised)
+        atr_ratio = max(features.atr_price_ratio, 0.001)
+        if abs(features.roc_10) > atr_ratio * 2.0:
             confidence += 0.1
 
         # Higher confidence with clear BB position

@@ -23,16 +23,21 @@ def _ema(series: np.ndarray, period: int) -> np.ndarray:
 
 
 def _rsi(close: np.ndarray, period: int) -> float:
-    """Compute RSI for the latest bar."""
-    deltas = np.diff(close[-(period + 1):])
-    gains = np.where(deltas > 0, deltas, 0.0)
+    """Compute RSI for the latest bar using Wilder's smoothing (matches _rsi_series)."""
+    deltas = np.diff(close)
+    gains  = np.where(deltas > 0, deltas, 0.0)
     losses = np.where(deltas < 0, -deltas, 0.0)
-    avg_gain = gains.mean()
-    avg_loss = losses.mean()
+    if len(gains) < period:
+        return 50.0
+    avg_gain = float(gains[:period].mean())
+    avg_loss = float(losses[:period].mean())
+    for i in range(period, len(gains)):
+        avg_gain = (avg_gain * (period - 1) + gains[i]) / period
+        avg_loss = (avg_loss * (period - 1) + losses[i]) / period
     if avg_loss == 0:
-        return 100.0
+        return 100.0 if avg_gain > 0 else 50.0
     rs = avg_gain / avg_loss
-    return 100.0 - (100.0 / (1 + rs))
+    return float(100.0 - (100.0 / (1.0 + rs)))
 
 
 def _atr(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int) -> np.ndarray:
@@ -342,8 +347,16 @@ class DataLoader:
 
         # --- MACD ------------------------------------------------------------
         _, _, macd_hist = _macd(close)
-        _, _, macd_hist_prev = _macd(close[:-1])
-        macd_hist_delta = float(macd_hist - macd_hist_prev)
+        # Use full array for both: _macd on close[:-1] recomputes EMAs from
+        # scratch on a shorter series, yielding a DIFFERENT histogram[-1]
+        # than the true histogram[-2] from the full series.
+        if len(close) > 1:
+            _macd_line_full = _ema(close, 12) - _ema(close, 26)
+            _signal_full = _ema(_macd_line_full, 9)
+            _hist_full = _macd_line_full - _signal_full
+            macd_hist_delta = float(_hist_full[-1] - _hist_full[-2])
+        else:
+            macd_hist_delta = 0.0
 
         # --- ROC -------------------------------------------------------------
         roc_10 = float((close[-1] - close[-11]) / max(close[-11], 1e-9))
@@ -360,7 +373,7 @@ class DataLoader:
         bb_upper = sma20 + 2 * std20
         bb_lower = sma20 - 2 * std20
         bb_width = float((bb_upper - bb_lower) / max(sma20, 1e-9))
-        bb_percent_b = float((close[-1] - bb_lower) / max(bb_upper - bb_lower, 1e-9))
+        bb_percent_b = float(np.clip((close[-1] - bb_lower) / max(bb_upper - bb_lower, 1e-9), -1.0, 2.0))
 
         # --- Keltner Channel width -------------------------------------------
         keltner_width = float(atr_14 * 2 / max(ema20, 1e-9))
@@ -423,10 +436,15 @@ class DataLoader:
         macro = self._macro_features()
         dxy_dir, vix_dir, crude_dir, yield_dir = self._intermarket_scores(symbol, macro)
 
-        # --- Session breakout (Asian range, only meaningful on H1) ------------
-        session_break = 0.0
-        if primary_tf == "1H":
-            session_break = self._session_break_score(high, low, close, bars.get("time"))
+        # --- Cross-symbol correlation divergences (CorrelationAgent) ----------
+        corr_dxy, corr_pair, corr_risk = self._correlation_divergences(
+            symbol, close, macro, atr_14,
+        )
+
+        # --- Session breakout (Asian range, computed for all timeframes) ----
+        session_break = self._session_break_score(
+            high, low, close, bars.get("time"), primary_tf
+        )
 
         # --- RSI Divergences (mid/1H most informative; computed for all TFs) ----
         bull_div, bear_div = _divergence_score(close, high, low)
@@ -477,6 +495,9 @@ class DataLoader:
             bear_div_score=bear_div,
             nearest_support_atr=nearest_support_atr,
             nearest_resist_atr=nearest_resist_atr,
+            corr_dxy_divergence=corr_dxy,
+            corr_pair_divergence=corr_pair,
+            corr_risk_divergence=corr_risk,
             bars_per_year=float(_BARS_PER_YEAR.get(primary_tf, 252)),
         )
 
@@ -659,6 +680,18 @@ class DataLoader:
         with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
             results = dict(pool.map(_fetch, tf_map.items()))
 
+        # Log feature summary per tier for traceability
+        for _tier, _feat in results.items():
+            if _feat is not None:
+                self.logger.debug(
+                    f"[FEATURES] {symbol} {_tier}({tf_map.get(_tier,'?')}) "
+                    f"close={getattr(_feat, 'ema20', 0):.5f} "
+                    f"rsi14={getattr(_feat, 'rsi_14', 0):.1f} "
+                    f"atr14={getattr(_feat, 'atr_14', 0):.6f} "
+                    f"adx={getattr(_feat, 'adx_14', 0):.1f} "
+                    f"roc10={getattr(_feat, 'roc_10', 0):.5f}"
+                )
+
         return results
 
     def _load_bars(self, symbol: str, timeframe: str, n: int) -> Optional[Dict[str, np.ndarray]]:
@@ -839,7 +872,10 @@ class DataLoader:
         Other indices / commodities → SP500 / US500.
         """
         if self.simulation:
-            return 0.1, 0.52, 0.60, 0.45, 0.1
+            # Neutral dummies: breadth is unavailable in simulation, so every
+            # value is centred at 0 to avoid injecting a permanent directional
+            # bias into the BreadthAgent.
+            return 0.0, 0.0, 0.0, 0.0, 0.0
 
         # ── Try real NYSE/SPY breadth first (yfinance, 1-hour cache) ─────────
         try:
@@ -900,7 +936,7 @@ class DataLoader:
                 if bars is not None:
                     break
             if bars is None:
-                return 0.0, 0.5, 0.5, 0.5, 0.0
+                return 0.0, 0.0, 0.0, 0.0, 0.0
             close = bars["close"]
             ema50_c  = _ema(close, 50)
             ema200_c = _ema(close, 200)
@@ -931,7 +967,7 @@ class DataLoader:
             if bars is not None:
                 break
         if bars is None:
-            return 0.0, 0.5, 0.5, 0.5, 0.0
+            return 0.0, 0.0, 0.0, 0.0, 0.0
 
         close = bars["close"]
         ema50_idx = _ema(close, 50)
@@ -1187,6 +1223,118 @@ class DataLoader:
         )
 
     # ------------------------------------------------------------------
+    # Cross-symbol correlation divergences (CorrelationAgent)
+    # ------------------------------------------------------------------
+
+    # Most-correlated peer for each symbol.  Used for pair-divergence signal.
+    # Selected by fundamental currency overlap:
+    #   EURUSD ↔ GBPUSD (both USD-denominated European G7)
+    #   USDJPY ↔ USDCHF (both USD-base safe-haven)
+    #   AUDUSD ↔ NZDUSD (commodity / Oceania block)
+    #   Indices: US30 ↔ US500 (US equity correlation)
+    #   Crosses: EURJPY ↔ GBPJPY (same JPY-cross risk-on block)
+    _CORR_PEERS: Dict[str, str] = {
+        "EURUSD": "GBPUSD",  "GBPUSD": "EURUSD",
+        "USDJPY": "USDCHF",  "USDCHF": "USDJPY",
+        "AUDUSD": "NZDUSD",  "NZDUSD": "AUDUSD",
+        "USDCAD": "AUDUSD",
+        "XAUUSD": "XAGUSD",  "XAGUSD": "XAUUSD",
+        "US30":   "US500",    "US500":  "US30",
+        "USTEC":  "US500",
+        "DAX":    "UK100",    "UK100":  "DAX",
+        "EURJPY": "GBPJPY",  "GBPJPY": "EURJPY",
+        "AUDJPY": "EURJPY",
+        "EURGBP": "EURCHF",  "EURCHF": "EURGBP",
+        "CHFJPY": "USDJPY",
+    }
+
+    def _correlation_divergences(
+        self,
+        symbol: str,
+        close: np.ndarray,
+        macro: Dict[str, float],
+        atr_14: float,
+    ) -> Tuple[float, float, float]:
+        """
+        Compute three correlation-divergence signals for *symbol*.
+
+        1. DXY divergence: is the symbol's recent return consistent with DXY movement?
+        2. Peer divergence: is the symbol diverging from its most-correlated peer?
+        3. Risk divergence: is the symbol's return consistent with VIX (risk) signal?
+
+        All values in [-1, +1]:
+          +1 = symbol is much STRONGER than correlation implies → bullish bias
+          -1 = symbol is much WEAKER than expected → bearish bias
+           0 = normal / no divergence
+        """
+        # Guard: need at least 10 bars to compute momentum
+        if len(close) < 10 or atr_14 < 1e-12:
+            return 0.0, 0.0, 0.0
+
+        # Symbol's own 5-bar return (ATR-normalised → instrument-agnostic)
+        sym_ret = (close[-1] - close[-6]) / (atr_14 * 5.0)  # roughly ±1 scale
+        sym_ret = float(np.clip(sym_ret, -2.0, 2.0))
+
+        sym_up = symbol.upper().replace("m", "")
+        iw = self._INTERMARKET_WEIGHTS.get(sym_up)
+
+        # ── 1. DXY divergence ────────────────────────────────────────────
+        corr_dxy = 0.0
+        if iw is not None:
+            dxy_w = iw[0]   # expected directional weight for DXY
+            dxy_trend = macro.get("dxy_trend", 0.0)
+            if abs(dxy_w) > 0.05 and abs(dxy_trend) > 0.05:
+                # Expected direction from DXY: if dxy_w < 0, DXY up → symbol down
+                expected_dir = dxy_trend * dxy_w  # positive = macro says bullish
+                # Divergence = symbol did better (or worse) than expected
+                corr_dxy = float(np.clip(
+                    (sym_ret - expected_dir) * 0.8,
+                    -1.0, 1.0,
+                ))
+
+        # ── 2. Peer pair divergence ──────────────────────────────────────
+        corr_pair = 0.0
+        peer = self._CORR_PEERS.get(sym_up)
+        if peer is not None:
+            # Try loading peer bars from the same data source
+            peer_bars = self._load_bars(peer, "1D", 10)
+            if peer_bars is not None and len(peer_bars["close"]) >= 6:
+                peer_close = peer_bars["close"]
+                peer_atr_arr = _atr(peer_bars["high"], peer_bars["low"], peer_bars["close"], 5)
+                peer_atr = float(peer_atr_arr[-1]) if len(peer_atr_arr) > 0 else 1e-9
+                peer_atr = max(peer_atr, 1e-12)
+                peer_ret = (peer_close[-1] - peer_close[-6]) / (peer_atr * 5.0)
+                peer_ret = float(np.clip(peer_ret, -2.0, 2.0))
+
+                # Determine expected sign relationship from intermarket weights
+                peer_iw = self._INTERMARKET_WEIGHTS.get(peer)
+                if iw is not None and peer_iw is not None:
+                    # If both have same-sign DXY weight → they should move together
+                    # If opposite DXY weight → they should move inversely
+                    same_sign = (iw[0] * peer_iw[0]) > 0
+                    if same_sign:
+                        corr_pair = float(np.clip((sym_ret - peer_ret) * 0.6, -1.0, 1.0))
+                    else:
+                        corr_pair = float(np.clip((sym_ret + peer_ret) * 0.6, -1.0, 1.0))
+                else:
+                    # Default: assume positive correlation
+                    corr_pair = float(np.clip((sym_ret - peer_ret) * 0.6, -1.0, 1.0))
+
+        # ── 3. Risk divergence (VIX) ─────────────────────────────────────
+        corr_risk = 0.0
+        if iw is not None:
+            vix_w = iw[1]   # expected VIX weight
+            vix_signal = macro.get("vix_signal", 0.0)
+            if abs(vix_w) > 0.05 and abs(vix_signal) > 0.05:
+                expected_risk = vix_signal * vix_w
+                corr_risk = float(np.clip(
+                    (sym_ret - expected_risk) * 0.7,
+                    -1.0, 1.0,
+                ))
+
+        return corr_dxy, corr_pair, corr_risk
+
+    # ------------------------------------------------------------------
     # Session breakout (Asian range)
     # ------------------------------------------------------------------
 
@@ -1196,12 +1344,13 @@ class DataLoader:
         low: np.ndarray,
         close: np.ndarray,
         timestamps: Optional[np.ndarray],
+        tf: str = "1H",
     ) -> float:
         """
-        Asian-range breakout signal using H1 bars.
+        Asian-range breakout signal.
 
         1. Identify the most-recent complete Asian session (00:00–08:00 UTC)
-           using the last 48 bars.
+           using a dynamic lookback based on timeframe.
         2. Compute current price position relative to the Asian high/low.
         3. Scale by session multiplier: strongest during London/NY overlap,
            near-zero while the Asian range is still forming.
@@ -1214,8 +1363,12 @@ class DataLoader:
         if timestamps is None or len(timestamps) < 10:
             return 0.0
 
-        # Work with the last 48 bars (covers the current + previous Asian sessions)
-        n_look = min(48, len(timestamps))
+        # Dynamic lookback: need ~24h of bars to reliably capture the Asian range
+        _bars_per_hour = {"1m": 60, "5m": 12, "15m": 4, "30m": 2, "1H": 1, "4H": 0.25, "1D": 0.042}
+        bph = _bars_per_hour.get(tf, 1)
+        n_look = min(int(bph * 48), len(timestamps))  # 48h of bars
+        if n_look < 3:
+            return 0.0
         ts   = timestamps[-n_look:]
         hi   = high[-n_look:]
         lo   = low[-n_look:]

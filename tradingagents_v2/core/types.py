@@ -179,6 +179,13 @@ class TechnicalFeatures(BaseModel):
     nearest_support_atr: float = 10.0   # distance to nearest support below in ATR units
     nearest_resist_atr:  float = 10.0   # distance to nearest resistance above in ATR units
 
+    # Cross-symbol correlation divergence signals (pre-computed by DataLoader).
+    # Positive = symbol is stronger than its correlations imply (bullish bias).
+    # Negative = symbol is weaker than expected (bearish bias).
+    corr_dxy_divergence:  float = 0.0   # divergence from normal DXY relationship
+    corr_pair_divergence: float = 0.0   # divergence from most-correlated FX peer
+    corr_risk_divergence: float = 0.0   # divergence from risk-appetite proxy (VIX-inverse)
+
     # Annualization factor used when computing realized_vol (bars per year for the
     # timeframe of this feature set).  Allows agents to de-annualize back to
     # per-bar units without a hardcoded timeframe assumption.

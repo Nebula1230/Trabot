@@ -49,7 +49,6 @@ class ScalpingAgent(BaseAgent):
     _RSI_OS: float = 35.0     # oversold  for scalp
     _RSI_NEUTRAL_LO: float = 45.0
     _RSI_NEUTRAL_HI: float = 55.0
-    _MIN_BODY_ATR: float = 0.15   # body must be ≥ 15% of ATR to count as directional
 
     def get_required_features(self) -> list:
         return ["rsi_14", "rsi_4", "macd_hist", "macd_hist_delta",
@@ -62,6 +61,16 @@ class ScalpingAgent(BaseAgent):
         context: Dict[str, Any] = None,
     ) -> AgentOutput:
         ctx = context or {}
+
+        # Guard against NaN/Inf in critical floats
+        _critical = [features.rsi_14, features.rsi_4, features.macd_hist,
+                     features.macd_hist_delta, features.atr_14, features.atr_5,
+                     features.bb_percent_b, features.ema20_slope]
+        if any(not np.isfinite(v) for v in _critical):
+            return AgentOutput(
+                timeframe=self.timeframe, dir_score=0.0, conf=0.1,
+                rationale="Insufficient data (NaN detected)", evidence={},
+            )
 
         scores: list[float] = []
         evidence: Dict[str, Any] = {}
@@ -131,7 +140,7 @@ class ScalpingAgent(BaseAgent):
         # If price is below the most recent swing low  → breakout short.
         swing_break_score = 0.0
         current_price = ctx.get("current_price", None)
-        if current_price and features.swing_highs and features.swing_lows:
+        if current_price is not None and features.swing_highs and features.swing_lows:
             # Use the most recent confirmed swing high/low (last in chronological list)
             # so we detect whether price just broke the immediately prior structure.
             # max/min of the full list would require price to beat the all-time
@@ -147,13 +156,34 @@ class ScalpingAgent(BaseAgent):
         evidence["swing_break_score"] = round(swing_break_score, 2)
         scores.append(swing_break_score)
 
-        # ── 6. Aggregate direction score ────────────────────────────────
-        # Simple mean; all components given equal weight here.
-        dir_score = float(np.clip(np.mean(scores), -1.0, 1.0))
+        # ── 6. ATR expansion confirmation ────────────────────────────────
+        # ATR5 > ATR14 = vol expanding = confirmed impulse.
+        # ATR5 < ATR14 = vol contracting = fading move, lower conviction.
+        atr14 = max(features.atr_14, 1e-9)
+        atr5 = features.atr_5
+        expansion = (atr5 - atr14) / atr14
+        # Use majority sign of prior scores (not just RSI) for vol confirmation
+        _prior_sign = float(np.sign(sum(scores))) if sum(scores) != 0 else 0.0
+        if expansion > 0.05:     # vol expanding: confirm direction
+            vol_conf_score = _prior_sign * min(expansion * 3, 0.5)
+        elif expansion < -0.10:  # vol contracting: dampen
+            vol_conf_score = _prior_sign * 0.05
+        else:
+            vol_conf_score = 0.0
+        evidence["atr_expansion"] = round(expansion, 3)
+        scores.append(vol_conf_score)
 
-        # ── 7. Confidence ───────────────────────────────────────────────
+        # ── 7. Aggregate direction score ────────────────────────────────
+        # Weighted: RSI and MACD are primary scalp signals.
+        _weights = [0.22, 0.22, 0.12, 0.12, 0.20, 0.12]  # RSI, MACD, slope, BB, swing, vol
+        dir_score = float(np.clip(
+            sum(s * w for s, w in zip(scores, _weights)) / sum(_weights),
+            -1.0, 1.0
+        ))
+
+        # ── 8. Confidence ─────────────────────────────────────────
         # Penalise if all components disagree (variance is high).
-        agreement = 1.0 - float(np.std(scores)) / 0.7    # 0.7 = max expected std
+        agreement = 1.0 - float(np.std(scores)) / 0.80   # 0.80 ≈ max plausible std
         agreement = max(0.1, min(1.0, agreement))
 
         # Penalise RSI in neutral zone (no clear setup)
@@ -173,7 +203,7 @@ class ScalpingAgent(BaseAgent):
         if abs(dir_score) < 0.10:
             conf *= 0.40
 
-        # ── 8. Rationale ────────────────────────────────────────────────
+        # ── 9. Rationale ────────────────────────────────────────────────
         direction_word = "LONG" if dir_score > 0.05 else ("SHORT" if dir_score < -0.05 else "FLAT")
         rationale = (
             f"Scalp {direction_word} | RSI4={rsi:.0f} MACD={'↑' if macd_h > 0 else '↓'}"

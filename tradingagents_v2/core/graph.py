@@ -50,6 +50,7 @@ class TradingGraph:
         self.logger = logging.getLogger("TradingGraph")
         self.executor = executor or MT5Executor(config)
         self.data_loader = data_loader   # optional: used for structural SL/TP
+        self._executor_lock = None       # set by run() when called from TradingRunner
 
         # Kelly criterion tracker — adjusts position size based on per-symbol track record.
         # Disabled by config (kelly.enabled: false) or when executor is in simulation mode.
@@ -144,6 +145,11 @@ class TradingGraph:
 
             state["agent_outputs"] = results
             self.logger.info(f"Completed {len(results)} agents")
+            # Log per-agent summary in one block for easy scanning
+            _vote_parts = []
+            for _n, _o in sorted(results.items()):
+                _vote_parts.append(f"{_n}:{_o.dir_score:+.3f}(c={_o.conf:.2f},tf={_o.timeframe})")
+            self.logger.debug(f"[VOTES] {' | '.join(_vote_parts)}")
 
         except Exception as e:
             self.logger.error(f"Error running agents: {e}")
@@ -180,13 +186,21 @@ class TradingGraph:
         # They are continuation patterns in trends, not reversals.
         # Mute significantly when trending; boost in ranging for reversals.
         "DivergenceAgent":      (0.20, 1.60),
+        # Scalp agents: neutral in trends, slight boost in ranging
+        "ScalpingAgent":        (0.90, 1.10),
+        "VwapScalpAgent":       (0.80, 1.20),
+        "SqueezeBreakoutAgent": (1.20, 0.80),   # squeeze breakouts thrive in trends
+        "OrderFlowAgent":       (1.00, 1.00),   # neutral: volume matters in both
+        "CorrelationAgent":    (1.20, 1.20),   # divergences informative in both regimes
     }
 
     async def _fuse_timeframes(self, state: TradingState) -> TradingState:
         """Fuse agent outputs across timeframes."""
         try:
             self.logger.info("Fusing timeframe signals")
-            outputs = state["agent_outputs"]
+            # Work on a shallow copy so dampening doesn't mutate the original
+            # agent_outputs — downstream code (adaptive weights) needs raw scores.
+            outputs = dict(state["agent_outputs"])
 
             # BreadthAgent is a market-context filter, not a directional signal.
             FILTER_AGENTS = self._FILTER_AGENTS
@@ -294,6 +308,7 @@ class TradingGraph:
                 ("VolatilityAgent", "ScalpingAgent",         0.85),
                 ("VolatilityAgent", "OrderFlowAgent",        0.85),
                 ("PatternAgent",    "ScalpingAgent",         0.90),
+                ("CorrelationAgent","IntermarketAgent",      0.80),
             ]
             _corr_adj = {}   # agent_name → cumulative multiplicative adjustment
             for agent_a, agent_b, penalty in _CORR_PAIRS:
@@ -366,6 +381,18 @@ class TradingGraph:
             dir_long,  conf_long,  csns_long  = weighted_avg(long_outputs)
             dir_mid,   conf_mid,   csns_mid   = weighted_avg(mid_outputs)
             dir_short, conf_short, csns_short = weighted_avg(short_outputs)
+
+            # Log per-tier contributions for full traceability
+            for _tier_label, _tier_outs in [("LONG", long_outputs), ("MID", mid_outputs), ("SHORT", short_outputs)]:
+                if _tier_outs:
+                    _parts = []
+                    for _n, _o in _tier_outs:
+                        _w = _agent_weights.get(_n, 1.0)
+                        _rm = _regime_mult(_n)
+                        _ca = _corr_adj.get(_n, 1.0)
+                        _eff = _o.dir_score * _o.conf * _w * _rm * _ca
+                        _parts.append(f"{_n}:d={_o.dir_score:+.3f}*c={_o.conf:.2f}*w={_w:.2f}*rm={_rm:.2f}*ca={_ca:.2f}={_eff:+.4f}")
+                    self.logger.debug(f"[TIER-{_tier_label}] {' | '.join(_parts)}")
 
             regime_trendiness = trendiness_raw
 
@@ -480,6 +507,12 @@ class TradingGraph:
             else:
                 # Live path: use the real wall clock
                 utc_hour = datetime.now(timezone.utc).hour
+            # ── Hard-block hours (skip all entries regardless of signal strength) ─
+            blocked_hours = al_cfg.get("blocked_hours_utc", [])
+            if utc_hour in blocked_hours:
+                state["decision"] = "stop"
+                state.setdefault("metadata", {})["block_reason"] = f"blocked_hour:{utc_hour}"
+                return state
             dead_zone_start = int(self.config.get("alignment", {}).get("dead_zone_start_utc", 22))
             dead_zone_end   = int(self.config.get("alignment", {}).get("dead_zone_end_utc",    6))
             dead_zone_factor = float(self.config.get("alignment", {}).get("dead_zone_factor",  1.4))
@@ -504,8 +537,10 @@ class TradingGraph:
             open_zone_end    = int(self.config.get("alignment", {}).get("open_zone_end_utc",     99))
             open_zone_factor = float(self.config.get("alignment", {}).get("open_zone_factor",   1.0))
             in_open_zone = (
-                open_zone_start < open_zone_end
-                and open_zone_start <= utc_hour < open_zone_end
+                (open_zone_start > open_zone_end
+                 and (utc_hour >= open_zone_start or utc_hour < open_zone_end))
+                or (open_zone_start < open_zone_end
+                    and open_zone_start <= utc_hour < open_zone_end)
             )
             if in_open_zone and open_zone_factor > 1.0:
                 long_min  *= open_zone_factor
@@ -617,6 +652,46 @@ class TradingGraph:
                     bull_aligned = False
                     bear_aligned = False
 
+            # ── Counter-trend scalp: MID+SHORT oppose D1, intraday reversal ──
+            # When D1 is clearly directional but MID and SHORT both disagree
+            # strongly, allow a short-term scalp in the intraday direction.
+            # This is a higher-risk setup, so thresholds are stricter and the
+            # recipe will apply a win_prob penalty + lower R:R.
+            ct_cfg = al_cfg.get("counter_trend", {})
+            ct_enabled = bool(ct_cfg.get("enabled", False))
+            ct_aligned = False
+            ct_direction = ""
+            if ct_enabled and not bull_aligned and not bear_aligned:
+                _ct_mid_min   = float(ct_cfg.get("mid_min_score",   0.25))
+                _ct_short_min = float(ct_cfg.get("short_min_score", 0.15))
+                _ct_long_min  = float(ct_cfg.get("long_min_score",  long_min))
+
+                # Apply dead-zone / open-zone scaling to CT thresholds too
+                if in_dead_zone:
+                    _ct_mid_min   *= dead_zone_factor
+                    _ct_short_min *= dead_zone_factor
+
+                # D1 bearish but MID+SHORT bullish → counter-trend LONG scalp
+                ct_bull = (
+                    fusion.dir_long  < -_ct_long_min and   # D1 clearly bearish
+                    fusion.dir_mid   >  _ct_mid_min  and   # 1H/1m bullish
+                    fusion.dir_short >  _ct_short_min      # 15m bullish
+                )
+                # D1 bullish but MID+SHORT bearish → counter-trend SHORT scalp
+                ct_bear = (
+                    fusion.dir_long  >  _ct_long_min and   # D1 clearly bullish
+                    fusion.dir_mid   < -_ct_mid_min  and   # 1H/1m bearish
+                    fusion.dir_short < -_ct_short_min      # 15m bearish
+                )
+
+                # MeanReversion gate still applies directionally
+                if mean_rev_blocks_long:  ct_bull = False
+                if mean_rev_blocks_short: ct_bear = False
+
+                if ct_bull or ct_bear:
+                    ct_aligned = True
+                    ct_direction = "bullish" if ct_bull else "bearish"
+
             if (bull_aligned or bear_aligned) and breadth_ok:
                 state["decision"] = "continue"
                 if bull_full:
@@ -638,9 +713,21 @@ class TradingGraph:
                     f"[L={fusion.dir_long:.3f} M={fusion.dir_mid:.3f} S={fusion.dir_short:.3f} "
                     f"breadth={fusion.breadth_score:.3f}]"
                 )
+            elif ct_aligned and breadth_ok:
+                state["decision"] = "continue"
+                entry_type = "counter-trend-scalp"
+                direction = ct_direction
+                meta = state.setdefault("metadata", {})
+                meta["entry_type"] = entry_type
+                meta["alignment_direction"] = direction
+                self.logger.info(
+                    f"Aligned [{entry_type}] ({direction}) — proceeding "
+                    f"[L={fusion.dir_long:.3f} M={fusion.dir_mid:.3f} S={fusion.dir_short:.3f} "
+                    f"breadth={fusion.breadth_score:.3f}]"
+                )
             else:
                 reasons = []
-                if not bull_aligned and not bear_aligned:
+                if not bull_aligned and not bear_aligned and not ct_aligned:
                     reasons.append(f"L={fusion.dir_long:.3f} M={fusion.dir_mid:.3f} S={fusion.dir_short:.3f}")
                 if not breadth_ok:
                     reasons.append(f"breadth={fusion.breadth_score:.3f}<{breadth_min}")
@@ -722,21 +809,77 @@ class TradingGraph:
                 long_strength = abs(fusion.dir_long)
                 mid_strength  = abs(fusion.dir_mid)
                 short_strength_v = abs(fusion.dir_short)
-                # ── Recalibrated win probability ──────────────────────────────
-                # Old formula: 0.50 + long*0.25 → claims ~55% but actual is ~42%.
-                # New formula is conservative: each tier contributes proportionally.
-                # Full alignment (all same sign): multiplied by alignment_strength.
-                # Short-tier same direction: small boost. Short opposed: penalty.
-                win_prob = 0.48 + long_strength * 0.18 + mid_strength * 0.06
-                short_same = (fusion.dir_short * fusion.dir_long) > 0
-                if short_same:
-                    win_prob += short_strength_v * 0.04
+
+                if entry_type == "counter-trend-scalp":
+                    # ── Counter-trend win probability ─────────────────────────
+                    # The signal is MID+SHORT agreeing *against* D1.  Base is
+                    # lower (0.42) because we're fighting the daily trend.
+                    # MID conviction is the primary driver; SHORT confirms.
+                    _ct_wp_penalty = float(
+                        self.config.get("alignment", {}).get("counter_trend", {})
+                        .get("win_prob_penalty", 0.10)
+                    )
+                    win_prob = 0.42 + mid_strength * 0.12 + short_strength_v * 0.06
+                    # MID+SHORT consensus bonus: both strong = higher conviction
+                    if mid_strength > 0.30 and short_strength_v > 0.15:
+                        win_prob += 0.04
+                    # Penalty for fighting a very strong D1 trend
+                    if long_strength > 0.80:
+                        win_prob -= _ct_wp_penalty
+                    elif long_strength > 0.50:
+                        win_prob -= _ct_wp_penalty * 0.5
                 else:
-                    # Short tier opposed = high risk of immediate reversal
-                    win_prob -= short_strength_v * 0.08
-                same_dir = (fusion.dir_mid * fusion.dir_long) > 0
-                if not same_dir:
-                    win_prob -= mid_strength * 0.05
+                    # ── Standard (trend-following) win probability ─────────────
+                    # Base 0.45 is conservative: real balanced win rate after
+                    # time-stops is 30-45% when R:R compensates.
+                    win_prob = 0.45 + long_strength * 0.14 + mid_strength * 0.06
+                    short_same = (fusion.dir_short * fusion.dir_long) > 0
+                    if short_same:
+                        win_prob += short_strength_v * 0.04
+                    else:
+                        # Short tier opposed = high risk of immediate reversal
+                        win_prob -= short_strength_v * 0.12
+                    same_dir = (fusion.dir_mid * fusion.dir_long) > 0
+                    if not same_dir:
+                        win_prob -= mid_strength * 0.12
+
+                # ── Counter-trend pullback penalty ────────────────────────────
+                # When entering a pullback and BOTH mid+short tiers oppose the
+                # trade direction, the intraday momentum is strongly against us.
+                # This is the #1 cause of serial time-stop losses on balanced.
+                _trade_sign = 1.0 if direction == "long" else -1.0
+                _mid_opposes   = (fusion.dir_mid   * _trade_sign) < 0
+                _short_opposes = (fusion.dir_short  * _trade_sign) < 0
+                if entry_type == "pullback-entry":
+                    if _mid_opposes and _short_opposes:
+                        win_prob -= 0.08
+                    elif _mid_opposes or _short_opposes:
+                        win_prob -= 0.04
+
+            # ── Agent diversity penalty ─────────────────────────────────
+            # When fewer directional agents contributed to the fusion, the
+            # signal is less validated.  Penalise win_prob so the bot is more
+            # conservative with limited information rather than over-confident.
+            #   14 agents → no penalty;  3 agents → -0.02;  1 agent → -0.05
+            _n_dir_agents = sum(
+                1 for n in outputs if n not in self._FILTER_AGENTS
+            )
+            if _n_dir_agents < 3:
+                _diversity_penalty = 0.05 - _n_dir_agents * 0.015  # 1→0.035, 2→0.020
+                win_prob -= _diversity_penalty
+                self.logger.debug(
+                    f"[RECIPE] diversity penalty: {_n_dir_agents} agents, "
+                    f"Win_prob -= {_diversity_penalty:.3f}"
+                )
+
+            # ── Empty-tier penalty ────────────────────────────────────────────
+            # If mid or short tiers have zero signal (no agents assigned to them),
+            # the bot lacks cross-timeframe validation.  Penalise further.
+            _mid_s  = abs(fusion.dir_mid)
+            _short_s = abs(fusion.dir_short)
+            _empty_tiers = sum(1 for s in (_mid_s, _short_s) if s < 0.001)
+            if not scalp_mode and _empty_tiers > 0:
+                win_prob -= _empty_tiers * 0.02
 
             # Market breadth bonus
             if fusion.breadth_score > 0.3:
@@ -750,9 +893,7 @@ class TradingGraph:
                 win_prob += 0.02
             elif fusion.regime_trendiness < 0.30:
                 win_prob -= 0.06
-            # Pullback entries are modestly lower-conviction
-            if entry_type == "pullback-entry":
-                win_prob -= 0.03
+            # (Pullback penalty already applied in the counter-trend block above — no duplicate here.)
             # ── Cross-tier alignment strength bonus ───────────────────────────
             align_str = fusion.alignment_strength
             if align_str > 0.50:
@@ -766,7 +907,16 @@ class TradingGraph:
             # ── Risk-reward ratio ──────────────────────────────────────────────
             # When tight_sl_tp is active, use its configured R:R (sl/tp mult ratio)
             # so the recipe EV matches what is actually placed on the broker.
-            if scalp_mode and tight_cfg.get("sl_atr_mult", 0) > 0:
+            if entry_type == "counter-trend-scalp":
+                # Counter-trend scalps use a tight R:R — get out fast.
+                _ct_max_rr = float(
+                    self.config.get("alignment", {}).get("counter_trend", {})
+                    .get("max_rr", 1.5)
+                )
+                mid_strength  = abs(fusion.dir_mid)
+                rr = 1.0 + mid_strength * 0.5
+                rr = float(np.clip(rr, 1.0, _ct_max_rr))
+            elif scalp_mode and tight_cfg.get("sl_atr_mult", 0) > 0:
                 rr = float(tight_cfg["tp_atr_mult"]) / float(tight_cfg["sl_atr_mult"])
                 rr = float(np.clip(rr, 1.0, 4.0))
             else:
@@ -814,6 +964,13 @@ class TradingGraph:
                 risk_reward_ratio=net_rr,   # spread-adjusted (honest) R:R
             )
             self.logger.info(f"Generated recipe: {state['trade_recipe'].name}")
+            self.logger.debug(
+                f"[RECIPE] {direction} {entry_type} WinP={win_prob:.4f} EV={expected_value:+.4f} "
+                f"R:R={net_rr:.3f} (gross={rr:.3f} spread_atr={spread_atr:.4f}) | "
+                f"L_str={abs(fusion.dir_long):.3f} M_str={abs(fusion.dir_mid):.3f} "
+                f"S_str={abs(fusion.dir_short):.3f} align_str={align_str:.3f} "
+                f"trendiness={fusion.regime_trendiness:.3f} breadth={fusion.breadth_score:.3f}"
+            )
             # ── Debug tracer: record recipe ──
             _get_tracer().record_recipe(state["trade_recipe"])
 
@@ -954,6 +1111,7 @@ class TradingGraph:
                     scale_in_enabled      = sc_cfg.get("enabled", False)
                     max_per_symbol        = int(sc_cfg.get("max_positions_per_symbol", 2))
                     require_profit        = sc_cfg.get("require_profit", True)
+                    min_profit_r          = float(sc_cfg.get("min_profit_r", 0.0))
 
                     existing = portfolio.open_positions_map.get(signal, [])
                     entry_type = state.get("metadata", {}).get("entry_type", "")
@@ -995,6 +1153,25 @@ class TradingGraph:
                                 state.setdefault("metadata", {})["block_reason"] = f"scale_in:not_in_profit:{total_profit:.2f}"
                                 return state
 
+                            # Check R-multiple: must be ≥ min_profit_r if configured
+                            if min_profit_r > 0:
+                                for _ep in existing:
+                                    _e_entry = _ep.get("price_open", 0.0)
+                                    _e_sl    = _ep.get("sl", 0.0)
+                                    _e_one_r = abs(_e_entry - _e_sl) if _e_sl else 0.0
+                                    _e_pnl   = _ep.get("profit", 0.0)
+                                    if _e_one_r > 1e-9 and (_e_pnl / _e_one_r) < min_profit_r:
+                                        self.logger.info(
+                                            f"Scale-in blocked for {signal}: existing "
+                                            f"position #{_ep.get('ticket')} at "
+                                            f"{_e_pnl/_e_one_r:.2f}R < {min_profit_r:.2f}R"
+                                        )
+                                        state["decision"] = "rejected"
+                                        state.setdefault("metadata", {})["block_reason"] = (
+                                            f"scale_in:below_min_profit_r:{_e_pnl/_e_one_r:.2f}"
+                                        )
+                                        return state
+
                         self.logger.info(
                             f"Scale-in approved for {signal} "
                             f"({len(existing)}/{max_per_symbol} positions, "
@@ -1013,38 +1190,20 @@ class TradingGraph:
                         state.setdefault("metadata", {})["block_reason"] = f"scale_in:{reason}"
                         return state
 
-            # ── Agent consensus gate ─────────────────────────────────────────
-            # Require a minimum number of agents to vote in the trade direction.
-            # BreadthAgent is a market-context filter (not directional) — excluded.
-            min_consensus = int(
-                self.config.get("alignment", {}).get("min_agent_consensus", 5)
-            )
-            if min_consensus > 0:
-                _agent_outs  = state.get("agent_outputs", {})
-                _dir_sign    = 1.0 if recipe.direction == "long" else -1.0
-                _vote_thr    = float(
-                    self.config.get("alignment", {}).get("consensus_vote_threshold", 0.05)
+            # (Consensus gate already enforced in _check_alignment — not duplicated here.)
+
+            # ── Same-direction losing streak guard ────────────────────────────
+            # Runner passes the currently blocked direction (if any) via state.
+            # Block the trade if it matches the streak-blocked direction.
+            _streak_blocked = state.get("streak_blocked_dir")
+            if _streak_blocked and recipe.direction == _streak_blocked:
+                self.logger.info(
+                    f"Streak guard [{state['symbol']}]: "
+                    f"{recipe.direction} blocked after consecutive losses"
                 )
-                _NO_VOTE     = {"BreadthAgent"}
-                _voters      = {n: o for n, o in _agent_outs.items()
-                                if n not in _NO_VOTE}
-                # Cap to the number of agents that actually ran this cycle
-                _effective_min = min(min_consensus, max(1, len(_voters)))
-                _votes_for   = sum(
-                    1 for o in _voters.values()
-                    if o.dir_score * _dir_sign > _vote_thr
-                )
-                if _votes_for < _effective_min:
-                    self.logger.info(
-                        f"Consensus gate: {_votes_for}/{len(_voters)} agents agree "
-                        f"({recipe.direction}) — need {_effective_min} (cfg={min_consensus})"
-                    )
-                    state["decision"] = "rejected"
-                    state.setdefault("metadata", {})["block_reason"] = f"consensus:{_votes_for}/{len(_voters)}<{_effective_min}"
-                    return state
-                self.logger.debug(
-                    f"Consensus: {_votes_for}/{len(_voters)} agents agree ({recipe.direction})"
-                )
+                state["decision"] = "rejected"
+                state.setdefault("metadata", {})["block_reason"] = f"streak:{recipe.direction}"
+                return state
 
             # ── Key level proximity guard ────────────────────────────────────
             # Reject trades aimed directly into a nearby weekly pivot level.
@@ -1340,6 +1499,35 @@ class TradingGraph:
                 else:
                     take_profit = entry_price - stop_distance * recipe.risk_reward_ratio
 
+            # ── Max SL distance cap ────────────────────────────────────────────
+            # Structural pivot SL can land extremely far (5-7×ATR) when the
+            # nearest support/resistance is distant.  This creates:
+            #   a) unreachably far TP (after min R:R enforcement multiplies SL dist)
+            #   b) tiny R per pip → every time-stop is a micro-R loss that adds up
+            # Cap the SL distance so TPs remain realistic for the holding period.
+            _max_sl_mult = float(self.config.get("alignment", {}).get("max_sl_atr_mult", 3.5))
+            if stop_distance > _max_sl_mult * atr:
+                _old_stop_dist = stop_distance
+                self.logger.info(
+                    f"SL cap [{state['symbol']}]: "
+                    f"{stop_distance/atr:.2f}×ATR → {_max_sl_mult}×ATR"
+                )
+                stop_distance = _max_sl_mult * atr
+                if recipe.direction == "long":
+                    stop_loss = entry_price - stop_distance
+                else:
+                    stop_loss = entry_price + stop_distance
+                # Proportionally shrink TP so the R:R ratio is preserved.
+                # Without this, min_rr_floor × (capped SL) pushes TP unreachably far
+                # and every trade exits via time-stop.
+                _old_tp_dist = abs(take_profit - entry_price)
+                if _old_stop_dist > 1e-9:
+                    _new_tp_dist = _old_tp_dist * (stop_distance / _old_stop_dist)
+                    if recipe.direction == "long":
+                        take_profit = entry_price + _new_tp_dist
+                    else:
+                        take_profit = entry_price - _new_tp_dist
+
             # Log structural context for transparency
             if pivots:
                 self.logger.info(
@@ -1351,9 +1539,12 @@ class TradingGraph:
 
             # ── Minimum R:R enforcement ────────────────────────────────────────
             # Structural pivot TP can land closer than 1R when pivots are tight.
-            # Always ensure TP is at least recipe.risk_reward_ratio × SL distance
-            # so the recipe EV claim is honoured in practice.
-            _min_tp_dist = stop_distance * recipe.risk_reward_ratio
+            # Use a configurable floor (min_rr_floor, default 1.5) instead of the
+            # theoretical recipe R:R (often 2.3+), which creates unreachable TPs
+            # with 8-10h time-stops.  Reject trades where even the floor can't be
+            # met by structure.
+            _min_rr_floor = float(self.config.get("alignment", {}).get("min_rr_floor", 1.5))
+            _min_tp_dist = stop_distance * _min_rr_floor
             if recipe.direction == "long":
                 take_profit = max(take_profit, entry_price + _min_tp_dist)
             else:
@@ -1546,6 +1737,14 @@ class TradingGraph:
                 timeframes_aligned=["long", "mid", "short"],
             )
             self.logger.info(f"Created trade plan: entry={entry_price:.4f}, sl={stop_loss:.4f}, tp={take_profit:.4f}")
+            self.logger.debug(
+                f"[PLAN] {state['symbol']} {recipe.direction} qty={quantity:.4f} "
+                f"risk=${risk_amount:.2f} | ATR: h1={_h1_atr:.6f} mid={_mid_atr:.6f} "
+                f"d1={_d1_atr:.6f} → sizing={atr_for_sizing:.6f} | "
+                f"SL_dist={stop_distance:.5f} ({stop_distance/max(atr_for_sizing,1e-9):.2f}×ATR) "
+                f"R:R={abs(take_profit-entry_price)/max(stop_distance,1e-9):.2f} "
+                f"risk_per_lot={risk_per_lot:.2f} raw_lots={raw_lots:.4f}"
+            )
 
             # ── Debug tracer: record plan details ──
             _tr = _get_tracer()
@@ -1570,7 +1769,7 @@ class TradingGraph:
         return state
 
     async def _execute_trade(self, state: TradingState) -> TradingState:
-        """Execute the trade via MT5Executor."""
+        """Execute the trade via MT5Executor (under executor_lock if available)."""
         try:
             trade_plan = state.get("trade_plan")
             if not trade_plan:
@@ -1599,7 +1798,15 @@ class TradingGraph:
                     return state
 
             self.logger.info(f"Executing trade for {state['symbol']}")
-            result = self.executor.place_bracket_order(trade_plan)
+
+            # Acquire executor lock so watchdog cannot replace the executor and
+            # surveillance cannot modify the same position mid-placement.
+            _lock = self._executor_lock
+            if _lock is not None:
+                async with _lock:
+                    result = self.executor.place_bracket_order(trade_plan)
+            else:
+                result = self.executor.place_bracket_order(trade_plan)
             if result:
                 state["metadata"]["executed"] = True
                 state["metadata"]["execution_time"] = datetime.now().isoformat()
@@ -1629,8 +1836,13 @@ class TradingGraph:
                   portfolio_state: PortfolioState = None,
                   risk_limits: RiskLimits = None,
                   features_by_tf: Dict[str, TechnicalFeatures] = None,
-                  exit_check_only: bool = False) -> TradingState:
+                  exit_check_only: bool = False,
+                  streak_blocked_dir: str = None,
+                  executor_lock: "asyncio.Lock" = None) -> TradingState:
         """Run the complete trading decision process."""
+
+        # Store executor lock for _execute_trade to use
+        self._executor_lock = executor_lock
 
         # Initialize state as a dict (LangGraph requirement)
         state: TradingState = {
@@ -1648,6 +1860,8 @@ class TradingGraph:
             # so that _risk_check / _create_plan can read them via state.get().
             "portfolio_state": portfolio_state,
             "risk_limits": risk_limits,
+            # Streak guard: direction currently blocked by the losing-streak cooldown.
+            "streak_blocked_dir": streak_blocked_dir,
         }
 
         if exit_check_only:

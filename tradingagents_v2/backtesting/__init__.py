@@ -49,7 +49,7 @@ def main() -> None:
         "VolatilityAgent", "BreadthAgent", "PatternAgent", "IntermarketAgent",
         "SessionBreakoutAgent", "DivergenceAgent", "ScalpingAgent",
         "VwapScalpAgent", "SqueezeBreakoutAgent", "OrderFlowAgent",
-        "LLMSentimentAgent",
+        "CorrelationAgent", "LLMSentimentAgent",
     ]
 
     parser = argparse.ArgumentParser(
@@ -120,12 +120,58 @@ def main() -> None:
         sys.exit(1)
 
     # ── Debug tracer ──
+    import logging
+
+    # ── tqdm-compatible logging handler ──────────────────────────────────
+    # Standard StreamHandler writes to stderr, which breaks tqdm's \r
+    # carriage-return redraws and causes the progress bar to regenerate
+    # on every log line.  Route log output through tqdm.write() instead.
+    try:
+        from tqdm import tqdm as _tqdm_cls
+        class _TqdmHandler(logging.StreamHandler):
+            """Logging handler that writes through tqdm.write()."""
+            def emit(self, record):
+                try:
+                    msg = self.format(record)
+                    _tqdm_cls.write(msg, file=self.stream)
+                    self.flush()
+                except Exception:
+                    self.handleError(record)
+        _log_handler = _TqdmHandler(stream=sys.stderr)
+    except ImportError:
+        _log_handler = logging.StreamHandler(stream=sys.stderr)
+
+    _log_fmt = logging.Formatter(
+        fmt="%(asctime)s %(levelname)-5s %(name)s: %(message)s",
+        datefmt="%H:%M:%S",
+    )
+    _log_handler.setFormatter(_log_fmt)
+
+    # ── Force the tqdm handler onto the root logger ──────────────────────
+    # logging.basicConfig() is a NO-OP when the root logger already has
+    # handlers (which happens if any import triggered logging before us).
+    # Explicitly replace all root handlers with our tqdm-compatible one.
+    _root = logging.getLogger()
+
     if args.debug:
         from .debug_tracer import DebugTracer, set_tracer
         _tracer = DebugTracer(enabled=True)
         set_tracer(_tracer)
+        _root.setLevel(logging.DEBUG)
     else:
+        _root.setLevel(logging.INFO)
         _tracer = None
+
+    # Silence noisy third-party loggers (both debug and non-debug modes)
+    for noisy in ("httpx", "httpcore", "openai", "langchain", "langgraph",
+                   "urllib3", "asyncio", "yfinance", "charset_normalizer",
+                   "matplotlib", "PIL", "faker", "peewee", "numexpr"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
+
+    # Remove any pre-existing handlers, then install the tqdm-safe one
+    for _h in _root.handlers[:]:
+        _root.removeHandler(_h)
+    _root.addHandler(_log_handler)
 
     # Load config
     try:

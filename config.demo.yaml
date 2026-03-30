@@ -107,7 +107,7 @@ mt5:
 # Forex-safe defaults: small risk per trade, leverage kept low
 risk:
   base_risk_pct:            0.10   # risk 0.10% of equity per trade (Forex = leveraged!)
-  max_daily_drawdown_pct:   1.0    # halt if daily loss exceeds 1%
+  max_daily_drawdown_pct:   5.0    # halt if daily loss exceeds 5%
   # Weekly circuit breaker: let the bot lose up to 2% in a week before halting
   # all new entries.  Prevents 5× small daily losses from compounding silently.
   # 0 = disabled.
@@ -146,6 +146,9 @@ agents:
     SessionBreakoutAgent: 0.70
     # DivergenceAgent: RSI divergences — reversal & continuation setups (1H bars).
     DivergenceAgent:      0.80
+    # CorrelationAgent: cross-symbol correlation divergences (DXY, peer pair, risk).
+    # Confirmation-type signal — confirms or warns when price diverges from macro.
+    CorrelationAgent:     0.75
 
 # ── Alignment thresholds ─────────────────────────────────────────
 # Controls how strongly signals must agree before a trade is placed.
@@ -168,6 +171,17 @@ alignment:
   # (9 original + DivergenceAgent) a value of 5 requires majority agreement.
   min_agent_consensus:      6     # minimum agents voting in trade direction [raised from 5 — fewer but higher-quality entries]
   consensus_vote_threshold: 0.05  # minimum |dir_score| to count as a vote
+  # ── Counter-trend scalp mode ──────────────────────────────────────
+  # When D1 is clearly directional but MID+SHORT both disagree strongly
+  # (intraday reversal), allow a short-term scalp against the daily trend.
+  # Disabled by default — enable per-profile for aggressive setups.
+  counter_trend:
+    enabled:          false  # master switch (enable in balanced/risky profile overrides)
+    mid_min_score:    0.25   # MID tier must strongly oppose D1 (higher than normal mid_min)
+    short_min_score:  0.15   # SHORT tier must also oppose D1
+    long_min_score:   0.20   # D1 must be clearly directional (|dir_long| > this)
+    win_prob_penalty: 0.10   # subtracted from win_prob (fighting D1 trend)
+    max_rr:           1.5    # R:R cap — tight TP, get out fast
 
 # ── Scale-in (pyramiding) ─────────────────────────────────────────
 # Allows adding a second position on the same symbol when the signal

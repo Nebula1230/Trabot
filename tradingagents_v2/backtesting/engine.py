@@ -8,14 +8,19 @@ No look-ahead guarantee: _BacktestDataLoader._load_bars() always caps the
 returned array to bars[:current_step], so feature computation at step t
 never sees bar t+1.
 
-Fill model (realistic but simple):
-  Entry  — fills at close of signal bar + half spread.
+Fill model (realistic):
+  Entry  — fills at open of next bar + half dynamic spread.
   Stop   — hit when bar's low <= SL (long) or high >= SL (short).
             Fills at SL price.
   TP     — hit when bar's high >= TP (long) or low <= TP (short).
             Fills at TP price.
-  Both SL and TP on same bar → worst case (SL fills first for longs,
-  TP fills first for shorts) — conservative.
+  Same-bar SL/TP — intra-bar path inferred from OHLC shape:
+            bullish (C>=O) → dip-first (O→L→H→C), bearish → spike-first.
+            Whichever level is reached first on the inferred path wins.
+  Spread — dynamic: base spread × volatility multiplier (bar_range/ATR14,
+            capped at 3×).  Models real broker widening during fast moves.
+  Commission — round-trip per-lot cost deducted from every closed trade.
+  Swap   — overnight financing: ~0.3 tick_val/lot/day (FX), $1/lot/day (indices).
 """
 
 import asyncio
@@ -64,6 +69,9 @@ class SimPosition:
     pending: bool = True
     # Original SL at entry — used as 1R unit for trailing/partial calculations.
     entry_sl: float = 0.0
+    # Entry type: "full-alignment", "pullback-entry", "counter-trend-scalp".
+    # Counter-trend entries skip D1-flip exits (D1 is expected to be opposed).
+    entry_type: str = "full-alignment"
     # Partial TP / windfall fire guards (prevent double-closes).
     partial_tp1_fired: bool = False
     partial_tp2_fired: bool = False
@@ -343,6 +351,17 @@ class _BacktestDataLoader(DataLoader):
             h1 = self.get_features(symbol, "1H", n_bars=300)
             if h1 is not None:
                 result["1H"] = h1
+        # Log feature summary per tier
+        for _tier, _feat in result.items():
+            if _feat is not None:
+                self.logger.debug(
+                    f"[FEATURES] {symbol} {_tier}({self._tier_tf_map.get(_tier, '?')}) "
+                    f"close={getattr(_feat, 'ema20', 0):.5f} "
+                    f"rsi14={getattr(_feat, 'rsi_14', 0):.2f} "
+                    f"atr14={getattr(_feat, 'atr_14', 0):.6f} "
+                    f"adx={getattr(_feat, 'adx_14', 0):.1f} "
+                    f"session_break={getattr(_feat, 'session_break_score', 0):.3f}"
+                )
         return result
 
     # Macro features in backtest: use pre-loaded historical values when available.
@@ -379,13 +398,29 @@ class BacktestEngine:
         result = engine.run("EURUSD", "2025-01-01", "2026-01-01")
     """
 
-    # Synthetic spread in price units per symbol (used when symbol_info unavailable)
-    _SPREAD: Dict[str, float] = {
+    # ── Spread model ──────────────────────────────────────────────────────
+    # Base spread: typical "good conditions" spread for each symbol (price units).
+    # Dynamic widening is applied per-bar based on volatility relative to the
+    # 14-bar ATR median.  See _dynamic_spread().
+    _BASE_SPREAD: Dict[str, float] = {
         "EURUSD": 0.00004, "GBPUSD": 0.00005, "USDJPY": 0.003,
         "USDCHF": 0.00005, "AUDUSD": 0.00005, "USDCAD": 0.00005,
         "NZDUSD": 0.00007, "XAUUSD": 0.25,   "EURJPY": 0.006,
         "GBPJPY": 0.008,   "DAX": 1.5,        "UK100": 1.0,
         "US30": 3.0,       "US500": 0.50,     "USTEC": 2.0,
+    }
+    # Maximum spread multiplier during volatile bars (base × cap)
+    _SPREAD_WIDEN_CAP: float = 3.0
+
+    # ── Commission: USD per standard lot per round-trip ────────────────────
+    # Typical ECN FX broker charges ~$7/lot.  Indices/metals vary.
+    _COMMISSION_PER_LOT: Dict[str, float] = {
+        "EURUSD": 7.0,  "GBPUSD": 7.0,  "USDJPY": 7.0,
+        "USDCHF": 7.0,  "AUDUSD": 7.0,  "USDCAD": 7.0,
+        "NZDUSD": 7.0,  "EURJPY": 7.0,  "GBPJPY": 7.0,
+        "AUDJPY": 7.0,  "EURGBP": 7.0,  "XAUUSD": 5.0,
+        "DAX": 3.0,     "UK100": 3.0,   "US30":  3.0,
+        "US500": 3.0,   "USTEC": 3.0,
     }
 
     # USD account P&L per pip per standard lot (10 = $10/pip for most majors)
@@ -514,6 +549,7 @@ class BacktestEngine:
             VolatilityAgent, BreadthAgent, PatternAgent, IntermarketAgent,
             SessionBreakoutAgent, DivergenceAgent, ScalpingAgent,
             VwapScalpAgent, SqueezeBreakoutAgent, OrderFlowAgent,
+            CorrelationAgent,
         )
         from ..runner import _build_registry
         registry = _build_registry(self.config)
@@ -570,8 +606,6 @@ class BacktestEngine:
     #     ATR-based fallback when simulation=True (same as staged trail stage 3).
     #     Real D1 swing highs/lows can't narrowly distinguish from this in backtest.
     #   - News calendar blackout: high-impact events are not skipped on entry.
-    #   - MT5 intrabar tick sequence: SL/TP hit order uses bar high/low; if both
-    #     hit the same bar, SL wins (conservative assumption).
     #   - Swap rates: approximated as 0.3 tick_value × days_held.
     #   - run_multi equity split: each symbol gets initial_equity/N independently
     #     (no shared capital pool or cross-symbol correlation modelling).
@@ -593,7 +627,8 @@ class BacktestEngine:
         mid_key = f"{symbol}_{mid_tf}"
         mid_bars = all_bars[mid_key]
         n_bars = len(bar_dates)
-        spread = self._spread(symbol)
+        _base_spread = self._spread(symbol)
+        spread = _base_spread                    # overwritten per bar below
         tick_val = self._tick_value(symbol)
         pip_sz = self._pip_size(symbol)
 
@@ -634,6 +669,12 @@ class BacktestEngine:
         # Mirrors trailing_stop.py._manage_one stage 3 tp_extend logic exactly.
         _tp_extend_on   = bool(_trailing_cfg.get("tp_extend_enabled", True))
         _tp_extend_mult = float(_trailing_cfg.get("tp_extend_atr_mult", 2.0))
+        # Early break-even: move SL to entry at +early_be_r (e.g. +0.5R).
+        # Fires BEFORE stage 1 (+1R). 0 = disabled.
+        _early_be_r     = float(_trailing_cfg.get("early_be_r", 0.0))
+        # Stale-SL tightening: after N hours if still losing, cap at -stale_r×1R.
+        _stale_sl_hours = float(_trailing_cfg.get("stale_sl_hours", 0.0))
+        _stale_sl_r     = float(_trailing_cfg.get("stale_sl_r_mult", 0.75))
         # Exit rule settings
         _max_hours_ts  = float(_exit_cfg_raw.get("max_trade_duration_hours", 0))
         # Default False: conviction_fade is opt-in (must be explicitly enabled in config).
@@ -643,13 +684,20 @@ class BacktestEngine:
         _fade_thresh   = float(_exit_cfg_raw.get("conviction_fade_threshold", 0.10))
         _opp_enabled   = bool(_exit_cfg_raw.get("mid_short_opposition_enabled", True))
         _opp_thresh    = float(_exit_cfg_raw.get("mid_short_opposition_threshold", 0.35))
+        # Tighten-on-fade: when conviction is weakening but not yet at close threshold,
+        # lock SL at break-even and tighten TP.  Mirrors runner._check_and_close_positions.
+        _tighten_on     = bool(_exit_cfg_raw.get("tighten_on_fade_enabled", True))
+        _tighten_thresh = float(_exit_cfg_raw.get("tighten_fade_threshold", 0.20))
+        _tighten_tp_m   = float(_exit_cfg_raw.get("tighten_tp_atr_mult", 0.5))
         # d1_flip_threshold: separate config key lets profiles set a higher bar for
         # D1 reversal exits than the entry long_min_score.  Using long_min_score as
         # exit threshold was causing premature exits (score crosses 0.28 on noise).
         _flip_thresh   = float(_exit_cfg_raw.get("d1_flip_threshold",
-                                                  _al_cfg.get("long_min_score", 0.20)))
+                                                  _al_cfg.get("long_min_score", 0.25)))
         _scalp_exits   = bool(_exit_cfg_raw.get("use_short_tier_exits", False))
         _scalp_flip    = float(_exit_cfg_raw.get("short_flip_threshold", 0.35))
+        # Counter-trend scalp time-stop: shorter than regular trades (default 2h)
+        _ct_max_hours  = float(_exit_cfg_raw.get("ct_max_hours", 2.0))
         # Time-stop: hours per bar by mid-tier timeframe
         _tf_hours_map  = {"1m": 1/60, "5m": 5/60, "15m": 0.25, "30m": 0.5,
                           "1H": 1.0,  "4H": 4.0,  "1D": 24.0}
@@ -713,13 +761,38 @@ class BacktestEngine:
         _wk_halted       = False
         _current_week: Optional[int] = None   # ISO week number
         # Entry cooldown per symbol
-        _cooldown_min    = float(getattr(self.config.risk, "entry_cooldown_minutes", 0.0))
+        # Scale cooldown by mid-tf granularity: the configured value assumes 1H bars.
+        # On faster timeframes (1m, 5m, 15m) a shorter cooldown lets the bot adapt
+        # to intraday signal changes rather than sitting idle for an hour.
+        _cooldown_base   = float(getattr(self.config.risk, "entry_cooldown_minutes", 0.0))
+        _cooldown_scale  = {"1m": 0.25, "5m": 0.50, "15m": 0.75, "30m": 0.85}.get(mid_tf, 1.0)
+        _cooldown_min    = max(5.0, _cooldown_base * _cooldown_scale)  # floor at 5 min
+        if _cooldown_scale < 1.0:
+            self.logger.info(
+                f"[cooldown] {_cooldown_base:.0f}min × {_cooldown_scale:.2f} "
+                f"({mid_tf} scaling) → {_cooldown_min:.0f}min"
+            )
         _last_entry: Dict[str, datetime] = {}
+        _last_order_attempt: Dict[str, datetime] = {}  # last graph.py order (accepted OR rejected)
         # Daily trade cap
         _max_daily       = int(getattr(self.config.risk, "max_daily_trades", 0))
         _day_trade_count = 0
         # Weekend block
         _weekend_blocked = False
+
+        # ── Same-direction losing streak guard ──────────────────────────────
+        # Prevents the bot from blindly repeating the same losing direction.
+        # If the last 2 completed trades on this symbol were both losers AND
+        # both the same direction, block that direction for a cooling period.
+        # Escalating cooldown: 4h → 8h → 16h → 24h (doubles each re-trigger,
+        # caps at 24h) to prevent the "block → expire → lose → block" loop.
+        _streak_history: Dict[str, List[tuple]] = {}   # symbol → [(dir, pnl, bar_idx), ...]
+        _streak_block_until: Dict[str, int] = {}       # symbol → bar index when block expires
+        _streak_block_dir: Dict[str, str] = {}         # symbol → blocked direction
+        _streak_block_count: Dict[str, int] = {}       # symbol → consecutive streak count
+        _streak_base_bars = max(1, int(4 * 3600 / _bar_seconds))  # 4h in bars
+        _streak_max_bars  = max(1, int(24 * 3600 / _bar_seconds)) # 24h cap
+        self._prev_closed_count = 0
 
         # ── Intra-bar simulation (IBS) ────────────────────────────────────────
         # When intra_bar_max_trades > 0 and mid_tf == "1m", the bar loop replays
@@ -733,6 +806,16 @@ class BacktestEngine:
         _ibs_max  = int(_cfg_raw.get("execution", {}).get("intra_bar_max_trades", 0))
         _ibs_mode = _ibs_max > 0 and mid_tf == "1m"
         _last_ibs_order: Optional[Dict] = None   # cached order for IBS re-entry
+
+        # ── Suppress chatty graph logs during backtest ─────────────────────
+        # In non-debug mode, graph.py's per-pipeline INFO lines ("Running
+        # agents", "Fusing", "Order placed", etc.) flood the output with
+        # proposals that the engine may reject.  Silence them; the engine
+        # will log confirmed ENTRY/EXIT events instead.
+        _graph_logger = logging.getLogger("TradingGraph")
+        _graph_orig_level = _graph_logger.level
+        if logging.getLogger().getEffectiveLevel() > logging.DEBUG:
+            _graph_logger.setLevel(logging.WARNING)
 
         _bar_range = range(_sig_bar, n_bars)
         _is_tty = getattr(_sys_.stderr, "isatty", lambda: False)()
@@ -755,6 +838,12 @@ class BacktestEngine:
             hi = float(mid_bars["high"][step])
             lo = float(mid_bars["low"][step])
             cl = float(mid_bars["close"][step])
+            # ── Dynamic spread: widen during volatile bars ─────────────────
+            _bar_range = hi - lo
+            _atr_win_sp = [mid_bars["high"][i] - mid_bars["low"][i]
+                           for i in range(max(0, step - 14), step)]
+            _atr_sp = float(np.mean(_atr_win_sp)) if _atr_win_sp else _bar_range
+            spread = self._dynamic_spread(symbol, _bar_range, _atr_sp)
             # Plain-text progress for non-TTY mode (e.g. `command | tail -20`)
             if not _is_tty:
                 _done = step - _sig_bar + 1
@@ -823,8 +912,18 @@ class BacktestEngine:
                 if pos.pending:
                     if pos.direction == "long":
                         pos.entry_price = bar_open + spread / 2   # fill at ask
+                        logger.debug(
+                            f"[FILL] bar={step} {bar_date:%H:%M} {symbol} LONG filled "
+                            f"@ {pos.entry_price:.5f} (open={bar_open:.5f}+sprd/2) "
+                            f"SL={pos.stop_loss:.5f} TP={pos.take_profit:.5f}"
+                        )
                     else:
                         pos.entry_price = bar_open - spread / 2   # fill at bid
+                        logger.debug(
+                            f"[FILL] bar={step} {bar_date:%H:%M} {symbol} SHORT filled "
+                            f"@ {pos.entry_price:.5f} (open={bar_open:.5f}-sprd/2) "
+                            f"SL={pos.stop_loss:.5f} TP={pos.take_profit:.5f}"
+                        )
                     pos.pending = False
 
             # ── Check exits ──────────────────────────────────────────────────
@@ -929,7 +1028,10 @@ class BacktestEngine:
                     if pos.pending:
                         still_open.append(pos)   # pending entries can't exit same bar
                         continue
-                    exited = self._check_exit(pos, hi, lo, step, tick_val, pip_sz, closed_trades)
+                    exited = self._check_exit(
+                        pos, hi, lo, step, tick_val, pip_sz, closed_trades,
+                        bar_open=bar_open, bar_close=cl,
+                    )
                     if not exited:
                         still_open.append(pos)
                 open_positions.clear()
@@ -986,7 +1088,11 @@ class BacktestEngine:
                     # 1. Time-stop
                     if _max_hours_ts > 0:
                         _hours_held = (step - pos.open_bar) * _hrs_per_bar
-                        if _hours_held >= _max_hours_ts:
+                        # Counter-trend scalps use a shorter time-stop (default 2h)
+                        # since they're fighting D1 and should exit quickly.
+                        _is_ct = getattr(pos, "entry_type", "") == "counter-trend-scalp"
+                        _eff_ts = _ct_max_hours if _is_ct else _max_hours_ts
+                        if _hours_held >= _eff_ts:
                             _should_close = True
                             _close_reason = "time-stop"
 
@@ -1006,20 +1112,39 @@ class BacktestEngine:
                                 elif not _is_long and _d_mid > _opp_thresh and _d_short > _opp_thresh:
                                     _should_close = True; _close_reason = "scalp: mid+short bullish"
                         else:
-                            if _is_long and _d_long < -_flip_thresh:
-                                _should_close = True; _close_reason = "D1 flipped bearish"
-                            elif not _is_long and _d_long > _flip_thresh:
-                                _should_close = True; _close_reason = "D1 flipped bullish"
+                            _is_ct = getattr(pos, "entry_type", "") == "counter-trend-scalp"
+                            # D1-flip exit: skip for counter-trend scalps (D1 is
+                            # expected to be opposed — that's how they entered).
+                            if not _is_ct:
+                                if _is_long and _d_long < -_flip_thresh:
+                                    _should_close = True; _close_reason = "D1 flipped bearish"
+                                elif not _is_long and _d_long > _flip_thresh:
+                                    _should_close = True; _close_reason = "D1 flipped bullish"
                             if not _should_close and _fade_enabled and abs(_d_long) < _fade_thresh:
-                                _should_close = True; _close_reason = "conviction faded"
+                                if not _is_ct:
+                                    _should_close = True; _close_reason = "conviction faded"
+                            # Mid+short opposition: always active (also the primary
+                            # exit for CT scalps — intraday momentum fading back).
                             if not _should_close and _opp_enabled:
                                 if _is_long and _d_mid < -_opp_thresh and _d_short < -_opp_thresh:
                                     _should_close = True; _close_reason = "mid+short opposition"
                                 elif not _is_long and _d_mid > _opp_thresh and _d_short > _opp_thresh:
                                     _should_close = True; _close_reason = "mid+short opposition"
+                            # CT-specific exit: if MID flips back to agree with D1,
+                            # the counter-trend move is over.
+                            if not _should_close and _is_ct:
+                                _trade_sign = 1.0 if _is_long else -1.0
+                                if _d_mid * _trade_sign < -_opp_thresh:
+                                    _should_close = True; _close_reason = "CT mid flipped against"
 
                     if _should_close:
                         _pnl_c = self._pnl_at(pos, cl, tick_val, pip_sz, close_step=step)
+                        logger.info(
+                            f"[EXIT-{_close_reason.upper().replace(' ', '_')}] {symbol} {pos.direction.upper()} "
+                            f"entry={pos.entry_price:.5f} exit={cl:.5f} "
+                            f"pnl={_pnl_c:+.2f} ({_pnl_c / max(pos.risk_amount, 1e-9):+.2f}R) "
+                            f"(ticket={pos.ticket})"
+                        )
                         closed_trades.append(ClosedTrade(
                             symbol=pos.symbol, direction=pos.direction,
                             entry_price=pos.entry_price, exit_price=cl,
@@ -1032,6 +1157,29 @@ class BacktestEngine:
                             agent_votes=pos.agent_votes,
                         ))
                         continue
+
+                    # 2b. Tighten-on-fade: conviction weakening but not close-worthy.
+                    # Mirrors runner._check_and_close_positions tighten logic:
+                    # lock SL at break-even and pull TP to nearby when dir_long
+                    # is between fade_thresh and tighten_thresh and trade is green.
+                    if (_tighten_on and _fusion is not None
+                            and not _scalp_exits and _atr > 0
+                            and _profit_dist > 0
+                            and _fade_thresh < abs(_fusion.dir_long) < _tighten_thresh):
+                        if _is_long:
+                            _t_sl = max(pos.stop_loss, pos.entry_price)
+                            _t_tp = cl + _tighten_tp_m * _atr
+                            if _t_sl > pos.stop_loss:
+                                pos.stop_loss = _t_sl
+                            if pos.take_profit <= 0 or _t_tp < pos.take_profit - 0.2 * _atr:
+                                pos.take_profit = _t_tp
+                        else:
+                            _t_sl = min(pos.stop_loss, pos.entry_price) if pos.stop_loss > 0 else pos.entry_price
+                            _t_tp = cl - _tighten_tp_m * _atr
+                            if pos.stop_loss <= 0 or _t_sl < pos.stop_loss:
+                                pos.stop_loss = _t_sl
+                            if pos.take_profit <= 0 or _t_tp > pos.take_profit + 0.2 * _atr:
+                                pos.take_profit = _t_tp
 
                     # 3. Windfall exit
                     if _windfall_on and not pos.windfall_fired and _profit_dist >= _windfall_r * _one_r:
@@ -1068,6 +1216,7 @@ class BacktestEngine:
                             win_probability=pos.win_probability, agent_votes=pos.agent_votes,
                         ))
                         pos.quantity         -= _qty1
+                        pos.risk_amount      *= (1.0 - _partial1_frac)
                         pos.partial_tp1_fired = True
                         pos.stop_loss         = pos.entry_price  # break-even
 
@@ -1086,6 +1235,7 @@ class BacktestEngine:
                             win_probability=pos.win_probability, agent_votes=pos.agent_votes,
                         ))
                         pos.quantity          -= _qty2
+                        pos.risk_amount       *= (1.0 - _partial2_frac)
                         pos.partial_tp2_fired  = True
                         _bump = 0.7 * _one_r
                         if _is_long:
@@ -1094,6 +1244,23 @@ class BacktestEngine:
                             pos.stop_loss = min(pos.stop_loss, pos.entry_price - _bump)
 
                     # 6. Trailing SL stages + TP extension (mirrors trailing_stop.py _manage_one)
+                    _old_sl = pos.stop_loss
+                    _old_tp = pos.take_profit
+
+                    # 6a. Stale-SL tightening: trade open > N hours while losing →
+                    #     cap SL at -stale_r × 1R to reduce late SL losses.
+                    if _stale_sl_hours > 0 and _profit_dist < 0:
+                        _hours_held_sl = (step - pos.open_bar) * _hrs_per_bar
+                        if _hours_held_sl >= _stale_sl_hours:
+                            if _is_long:
+                                _tight_sl = pos.entry_price - _stale_sl_r * _one_r
+                                if pos.stop_loss < _tight_sl - 1e-9:
+                                    pos.stop_loss = _tight_sl
+                            else:
+                                _tight_sl = pos.entry_price + _stale_sl_r * _one_r
+                                if pos.stop_loss > _tight_sl + 1e-9:
+                                    pos.stop_loss = _tight_sl
+
                     if _atr > 0:
                         if _is_long:
                             if _profit_dist >= 2.0 * _one_r:
@@ -1105,6 +1272,9 @@ class BacktestEngine:
                             elif _profit_dist >= 1.5 * _one_r:
                                 _new_sl = max(pos.stop_loss, pos.entry_price + 0.5 * _one_r)
                             elif _profit_dist >= 1.0 * _one_r:
+                                _new_sl = max(pos.stop_loss, pos.entry_price)
+                            elif _early_be_r > 0 and _profit_dist >= _early_be_r * _one_r:
+                                # Stage 0: early break-even
                                 _new_sl = max(pos.stop_loss, pos.entry_price)
                             else:
                                 _new_sl = pos.stop_loss
@@ -1121,10 +1291,22 @@ class BacktestEngine:
                                 _new_sl = min(pos.stop_loss, pos.entry_price - 0.5 * _one_r)
                             elif _profit_dist >= 1.0 * _one_r:
                                 _new_sl = min(pos.stop_loss, pos.entry_price)
+                            elif _early_be_r > 0 and _profit_dist >= _early_be_r * _one_r:
+                                # Stage 0: early break-even
+                                _new_sl = min(pos.stop_loss, pos.entry_price)
                             else:
                                 _new_sl = pos.stop_loss
                             if _new_sl < pos.stop_loss:
                                 pos.stop_loss = _new_sl
+
+                    # Log trailing SL/TP changes
+                    if pos.stop_loss != _old_sl or pos.take_profit != _old_tp:
+                        logger.debug(
+                            f"[TRAIL] bar={step} {symbol} {pos.direction} "
+                            f"profit={_profit_dist/_one_r:.2f}R "
+                            f"SL:{_old_sl:.5f}→{pos.stop_loss:.5f} "
+                            f"TP:{_old_tp:.5f}→{pos.take_profit:.5f}"
+                        )
 
                     managed_open.append(pos)
 
@@ -1137,6 +1319,32 @@ class BacktestEngine:
             equity = initial_equity + realized + unrealized
             equity_curve[-1] = equity   # update the value appended at bar start
 
+            # ── Record closed trades into streak history ───────────────────
+            # Any trades closed since the last check get appended to the per-symbol
+            # streak tracker (used by the same-direction losing streak guard).
+            _n_closed_now = len(closed_trades)
+            if _n_closed_now > getattr(self, "_prev_closed_count", 0):
+                for _ct in closed_trades[getattr(self, "_prev_closed_count", 0):]:
+                    if _ct.exit_reason not in ("partial_tp1", "partial_tp2"):
+                        _streak_history.setdefault(_ct.symbol, []).append(
+                            (_ct.direction, _ct.pnl, step)
+                        )
+                        # Check if we just completed a 2-loss streak
+                        _sh = _streak_history[_ct.symbol]
+                        if (len(_sh) >= 2
+                                and _sh[-1][1] < 0 and _sh[-2][1] < 0
+                                and _sh[-1][0] == _sh[-2][0]):
+                            # Escalating cooldown: double each re-trigger, cap at 24h
+                            _prev_count = _streak_block_count.get(_ct.symbol, 0)
+                            _streak_block_count[_ct.symbol] = _prev_count + 1
+                            _cooldown_bars = min(
+                                _streak_base_bars * (2 ** _prev_count),
+                                _streak_max_bars,
+                            )
+                            _streak_block_dir[_ct.symbol] = _sh[-1][0]
+                            _streak_block_until[_ct.symbol] = step + _cooldown_bars
+            self._prev_closed_count = _n_closed_now
+
             # ── Refresh portfolio state (daily_pnl from today's open, not backtest start) ──
             portfolio = self._make_portfolio(equity, _day_open_equity, open_positions, mid_bars, step, tick_val, pip_sz)
 
@@ -1148,7 +1356,36 @@ class BacktestEngine:
             # Skip entries when any circuit breaker has fired or weekend block is active
             _run_agents = (step % _agent_interval == 0) or (_last_agent_state is None)
             if not _run_agents or _day_halted or _wk_halted or _weekend_blocked:
+                if _day_halted or _wk_halted or _weekend_blocked:
+                    logger.debug(
+                        f"[SKIP] bar={step} {bar_date:%H:%M} day_halt={_day_halted} "
+                        f"wk_halt={_wk_halted} weekend={_weekend_blocked}"
+                    )
                 continue
+
+            # ── Pre-graph entry guards ─────────────────────────────────────
+            # Skip the full agent pipeline when the entry would be rejected
+            # anyway.  Prevents misleading "Order placed" logs from graph.py
+            # and avoids running 14 agents for nothing.
+            _skip_entry = False
+            if _cooldown_min > 0:
+                # Use the MORE RECENT of last accepted entry or last order
+                # attempt — this prevents graph.py from re-running when the
+                # engine will reject the order anyway (streak guard, etc.).
+                _pre_last_t = _last_order_attempt.get(symbol) or _last_entry.get(symbol)
+                if _pre_last_t is not None:
+                    _pre_elapsed = (bar_date - _pre_last_t).total_seconds() / 60.0
+                    if _pre_elapsed < _cooldown_min:
+                        _skip_entry = True
+            if not _skip_entry and _max_daily > 0 and _day_trade_count >= _max_daily:
+                _skip_entry = True
+            if not _skip_entry:
+                _pre_mc = risk_limits.max_concurrent_trades
+                if _pre_mc > 0 and len(open_positions) >= _pre_mc:
+                    _skip_entry = True
+            if _skip_entry:
+                continue
+
             try:
                 features_by_tf = loader.get_multi_features(symbol)
                 features = (
@@ -1176,15 +1413,35 @@ class BacktestEngine:
                 _last_agent_state = state
 
                 for order in executor.placed_orders:
+                    # ── Max concurrent positions hard guard ────────────────
+                    # Graph.py has its own check via portfolio_state, but here
+                    # we enforce it directly so no timing gaps allow overfill.
+                    _max_conc = risk_limits.max_concurrent_trades
+                    if _max_conc > 0 and len(open_positions) >= _max_conc:
+                        logger.debug(
+                            f"[MAX-CONC] bar={step} {bar_date:%H:%M} {symbol} "
+                            f"{len(open_positions)}/{_max_conc} positions — skipping"
+                        )
+                        break
+
                     # ── Entry cooldown guard (mirror runner.py behaviour) ──
                     if _cooldown_min > 0:
                         last_t = _last_entry.get(symbol)
                         if last_t is not None:
                             elapsed = (bar_date - last_t).total_seconds() / 60.0
                             if elapsed < _cooldown_min:
+                                logger.debug(
+                                    f"[COOLDOWN] bar={step} {bar_date:%H:%M} {symbol} "
+                                    f"elapsed={elapsed:.0f}min < cooldown={_cooldown_min:.0f}min"
+                                )
                                 continue
+
                     # ── Daily trade cap ────────────────────────────────────
                     if _max_daily > 0 and _day_trade_count >= _max_daily:
+                        logger.debug(
+                            f"[DAY-CAP] bar={step} {bar_date:%H:%M} {symbol} "
+                            f"trades_today={_day_trade_count} >= max={_max_daily}"
+                        )
                         break
 
                     tp = order["trade_plan"]
@@ -1192,6 +1449,27 @@ class BacktestEngine:
                     _dir = getattr(tp.recipe.direction, "value", str(tp.recipe.direction))
                     if "." in _dir:          # fallback: "Direction.SHORT" → "short"
                         _dir = _dir.split(".")[-1].lower()
+
+                    # ── Same-direction losing streak guard ─────────────────
+                    # Block re-entry in a direction that lost 2+ times in a row.
+                    # Escalating cooldown doubles each re-trigger (4h→8h→16h→24h).
+                    _blk_dir   = _streak_block_dir.get(symbol)
+                    _blk_until = _streak_block_until.get(symbol, 0)
+                    if _blk_dir == _dir and step < _blk_until:
+                        logger.debug(
+                            f"[STREAK] bar={step} {bar_date:%H:%M} {symbol} "
+                            f"last 2 {_dir} trades lost — blocking until bar {_blk_until} "
+                            f"(streak #{_streak_block_count.get(symbol, 1)})"
+                        )
+                        continue
+                    elif _blk_dir and (step >= _blk_until or _dir != _blk_dir):
+                        # Cooldown expired or direction changed — clear block
+                        if _dir != _blk_dir:
+                            # Direction flipped — reset escalation counter too
+                            _streak_block_count.pop(symbol, None)
+                        _streak_block_dir.pop(symbol, None)
+                        _streak_block_until.pop(symbol, None)
+
                     # ── Guard: skip orders with zero-pip stop distance ──────────────────────
                     _sl_dist = abs((order["entry_price"] or 0) - (order["stop_loss"] or 0))
                     if _sl_dist < 1e-7:
@@ -1218,21 +1496,29 @@ class BacktestEngine:
                         },
                         pending=True,   # fill at next bar open (no look-ahead)
                         entry_sl=order["stop_loss"],  # original SL = 1R reference
+                        entry_type=state.get("metadata", {}).get("entry_type", "full-alignment"),
                     )
                     open_positions.append(pos)
                     _last_entry[symbol] = bar_date
                     _day_trade_count += 1
                     _last_ibs_order = order   # cache for intra-bar re-entry (IBS mode)
-                    self.logger.debug(
+                    self.logger.info(
                         f"[{bar_date:%Y-%m-%d %H:%M}] ENTRY {symbol} "
-                        f"{pos.direction} @ {pos.entry_price:.5f} "
-                        f"SL={pos.stop_loss:.5f} TP={pos.take_profit:.5f}"
+                        f"{pos.direction.upper()} @ {pos.entry_price:.5f} "
+                        f"SL={pos.stop_loss:.5f} TP={pos.take_profit:.5f} "
+                        f"(ticket={pos.ticket})"
                     )
+
+                # Track ANY order attempt for pre-graph cooldown
+                if executor.placed_orders:
+                    _last_order_attempt[symbol] = bar_date
 
             except Exception as exc:
                 self.logger.debug(f"Step {step} error ({symbol}): {exc}")
 
         # Close any remaining positions at the last bar
+        # Restore graph logger level
+        _graph_logger.setLevel(_graph_orig_level)
         last_close = float(mid_bars["close"][n_bars - 1])
         for pos in open_positions:
             pnl = self._pnl_at(pos, last_close, tick_val, pip_sz, close_step=n_bars - 1)
@@ -1249,7 +1535,8 @@ class BacktestEngine:
             ))
 
         final_equity = initial_equity + sum(t.pnl for t in closed_trades)
-        equity_curve[-1] = final_equity
+        if equity_curve:
+            equity_curve[-1] = final_equity
 
         # Stamp open_dt / close_dt on every trade using the full bar_dates list.
         for t in closed_trades:
@@ -1574,6 +1861,45 @@ class BacktestEngine:
             )
             return {}, mid_tf, []
 
+        # ── Load peer-symbol D1 bars for CorrelationAgent ─────────────────
+        peer = DataLoader._CORR_PEERS.get(symbol.upper().replace("m", ""))
+        if peer and f"{peer}_1D" not in all_bars:
+            peer_ticker = self._YF_SYMBOL.get(peer.upper(), peer.upper() + "=X")
+            try:
+                peer_df = yf.download(
+                    peer_ticker,
+                    start=fetch_start_dt.strftime("%Y-%m-%d"),
+                    end=fetch_end_dt.strftime("%Y-%m-%d"),
+                    interval="1d", progress=False, auto_adjust=True, threads=False,
+                )
+                if peer_df is not None and not peer_df.empty:
+                    if isinstance(peer_df.columns, pd.MultiIndex):
+                        peer_df.columns = peer_df.columns.get_level_values(0)
+                    peer_df.columns = [c.lower().replace(" ", "_") for c in peer_df.columns]
+                    if "adj_close" in peer_df.columns and "close" not in peer_df.columns:
+                        peer_df = peer_df.rename(columns={"adj_close": "close"})
+                    if {"open", "high", "low", "close"}.issubset(set(peer_df.columns)):
+                        if "volume" not in peer_df.columns:
+                            peer_df["volume"] = 1.0
+                        if peer_df.index.tz is None:
+                            peer_df.index = peer_df.index.tz_localize("UTC")
+                        else:
+                            peer_df.index = peer_df.index.tz_convert("UTC")
+                        pts = (peer_df.index.astype(np.int64) // 10 ** 9).values.astype(float)
+                        all_bars[f"{peer}_1D"] = {
+                            "open":   peer_df["open"].values.astype(float),
+                            "high":   peer_df["high"].values.astype(float),
+                            "low":    peer_df["low"].values.astype(float),
+                            "close":  peer_df["close"].values.astype(float),
+                            "volume": peer_df["volume"].values.astype(float),
+                            "time":   pts,
+                        }
+                        self.logger.debug(
+                            f"[yfinance] loaded {len(peer_df)} D1 peer bars for {peer}"
+                        )
+            except Exception as exc:
+                self.logger.debug(f"[yfinance] peer {peer} D1 download failed: {exc}")
+
         self.logger.info(
             f"[yfinance backfill] {symbol} ({yf_ticker}): "
             f"{len(bar_dates)} {mid_tf} bars ({start_date}→{end_date})"
@@ -1702,6 +2028,25 @@ class BacktestEngine:
                     for t in rates["time"]
                 ]
 
+        # ── Load peer-symbol D1 bars for CorrelationAgent ─────────────────
+        peer = DataLoader._CORR_PEERS.get(symbol.upper().replace("m", ""))
+        if peer and f"{peer}_1D" not in all_bars:
+            mt5_tf_d1 = tf_map.get("1D")
+            if mt5_tf_d1 is not None:
+                if mt5.symbol_select(peer, True):
+                    peer_start = raw_start_dt - timedelta(days=120)
+                    peer_rates = mt5.copy_rates_range(peer, mt5_tf_d1, peer_start, end_dt)
+                    if peer_rates is not None and len(peer_rates) > 0:
+                        all_bars[f"{peer}_1D"] = {
+                            "close":  peer_rates["close"].astype(float),
+                            "high":   peer_rates["high"].astype(float),
+                            "low":    peer_rates["low"].astype(float),
+                            "open":   peer_rates["open"].astype(float),
+                            "volume": peer_rates["tick_volume"].astype(float),
+                            "time":   peer_rates["time"].astype(float),
+                        }
+                        self.logger.debug(f"Loaded {len(peer_rates)} D1 peer bars for {peer}")
+
         mt5.shutdown()
 
         if not bar_dates:
@@ -1728,20 +2073,57 @@ class BacktestEngine:
         tick_val: float,
         pip_sz: float,
         closed_trades: List[ClosedTrade],
+        bar_open: float = 0.0,
+        bar_close: float = 0.0,
     ) -> bool:
+        """Check whether *pos* is stopped out or takes profit on this bar.
+
+        Same-bar SL/TP resolution
+        -------------------------
+        When both SL and TP are touched within the same bar, the old logic
+        always awarded SL (pessimistic).  MT5 fills whichever price level
+        the market reaches **first** within the bar.
+
+        We infer intra-bar direction from the OHLC shape:
+          * Bullish bar (C ≥ O): price likely dipped first → O→L→H→C
+          * Bearish bar (C < O): price likely spiked first → O→H→L→C
+
+        For **longs**:  SL is below entry, TP above.
+          - Bullish bar: hits L first → SL tested first; if SL survives, TP tested at H.
+          - Bearish bar: hits H first → TP tested first; if TP survives, SL tested at L.
+
+        For **shorts**: SL is above entry, TP below.
+          - Bullish bar: hits L first → TP tested first; if TP survives, SL tested at H.
+          - Bearish bar: hits H first → SL tested first; if SL survives, TP tested at L.
+
+        This is the same approach the IBS (intra-bar simulation) path already
+        uses, now applied to the standard non-IBS exit check as well.
+        """
         sl_hit = tp_hit = False
         if pos.direction == "long":
             sl_hit = bar_low  <= pos.stop_loss
-            tp_hit = bar_high >= pos.take_profit
+            tp_hit = bar_high >= pos.take_profit > 0
         else:
-            sl_hit = bar_high >= pos.stop_loss
+            sl_hit = bar_high >= pos.stop_loss > 0
             tp_hit = bar_low  <= pos.take_profit
 
-        # Worst-case: if both hit on same bar, SL wins for BOTH directions.
-        # A bar that touches both SL and TP could have gone either way;
-        # assuming SL fills first is the conservative (anti-curve-fitting) choice.
+        # ── Path-based resolution when both are hit on the same bar ──────
         if sl_hit and tp_hit:
-            tp_hit = False
+            bullish = (bar_close >= bar_open) if (bar_open > 0 and bar_close > 0) else True
+            if pos.direction == "long":
+                # Bullish: dip first (L before H) → SL tested first
+                # Bearish: spike first (H before L) → TP tested first
+                if bullish:
+                    tp_hit = False   # SL hit at the dip, TP never reached
+                else:
+                    sl_hit = False   # TP hit at the spike, SL never reached
+            else:  # short
+                # Bullish: dip first (L before H) → TP tested first (L=TP for short)
+                # Bearish: spike first (H before L) → SL tested first (H=SL for short)
+                if bullish:
+                    sl_hit = False   # TP hit at the dip, SL never reached
+                else:
+                    tp_hit = False   # SL hit at the spike, TP never reached
 
         if sl_hit:
             exit_price, exit_reason = pos.stop_loss, "sl"
@@ -1751,6 +2133,12 @@ class BacktestEngine:
             return False
 
         pnl = self._pnl_at(pos, exit_price, tick_val, pip_sz, close_step=step)
+        logger.info(
+            f"[EXIT-{exit_reason.upper()}] {pos.symbol} {pos.direction.upper()} "
+            f"entry={pos.entry_price:.5f} exit={exit_price:.5f} "
+            f"pnl={pnl:+.2f} ({pnl / max(pos.risk_amount, 1e-9):+.2f}R) "
+            f"bars_held={step - pos.open_bar} (ticket={pos.ticket})"
+        )
         closed_trades.append(ClosedTrade(
             symbol=pos.symbol, direction=pos.direction,
             entry_price=pos.entry_price, exit_price=exit_price,
@@ -1777,6 +2165,8 @@ class BacktestEngine:
         if pos.direction == "short":
             pips = -pips
         gross = pips * tick_val * pos.quantity
+        # Commission: round-trip cost per lot (mirrors real ECN broker)
+        gross -= self._commission(pos.symbol, pos.quantity)
         # Swap cost: overnight financing, one charge per complete calendar day held.
         # bars_held * _hrs_per_bar converts bar count to hours regardless of timeframe;
         # integer-divide by 24 gives whole overnight rollovers (no charge for intraday).
@@ -1806,7 +2196,10 @@ class BacktestEngine:
         pips = (price - pos.entry_price) / pip_sz
         if pos.direction == "short":
             pips = -pips
-        return pips * tick_val * qty
+        gross = pips * tick_val * qty
+        # Commission on the partial quantity
+        gross -= self._commission(pos.symbol, qty)
+        return gross
 
     def _pip_size(self, symbol: str) -> float:
         sym = symbol.upper()
@@ -1817,7 +2210,38 @@ class BacktestEngine:
         return 0.0001
 
     def _spread(self, symbol: str) -> float:
-        return self._SPREAD.get(symbol.upper().rstrip("Mm"), 0.0001)
+        """Return the base (calm-market) spread for *symbol*."""
+        return self._BASE_SPREAD.get(symbol.upper().rstrip("Mm"), 0.0001)
+
+    def _dynamic_spread(
+        self, symbol: str, bar_range: float, atr_14: float,
+    ) -> float:
+        """Spread widened proportionally to bar volatility vs ATR-14.
+
+        When a bar's range (hi-lo) exceeds the recent median range (≈ ATR),
+        the spread widens linearly up to ``_SPREAD_WIDEN_CAP × base``.
+        This models real broker behaviour: during fast moves/news, spreads
+        widen and slippage increases.
+
+        Parameters
+        ----------
+        bar_range : float   hi - lo of the current bar
+        atr_14    : float   14-period ATR (median bar range proxy)
+        """
+        base = self._spread(symbol)
+        if atr_14 <= 0 or bar_range <= 0:
+            return base
+        ratio = bar_range / atr_14  # 1.0 = average bar; >1 = volatile
+        # multiplier: 1.0× at ratio ≤ 1, linear to cap at ratio = cap
+        mult = min(max(ratio, 1.0), self._SPREAD_WIDEN_CAP)
+        return base * mult
+
+    def _commission(self, symbol: str, quantity: float) -> float:
+        """Round-trip commission cost in account currency."""
+        per_lot = self._COMMISSION_PER_LOT.get(
+            symbol.upper().rstrip("Mm"), 7.0
+        )
+        return per_lot * quantity
 
     def _tick_value(self, symbol: str) -> float:
         return self._TICK_VALUE.get(symbol.upper().rstrip("Mm"), 10.0)
