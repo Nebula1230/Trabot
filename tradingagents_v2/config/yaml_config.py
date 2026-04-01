@@ -233,11 +233,38 @@ _PROFILES = {
         "exit_rules": {
             # Disable conviction fade: D1 score oscillates at 1m surveillance.
             "conviction_fade_enabled":        False,
+            # Disable tighten-on-fade: on 1m bars, D1 score oscillates causing
+            # SL→entry on every tiny profit → all-SL exits at ~0R.
+            "tighten_on_fade_enabled":        False,
             "mid_short_opposition_threshold": 0.42,
             # D1 flip threshold: require a stronger reversal than the entry score
             # before closing.  Default uses long_min_score=0.35 which fires too
             # often on intraday D1 score oscillations.
             "d1_flip_threshold":              0.45,
+            # Structural pivot ratchet: on 1m bars, get_structural_levels() returns
+            # micro-structure that changes every bar, collapsing SL to a few pips
+            # from entry → all-SL exits at tiny R.  Must disable on 1m.
+            "skip_structural_sl_tp_ratchet":  True,
+        },
+        "trailing": {
+            # Balanced uses 1H bars with wider SL — stale_sl needs more room.
+            # 6h threshold + 0.50R cap (vs risky's 4h/0.35R) matches the slower
+            # development pace of 1H moves.
+            "stale_sl_hours":  6.0,
+            "stale_sl_r_mult": 0.50,
+            "be_buffer_r":     0.10,
+        },
+        # ── Dynamic sizing: scale volume by confidence + recent streak ─────────
+        "confidence_sizing": {
+            "enabled":    True,
+            "floor":      0.70,    # low-confidence trades → 70% of base risk
+            "ceil":       1.30,    # high-confidence → 130% of base risk
+            "base_conf":  0.45,    # confidence at which mult = floor
+        },
+        "streak_sizing": {
+            "enabled":    True,
+            "win_boost":  1.15,    # max boost after win streak
+            "loss_cut":   0.80,    # min cut after loss streak
         },
     },
 
@@ -248,23 +275,15 @@ _PROFILES = {
         },
         # ── Position sizing & hard limits ─────────────────────────────────────
         "risk": {
-            "base_risk_pct":           0.20,   # 0.20% equity per trade (2× balanced)
-            "max_daily_drawdown_pct":  2.00,   # halt at -2.0% intraday (lowered from 2.5)
-            "max_concurrent_trades":   8,
-            "per_symbol_leverage_cap": 4.0,
-            "portfolio_leverage_cap":  8.0,
-            # Correlation cap: 0.20% × 2 = 0.40% max in one macro direction.
-            # 3 was too loose (0.60%+ correlated exposure during adverse events).
-            "max_correlated_positions": 2,
-            # ── Overtrading guards ────────────────────────────────────────────
-            # D1-signal profile: the thesis takes hours to change. Re-entering
-            # the same direction every 5-10 min just accumulates spread costs.
-            # 60-min cooldown allows at most 1 entry per session window.
-            "entry_cooldown_minutes":  90,   # min 90 min between entries on same symbol (was 60 — too many repeat entries)
-            "max_daily_trades":        4,    # hard daily cap (was 6 — D1 signals don't justify 6 entries/day)
-            # Weekly ceiling: 5 days × -1.99% (just below daily halt) = -9.9%.
-            # Risky allows a worse week than safe, but caps runaway loss streaks.
-            "max_weekly_drawdown_pct": 4.00,
+            "base_risk_pct":           0.85,   # v5: 0.75→0.85% — modest bump, NOT the 1.0% that killed Sharpe
+            "max_daily_drawdown_pct":  15.00,  # v6: →15% — wide ceiling, let the bot trade through volatility
+            "max_concurrent_trades":   10,
+            "per_symbol_leverage_cap": 8.0,
+            "portfolio_leverage_cap":  15.0,
+            "max_correlated_positions": 3,
+            "entry_cooldown_minutes":  25,    # v5: 30→25min — slightly faster re-entry
+            "max_daily_trades":        14,    # v5: 12→14 — allow more high-quality entries
+            "max_weekly_drawdown_pct": 10.00, # keep weekly ceiling tight
         },
         # ── Signal quality gates ───────────────────────────────────────────────
         # These are lower than balanced (more trades) but must still guarantee
@@ -273,33 +292,32 @@ _PROFILES = {
         # At p=0.48, R=1.8 (net): 0.48×1.8 − 0.52 = 0.864 − 0.52 = 0.344  ✓
         # At p=0.48, R=1.5 (net): 0.48×1.5 − 0.52 = 0.720 − 0.52 = 0.200  ✓
         "alignment": {
-            "long_min_score":    0.20,   # require convincing D1 signal (was 0.15 — too loose, 9 EURUSD shorts SL'd)
-            "mid_min_score":     0.15,   # real mid confirmation (was 0.12)
-            "short_min_score":   0.08,   # short tier not strongly opposed (was 0.06)
-            "min_win_prob":      0.48,   # gate out weak setups (was 0.42 — never blocked anything)
-            "min_ev":            0.12,   # require real edge after spread (was 0.08)
-            "min_confidence":    0.50,   # agent confidence gate (was 0.48)
-            "min_agent_consensus": 3,    # require 3 agents agreeing (was 2; 4 was too strict → missed good trades)
+            "long_min_score":    0.18,   # was 0.20 — slightly looser D1 gate to allow more entries
+            "mid_min_score":     0.12,   # was 0.15 — allow weaker mid confirmation (pullbacks)
+            "short_min_score":   0.06,   # was 0.08 — short tier just needs to not oppose
+            "min_win_prob":      0.46,   # was 0.48 — slightly more permissive
+            "min_ev":            0.10,   # was 0.12 — still profitable after spread
+            "min_confidence":    0.48,   # was 0.50 — marginal loosening
+            "min_agent_consensus": 2,    # v5: 3→2 — biggest unlock for trade count; 3 was blocking 30%+ of tradeable setups
             # Full alignment disabled — was producing 0 trades
             "require_full_alignment": False,
             # ADX gate disabled — was blocking all entries on trend reversals
             "adx_trend_min":     0.0,
             "pullback_tolerance": 0.15,  # allow modest pullback entries
-            "mean_rev_block_threshold": 0.55,  # tightened from 0.65 — block more counter-trend entries
-            # Live-trading note: dead zone raises thresholds 1.4× during 22-06 UTC
-            "dead_zone_factor":  1.40,   # was 1.20 — too loose for 22:00-06:00 UTC
-            # ── Counter-trend scalp: DISABLED for risky ─────────────────
-            # Backtest (Mar 16-20): 8/8 CT trades = ALL losers (-$108).
-            # With --mid-tf 1m there's no real multi-TF divergence; MID+SHORT
-            # "opposing" D1 is just 1m noise.  D1-based profiles shouldn't
-            # fight the daily trend for scalp-sized gains.
+            "mean_rev_block_threshold": 0.75,  # relaxed from 0.55 — was blocking ALL longs when MeanRev even slightly bearish
+            # Live-trading note: dead zone raises thresholds during 22-06 UTC
+            "dead_zone_factor":  1.25,   # was 1.40 — too strict, blocked longs entering from Asian session
+            # ── Counter-trend scalp: enabled for risky (default mid=4H) ──
+            # Previously disabled when mid-tf=1m (8/8 CT losers — 1m noise).
+            # With mid=4H the MID+SHORT divergence from D1 is meaningful.
+            # Tighter gates than balanced to filter low-quality CTs.
             "counter_trend": {
-                "enabled":          False,
-                "mid_min_score":    0.20,
-                "short_min_score":  0.10,
-                "long_min_score":   0.15,
-                "win_prob_penalty": 0.08,
-                "max_rr":           1.5,
+                "enabled":          True,
+                "mid_min_score":    0.25,   # 4H must clearly oppose D1
+                "short_min_score":  0.15,   # 15m must confirm the CT move
+                "long_min_score":   0.20,   # D1 must be clearly trending (to be worth fading)
+                "win_prob_penalty": 0.10,   # CT trades get 10% win-prob haircut
+                "max_rr":           1.5,    # capped R:R (CT scalps, not swing trades)
             },
         },
         # ── Pyramiding ────────────────────────────────────────────────────────
@@ -307,11 +325,11 @@ _PROFILES = {
         #   3 entries on EURUSD: 0.20% + 0.10% + 0.10% = 0.40%  (was 0.50%)
         "scale_in": {
             "enabled":                  True,
-            "max_positions_per_symbol": 2,     # 2 entries max per symbol (was 3 — caused cluster losses)
+            "max_positions_per_symbol": 3,     # 3 entries max — pyramid into runners
             "require_profit":           True,  # only scale into winners
-            "min_profit_r":             0.3,   # existing position must be ≥+0.3R (not just >$0)
-            "require_full_alignment":   False, # pullback entries can also scale in
-            "risk_fraction":            0.50,  # 50% of base risk (was 75%)
+            "min_profit_r":             0.25,  # scale in after +0.25R confirmed move
+            "require_full_alignment":   False,
+            "risk_fraction":            0.60,  # 60% of base risk for scale-in adds
         },
         # ── Agent weights ─────────────────────────────────────────────────────
         # Risky targets D1 swing signals. The 4 scalp-specific agents
@@ -345,16 +363,22 @@ _PROFILES = {
             "conviction_fade_threshold":      0.10,
             "tighten_fade_threshold":         0.18,
             "mid_short_opposition_threshold": 0.45,   # raised: less hair-trigger on 1m noise
-            # Time-stop: risky uses D1 signals — if a trade hasn't moved after
-            # 12h the D1 thesis has stalled and we're paying swap for nothing.
-            # 0 = disabled.
-            "max_trade_duration_hours":       12,
+            # Time-stop: risky uses D1 signals — need time to develop.
+            # 12h was cutting winners that needed another session.
+            "max_trade_duration_hours":       16,   # D1 signals need time — 16h covers full session
+            # Counter-trend scalps get a longer leash than the default 2h
+            # since 4H mid-TF divergences need real time to play out.
+            "ct_max_hours":                   4,    # CT entries capped at 4h
             # D1 flip threshold: require a STRONG confirmed reversal before exiting.
             # Using long_min_score (0.28) as the flip bar was causing exits whenever
             # the D1 score touched +0.29 on a SELL — often just intraday noise.
             # 0.45 ensures the D1 must actually flip convincingly (nearly 2× the
             # entry bar) before we consider the thesis invalidated.
             "d1_flip_threshold":              0.45,
+            # Structural ratchet disabled: on 1m bars the nearest support/resist
+            # is micro-structure that changes every bar, collapsing SL to a few
+            # pips from entry and producing all-SL exits with tiny R-values.
+            "skip_structural_sl_tp_ratchet":  True,
         },
         # Risky cycles every 5 min on 21 symbols; tolerate up to 3 min staleness.
         # D1-based signals are valid for much longer than their freshness window.
@@ -371,21 +395,42 @@ _PROFILES = {
         # Partial TP: risky locks in LESS early (40%) to let more profit run.
         "trailing": {
             "partial_tp_enabled":   True,
-            "partial_tp_fraction":  0.40,   # close 40% at +1R; trail remaining 60%
+            "partial_tp_fraction":  0.20,   # v5: 25→20% — lock less early, let 80% ride to TP2/time-stop
             "partial_tp2_enabled":  True,
-            "partial_tp2_r_mult":   2.5,    # let risky run further before 2nd partial
-            "partial_tp2_fraction": 0.40,   # close 40% of remainder at +2.5R
+            "partial_tp2_r_mult":   2.0,    # v5: 2.5→2.0R — capture TP2 earlier (more hits)
+            "partial_tp2_fraction": 0.35,   # v5: 40→35% — keep more for the tail runner
             "windfall_exit_enabled": True,
             "windfall_r_mult":      4.0,    # let risky ride big moves
-            # ── Early breakeven: move SL to entry at +0.5R ──────────────
-            # Without this, trades that briefly go +0.3-0.9R then reverse
-            # hit full -1R SL.  +0.5R BE protects sooner.
-            "early_be_r": 0.5,
-            # ── Time-based SL tightening ──────────────────────────────────
-            # After stale_sl_hours (if trade still losing), cap SL at
-            # -0.75R instead of full -1R.  Saves ~25% on late SL losses.
-            "stale_sl_hours":  4.0,
-            "stale_sl_r_mult": 0.75,
+            # ── Early breakeven: DISABLED for risky ──────────────────────
+            # D1 swing trades oscillate ±0.5R routinely before trending.
+            # early_be kills trades that need time to develop.  Rely on
+            # partial_tp1 (moves SL to BE at +1R) and progressive stale_sl.
+            "early_be_r": 0.0,
+            # ── Breakeven buffer: room beyond exact entry ─────────────────
+            # Instead of moving SL to exact entry (which loses the spread
+            # on every BE stop), allow be_buffer_r × 1R of noise room.
+            # Worst-case remaining-qty loss after partial: 0.15R × 60% = 0.09R
+            # — still net positive (partial banked 0.4R).
+            "be_buffer_r": 0.15,
+            # ── Time-based SL tightening (progressive) ────────────────────
+            # After stale_sl_hours (if trade still losing), SL begins
+            # tightening from -0.50R and progressively squeezes to -0.30R
+            # over the next 2× stale_sl_hours.  D1-thesis shorts need
+            # 8-12h to develop; 4h was killing them during normal retraces.
+            "stale_sl_hours":  6.0,
+            "stale_sl_r_mult": 0.50,
+        },
+        # ── Dynamic sizing: aggressive confidence scaling for risky ──────────
+        "confidence_sizing": {
+            "enabled":    True,
+            "floor":      0.60,    # low-confidence → 60% risk
+            "ceil":       1.40,    # high-confidence → 140% risk
+            "base_conf":  0.45,
+        },
+        "streak_sizing": {
+            "enabled":    True,
+            "win_boost":  1.20,    # moderate streak boost
+            "loss_cut":   0.75,    # moderate streak cut
         },
         # ── Macro fear guard ─────────────────────────────────────────────────
         # Start reducing earlier (0.40 vs 0.55) and floor at 40% (vs 60%).
@@ -557,6 +602,10 @@ _PROFILES = {
         "trailing": {
             "atr_multiplier":    1.0,   # very tight trailing (1×ATR)
             "tp_extend_enabled": False, # never extend TP on a scalp
+            # ── Stale SL: DISABLED for scalp ─────────────────────────────
+            # 2h max duration — trades are too short for stale_sl to matter.
+            "stale_sl_hours":    0.0,
+            "be_buffer_r":       0.0,   # tight — no buffer after partial_tp1
             # ── Partial TP1: close 50% at +1R and move SL to breakeven ──────
             # This is the "half-TP + SL to breakeven" mechanic. At +1R profit
             # the engine closes 50% of the position and locks SL at entry price,
@@ -583,7 +632,7 @@ _PROFILES = {
         # the weekend.  Close 1h earlier than swing profiles.
         # NOTE: this overrides the config.demo.yaml realtime block for scalp.
         "realtime": {
-            "surveillance_interval_seconds": 20,
+            # surveillance_interval_seconds auto-derived from mid TF (15m → 30s)
             "weekend_close_enabled":         True,
             "weekend_close_utc_hour":         19,   # 19:00 UTC — 1h earlier for scalp
         },
@@ -612,9 +661,23 @@ _PROFILES = {
             "threshold": 0.60,
             "floor":     0.50,
         },
-        # NOTE: realtime block above (line ~418) already sets surveillance_interval_seconds=20,
-        # weekend_close_enabled=True, weekend_close_utc_hour=19.  Do NOT add a second
-        # "realtime" key here — Python dict duplicate keys silently drop the first.
+        # ── Confidence-scaled sizing (scalp — tighter range) ─────────────
+        "confidence_sizing": {
+            "enabled":   True,
+            "floor":     0.75,   # low-conf trade → 75% of base risk
+            "ceil":      1.25,   # high-conf trade → 125%
+            "base_conf": 0.45,   # conf at/below this → floor
+        },
+        # ── Streak-momentum sizing (scalp — conservative) ────────────────
+        "streak_sizing": {
+            "enabled":   True,
+            "win_boost": 1.10,   # per consecutive win: +10% (max)
+            "loss_cut":  0.85,   # per consecutive loss: −15% (max)
+        },
+        # NOTE: realtime block above already sets weekend_close_enabled=True,
+        # weekend_close_utc_hour=19.  Do NOT add a second "realtime" key here —
+        # Python dict duplicate keys silently drop the first.
+        # surveillance_interval_seconds is auto-derived from mid TF.
     },
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -623,7 +686,7 @@ _PROFILES = {
     # Designed for maximum trade frequency on 1m charts.
     # Differences from scalp:
     #   • 30-second signal cycle (vs 60s) for near-realtime reaction
-    #   • 10-second surveillance (vs 20s) for faster exit on reversals
+    #   • Surveillance auto-derived from mid TF (5m → 15s)
     #   • Tighter SL (1.5×ATR_1m vs 2.0×) — entries require higher confluence
     #   • 30-min time-stop (vs 2h) — HFT setups resolve very quickly
     #   • entry_cooldown=1min (vs 5min) — allows rapid re-entry after SL
@@ -751,7 +814,7 @@ _PROFILES = {
             "GBPJPY": 0.75,
         },
         "realtime": {
-            "surveillance_interval_seconds": 10,  # 2× more frequent than scalp
+            # surveillance_interval_seconds auto-derived from mid TF (5m → 15s)
             "weekend_close_enabled":         True,
             "weekend_close_utc_hour":         18, # earlier close for HFT
         },

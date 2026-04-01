@@ -18,14 +18,19 @@ Fill model (realistic):
             bullish (C>=O) → dip-first (O→L→H→C), bearish → spike-first.
             Whichever level is reached first on the inferred path wins.
   Spread — dynamic: base spread × volatility multiplier (bar_range/ATR14,
-            capped at 3×).  Models real broker widening during fast moves.
+            capped at 5×).  Models real broker widening during fast moves.
+  Slippage — random ±0.3 pip on every fill (mirrors real market micro-noise).
+  Spread guard — rejects entry when spread > 20% of stop distance.
+  Lot rounding — rounds volume to 0.01 step, clamps to broker min/max.
   Commission — round-trip per-lot cost deducted from every closed trade.
-  Swap   — overnight financing: ~0.3 tick_val/lot/day (FX), $1/lot/day (indices).
+  Swap   — direction-aware overnight financing per symbol; Wed 3× for weekend
+            roll.  Weekend charges folded via 7/5 calendar correction.
 """
 
 import asyncio
 import bisect
 import logging
+import random
 import numpy as np
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -76,6 +81,12 @@ class SimPosition:
     partial_tp1_fired: bool = False
     partial_tp2_fired: bool = False
     windfall_fired:    bool = False
+    # ATR at entry time — used for ATR-adaptive stale_sl scaling.
+    entry_atr: float = 0.0
+    # Peak profit seen (in R) — used for stale winner protection.
+    peak_profit_r: float = 0.0
+    # Global step index (portfolio mode only) — maps to unified_dates for open_dt.
+    open_global_step: int = -1
 
 
 @dataclass
@@ -410,7 +421,7 @@ class BacktestEngine:
         "US30": 3.0,       "US500": 0.50,     "USTEC": 2.0,
     }
     # Maximum spread multiplier during volatile bars (base × cap)
-    _SPREAD_WIDEN_CAP: float = 3.0
+    _SPREAD_WIDEN_CAP: float = 5.0
 
     # ── Commission: USD per standard lot per round-trip ────────────────────
     # Typical ECN FX broker charges ~$7/lot.  Indices/metals vary.
@@ -431,6 +442,30 @@ class BacktestEngine:
         "DAX": 1.0,     "UK100": 1.0,   "US30":    1.0, "US500":   1.0,
         "USTEC": 1.0,
     }
+
+    # ── Swap rates: (long, short) in USD per lot per night ─────────────────
+    # Negative = trader pays, positive = trader receives.
+    # Based on typical ECN broker rates.  Unknown symbols default to (-3.0, -1.0).
+    _SWAP_RATE: Dict[str, tuple] = {
+        "EURUSD": (-5.0, +0.8),  "GBPUSD": (-4.5, +0.5),
+        "USDJPY": (+2.0, -5.5),  "USDCHF": (+1.5, -4.8),
+        "AUDUSD": (-3.2, -0.5),  "USDCAD": (+1.0, -4.2),
+        "NZDUSD": (-2.8, -0.8),  "EURJPY": (-1.5, -3.0),
+        "GBPJPY": (-0.5, -3.5),  "AUDJPY": (+1.0, -4.0),
+        "EURGBP": (-3.0, +0.5),  "XAUUSD": (-8.0, +2.0),
+        "DAX":    (-1.5, -0.5),  "UK100":  (-1.2, -0.3),
+        "US30":   (-2.0, -0.5),  "US500":  (-1.5, -0.3),
+        "USTEC":  (-2.0, -0.5),
+    }
+
+    # ── Volume constraints (mirrors MT5 symbol_info) ──────────────────────
+    _VOL_MIN:  float = 0.01
+    _VOL_MAX:  float = 100.0
+    _VOL_STEP: float = 0.01
+
+    # ── Execution realism ─────────────────────────────────────────────────
+    _SLIPPAGE_PIPS: float = 0.3     # random ±slippage on every fill
+    _MAX_SPREAD_FRAC: float = 0.20  # reject entry when spread > 20% of stop dist
 
     # ── yfinance backfill constants ────────────────────────────────────────
     # Broker symbol → yfinance ticker translation
@@ -462,6 +497,12 @@ class BacktestEngine:
         self.config = config
         self.logger = logging.getLogger("BacktestEngine")
         self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._n_portfolio_symbols: int = 1
+        self._data_dir: Optional[str] = None  # set via set_data_dir() for CSV/Parquet loading
+
+    def set_data_dir(self, path: str) -> None:
+        """Set the directory containing CSV/Parquet bar files for offline loading."""
+        self._data_dir = path
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -534,9 +575,13 @@ class BacktestEngine:
         initial_equity: float,
     ) -> "BacktestResult":
         """Build graph and run the async backtest core. Shared by run() and run_with_bars()."""
+        # Use the mid_tf parameter (which reflects yfinance degradation) rather
+        # than the original config value.  When 30m→1H degradation occurs, the
+        # bar data is stored under the degraded key (EURUSD_1H); if tier_tf_map
+        # still points to "30m" the data loader finds nothing → 0 trades.
         tier_tf_map = {
             "long":  self.config.timeframes.long[0]  if self.config.timeframes.long  else "1D",
-            "mid":   self.config.timeframes.mid[0]   if self.config.timeframes.mid   else "1H",
+            "mid":   mid_tf,
             "short": self.config.timeframes.short[0] if self.config.timeframes.short else "15m",
         }
 
@@ -579,14 +624,1058 @@ class BacktestEngine:
         end_date: str,
         initial_equity: float = 100_000.0,
     ) -> "List[BacktestResult]":
-        """Run backtest for multiple symbols sequentially."""
-        per_sym = initial_equity / max(len(symbols), 1)
-        return [self.run(s, start_date, end_date, per_sym) for s in symbols]
+        """Portfolio-level backtest: all symbols trade simultaneously.
 
-    # ── Async core ────────────────────────────────────────────────────────────
-    # Live-parity summary (runner.py _surveillance_loop vs this loop):
-    #
-    #  SIMULATED ✅:
+        Shared across symbols:
+          - Equity curve (trades in GBPUSD affect EURUSD sizing)
+          - Daily/weekly DD circuit breakers
+          - max_concurrent_trades and max_correlated_positions
+          - Weekend close-all
+
+        Per-symbol:
+          - Agent pipeline, features, data loader
+          - Entry cooldowns, streak guards
+        """
+        if len(symbols) == 1:
+            self._n_portfolio_symbols = 1
+            return [self.run(symbols[0], start_date, end_date, initial_equity)]
+
+        self._n_portfolio_symbols = len(symbols)
+        self.logger.info(
+            f"Portfolio backtest: {len(symbols)} symbols simultaneously"
+        )
+
+        # ── Pre-load bars for all symbols ─────────────────────────────────
+        all_bars: Dict[str, Dict[str, np.ndarray]] = {}
+        bar_dates_by_sym: Dict[str, List[datetime]] = {}
+        mid_tf: Optional[str] = None
+        valid_symbols: List[str] = []
+
+        for sym in symbols:
+            sym_bars, sym_mid_tf, sym_dates = self._preload_bars(sym, start_date, end_date)
+            if not sym_bars or len(sym_dates) < _MIN_BARS + 10:
+                self.logger.warning(f"Not enough bars for {sym} — skipping")
+                continue
+            all_bars.update(sym_bars)
+            bar_dates_by_sym[sym] = sym_dates
+            valid_symbols.append(sym)
+            if mid_tf is None:
+                mid_tf = sym_mid_tf
+
+        if not valid_symbols or mid_tf is None:
+            self.logger.error("No valid symbols for portfolio backtest")
+            self._n_portfolio_symbols = 1
+            return []
+
+        # ── Build unified timeline (union of all bar timestamps) ──────────
+        all_ts_set: set = set()
+        for dates in bar_dates_by_sym.values():
+            all_ts_set.update(dates)
+        unified_dates = sorted(all_ts_set)
+
+        # Build per-symbol timestamp→index map for O(1) bar lookup
+        sym_ts_to_idx: Dict[str, Dict[float, int]] = {}
+        for sym in valid_symbols:
+            mid_key = f"{sym}_{mid_tf}"
+            bars = all_bars.get(mid_key)
+            if bars is not None and "time" in bars:
+                sym_ts_to_idx[sym] = {
+                    float(bars["time"][i]): i
+                    for i in range(len(bars["time"]))
+                }
+            else:
+                sym_ts_to_idx[sym] = {}
+
+        # ── Build per-symbol graph + loader + executor ────────────────────
+        tf_cfg = self.config.timeframes
+        tier_tf_map = {
+            "long":  tf_cfg.long[0]  if tf_cfg.long  else "1D",
+            "mid":   mid_tf,
+            "short": tf_cfg.short[0] if tf_cfg.short else "15m",
+        }
+        macro_history = self._load_macro_history(start_date, end_date)
+
+        from ..agents import (
+            RegimeAgent, TrendAgent, MomentumAgent, MeanReversionAgent,
+            VolatilityAgent, BreadthAgent, PatternAgent, IntermarketAgent,
+            SessionBreakoutAgent, DivergenceAgent, ScalpingAgent,
+            VwapScalpAgent, SqueezeBreakoutAgent, OrderFlowAgent,
+            CorrelationAgent,
+        )
+        from ..runner import _build_registry
+
+        sym_ctx: Dict[str, Dict] = {}
+        for sym in valid_symbols:
+            loader = _BacktestDataLoader(all_bars, tier_tf_map, macro_history=macro_history)
+            executor = _BacktestExecutor(self.config.model_dump())
+            registry = _build_registry(self.config)
+            graph = TradingGraph(
+                registry, self.config.model_dump(),
+                executor=executor, data_loader=loader,
+            )
+            sym_ctx[sym] = {
+                "loader": loader,
+                "executor": executor,
+                "graph": graph,
+                "mid_bars": all_bars[f"{sym}_{mid_tf}"],
+                "bar_dates": bar_dates_by_sym[sym],
+                "tick_val": self._tick_value(sym),
+                "pip_sz": self._pip_size(sym),
+                "base_spread": self._spread(sym),
+                "last_agent_state": None,
+                "last_surv_state": None,
+                "last_entry": {},
+                "last_order_attempt": {},
+                "streak_history": [],
+                "streak_block_dir": None,
+                "streak_block_until": 0,
+                "streak_block_count": 0,
+            }
+
+        loop = asyncio.new_event_loop()
+        try:
+            results = loop.run_until_complete(
+                self._run_async_portfolio(
+                    valid_symbols, all_bars, mid_tf, unified_dates,
+                    initial_equity, sym_ctx, sym_ts_to_idx,
+                    tier_tf_map, start_date, end_date,
+                )
+            )
+        finally:
+            loop.close()
+
+        self._n_portfolio_symbols = 1
+        return results
+
+    def _run_multi_independent(
+        self,
+        symbols: List[str],
+        start_date: str,
+        end_date: str,
+        initial_equity: float = 100_000.0,
+    ) -> "List[BacktestResult]":
+        """Legacy independent-symbol backtest (each symbol gets its own equity)."""
+        self._n_portfolio_symbols = len(symbols)
+        results = [self.run(s, start_date, end_date, initial_equity) for s in symbols]
+        self._n_portfolio_symbols = 1
+        return results
+
+    # ── Portfolio-level async core ────────────────────────────────────────────
+
+    async def _run_async_portfolio(
+        self,
+        symbols: List[str],
+        all_bars: Dict[str, Dict[str, np.ndarray]],
+        mid_tf: str,
+        unified_dates: List[datetime],
+        initial_equity: float,
+        sym_ctx: Dict[str, Dict],
+        sym_ts_to_idx: Dict[str, Dict[float, int]],
+        tier_tf_map: Dict[str, str],
+        start_date: str,
+        end_date: str,
+    ) -> "List[BacktestResult]":
+        """Interleaved multi-symbol backtest with shared equity and DD tracking.
+
+        Walks a unified timeline (union of all symbols' bar timestamps).
+        At each timestamp, for each symbol that has a bar:
+          1. Fill pending entries
+          2. Check SL/TP exits
+          3. Run surveillance (trailing SL, partial TP, time-stop, etc.)
+          4. Run signal pipeline (agents → entry decision)
+
+        Shared state: equity, DD circuit breakers, position count, weekend close.
+        Per-symbol state: agent pipeline, features, cooldowns, streak guards.
+        """
+        n_bars_total = len(unified_dates)
+        if n_bars_total == 0:
+            return []
+
+        # ── Deterministic slippage: per-symbol RNG for reproducible backtests
+        # Using per-symbol Random instances ensures that each symbol gets the
+        # exact same slippage sequence whether running solo or in a portfolio.
+        # A shared global RNG would interleave calls across symbols, making
+        # fills non-reproducible when the symbol set changes.
+        _sym_rng: Dict[str, random.Random] = {}
+        for _i, _s in enumerate(symbols):
+            _sym_rng[_s] = random.Random(42 + _i)
+
+        # ── Pre-compute config dicts once ────────────────────────────────
+        _cfg_raw       = self.config.model_dump()
+        _trailing_cfg  = _cfg_raw.get("trailing", {})
+        _exit_cfg_raw  = _cfg_raw.get("exit_rules", {})
+        _al_cfg        = _cfg_raw.get("alignment", {})
+        _rt_cfg        = _cfg_raw.get("realtime", {})
+
+        _partial1_on   = bool(_trailing_cfg.get("partial_tp_enabled", False))
+        _partial1_frac = float(_trailing_cfg.get("partial_tp_fraction", 0.50))
+        _partial2_on   = bool(_trailing_cfg.get("partial_tp2_enabled", False))
+        _partial2_r    = float(_trailing_cfg.get("partial_tp2_r_mult", 2.0))
+        _partial2_frac = float(_trailing_cfg.get("partial_tp2_fraction", 0.50))
+        _windfall_on   = bool(_trailing_cfg.get("windfall_exit_enabled", False))
+        _windfall_r    = float(_trailing_cfg.get("windfall_r_mult", 3.0))
+        _tp_extend_on  = bool(_trailing_cfg.get("tp_extend_enabled", True))
+        _tp_extend_mult = float(_trailing_cfg.get("tp_extend_atr_mult", 2.0))
+        _early_be_r    = float(_trailing_cfg.get("early_be_r", 0.0))
+        _be_buffer_r   = float(_trailing_cfg.get("be_buffer_r", 0.0))
+        _stale_sl_hours = float(_trailing_cfg.get("stale_sl_hours", 0.0))
+        _stale_sl_r    = float(_trailing_cfg.get("stale_sl_r_mult", 0.75))
+        _atr_mult      = float(_trailing_cfg.get("atr_multiplier", 1.5))
+        _max_hours_ts  = float(_exit_cfg_raw.get("max_trade_duration_hours", 0))
+        _fade_enabled  = bool(_exit_cfg_raw.get("conviction_fade_enabled", False))
+        _fade_thresh   = float(_exit_cfg_raw.get("conviction_fade_threshold", 0.10))
+        _opp_enabled   = bool(_exit_cfg_raw.get("mid_short_opposition_enabled", True))
+        _opp_thresh    = float(_exit_cfg_raw.get("mid_short_opposition_threshold", 0.35))
+        _tighten_on    = bool(_exit_cfg_raw.get("tighten_on_fade_enabled", True))
+        _tighten_thresh = float(_exit_cfg_raw.get("tighten_fade_threshold", 0.20))
+        _tighten_tp_m  = float(_exit_cfg_raw.get("tighten_tp_atr_mult", 0.5))
+        _flip_thresh   = float(_exit_cfg_raw.get("d1_flip_threshold",
+                                                  _al_cfg.get("long_min_score", 0.25)))
+        _scalp_exits   = bool(_exit_cfg_raw.get("use_short_tier_exits", False))
+        _scalp_flip    = float(_exit_cfg_raw.get("short_flip_threshold", 0.35))
+        _ct_max_hours  = float(_exit_cfg_raw.get("ct_max_hours", 2.0))
+        _skip_struct_ratchet = bool(_exit_cfg_raw.get("skip_structural_sl_tp_ratchet", False))
+
+        _tf_hours_map = {"1m": 1/60, "5m": 5/60, "15m": 0.25, "30m": 0.5,
+                         "1H": 1.0, "4H": 4.0, "1D": 24.0}
+        _hrs_per_bar  = _tf_hours_map.get(mid_tf, 1.0)
+        self._hrs_per_bar = _hrs_per_bar
+
+        _wkend_enabled = bool(_rt_cfg.get("weekend_close_enabled", False))
+        _wkend_hour    = int(_rt_cfg.get("weekend_close_utc_hour", 20))
+        _dd_pct        = self.config.risk.max_daily_drawdown_pct
+        _wk_dd_pct     = float(_cfg_raw.get("risk", {}).get("max_weekly_drawdown_pct", 0))
+        _leverage      = float(_cfg_raw.get("risk", {}).get("leverage", 30))
+
+        _bar_seconds_map = {"1m": 60, "5m": 300, "15m": 900, "30m": 1800,
+                            "1H": 3600, "4H": 14400, "1D": 86400}
+        _bar_seconds   = _bar_seconds_map.get(mid_tf, 3600)
+        _sig_interval_s = int(_cfg_raw.get("interval_seconds", None)
+                              or getattr(self.config, "interval_seconds", 300) or 300)
+        _agent_interval = max(1, round(_sig_interval_s / _bar_seconds))
+
+        _surv_explicit = _cfg_raw.get("realtime", {}).get("surveillance_interval_seconds")
+        if _surv_explicit is not None:
+            _surv_seconds = int(_surv_explicit)
+        else:
+            _surv_by_tf = {"1m": 10, "5m": 15, "15m": 30, "30m": 45,
+                           "1H": 60, "4H": 90, "1D": 120}
+            _surv_seconds = _surv_by_tf.get(mid_tf, 60)
+        _surv_interval = max(1, round(_surv_seconds / _bar_seconds))
+
+        _cooldown_base = float(getattr(self.config.risk, "entry_cooldown_minutes", 0.0))
+        _cooldown_scale = {"1m": 0.25, "5m": 0.50, "15m": 0.75, "30m": 0.85}.get(mid_tf, 1.0)
+        _cooldown_min  = max(5.0, _cooldown_base * _cooldown_scale)
+        _max_daily     = int(getattr(self.config.risk, "max_daily_trades", 0))
+
+        _streak_base_bars = max(1, int(4 * 3600 / _bar_seconds))
+        _streak_max_bars  = max(1, int(24 * 3600 / _bar_seconds))
+
+        _news_atr_mult = float(_cfg_raw.get("execution", {}).get("news_spike_atr_mult", 3.0))
+        _news_blackout_enabled = bool(_cfg_raw.get("execution", {}).get("news_blackout_minutes", 0) > 0)
+
+        # ── Shared state ──────────────────────────────────────────────────
+        equity = initial_equity
+        equity_curve: List[float] = []
+        equity_dates: List[datetime] = []
+        open_positions: List[SimPosition] = []   # ALL symbols
+        closed_trades: List[ClosedTrade] = []    # ALL symbols
+        self._prev_closed_count_pf = 0           # reset for each portfolio run
+        _day_open_equity = equity
+        _day_halted = False
+        _current_day: Optional[int] = None
+        _wk_open_equity = equity
+        _wk_halted = False
+        _current_week: Optional[int] = None
+        _day_trade_count = 0
+        _weekend_blocked = False
+        # Per-symbol equity curves: track each symbol's contribution separately
+        # so that per-symbol metrics (return%, maxDD, Sharpe) reflect that
+        # symbol's trades, not the whole portfolio.  Each curve = initial_equity
+        # + cumulative realized P&L for that symbol + unrealized P&L for that
+        # symbol's open positions.
+        _sym_equity_curve: Dict[str, List[float]] = {s: [] for s in symbols}
+        _sym_realized: Dict[str, float] = {s: 0.0 for s in symbols}
+        risk_limits = RiskLimits(
+            base_risk_pct=self.config.risk.base_risk_pct,
+            max_daily_drawdown_pct=self.config.risk.max_daily_drawdown_pct,
+            max_concurrent_trades=self.config.risk.max_concurrent_trades,
+        )
+
+        # Per-symbol step counters (for agent_interval / surv_interval)
+        _sym_step: Dict[str, int] = {s: 0 for s in symbols}
+
+        # Signal start: skip bars before start_date
+        _start_dt = None
+        if start_date:
+            try:
+                _start_dt = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            except Exception:
+                pass
+
+        # Wait until each symbol has enough warmup bars
+        _sym_warmup_done: Dict[str, bool] = {s: False for s in symbols}
+
+        # Suppress graph logs during backtest
+        _graph_logger = logging.getLogger("TradingGraph")
+        _graph_orig_level = _graph_logger.level
+        if logging.getLogger().getEffectiveLevel() > logging.DEBUG:
+            _graph_logger.setLevel(logging.WARNING)
+
+        self.logger.info(
+            f"[portfolio] {len(symbols)} symbols, {n_bars_total} unified bars, "
+            f"mid_tf={mid_tf}, agent_interval={_agent_interval}, "
+            f"surv_interval={_surv_interval}"
+        )
+
+        _is_tty = getattr(_sys_.stderr, "isatty", lambda: False)()
+        _bar_range = range(n_bars_total)
+        if _tqdm is not None and _is_tty:
+            _progress = _tqdm(_bar_range, desc="Portfolio backtest",
+                              unit="bar", leave=True, dynamic_ncols=True)
+        else:
+            _progress = _bar_range
+        _report_every = max(100, n_bars_total // 20)
+
+        for global_step in _progress:
+            bar_date = unified_dates[global_step]
+            bar_ts = bar_date.timestamp()
+
+            # Record equity at top of bar
+            equity_curve.append(equity)
+            equity_dates.append(bar_date)
+
+            # ── Daily / weekly guard reset ────────────────────────────────
+            if _current_day != bar_date.day:
+                _current_day = bar_date.day
+                _day_open_equity = equity
+                _day_halted = False
+                _day_trade_count = 0
+            if not _day_halted and _dd_pct > 0:
+                day_dd = (equity - _day_open_equity) / max(_day_open_equity, 1e-9) * 100
+                if day_dd <= -_dd_pct:
+                    _day_halted = True
+                    for _ddpos in list(open_positions):
+                        if not _ddpos.pending:
+                            _tv = sym_ctx[_ddpos.symbol]["tick_val"]
+                            _ps = sym_ctx[_ddpos.symbol]["pip_sz"]
+                            _mb = sym_ctx[_ddpos.symbol]["mid_bars"]
+                            _si = sym_ts_to_idx[_ddpos.symbol].get(bar_ts)
+                            _cl = float(_mb["close"][_si]) if _si is not None else _ddpos.entry_price
+                            _ddpnl = self._pnl_at(_ddpos, _cl, _tv, _ps, close_step=_si or 0)
+                            closed_trades.append(ClosedTrade(
+                                symbol=_ddpos.symbol, direction=_ddpos.direction,
+                                entry_price=_ddpos.entry_price, exit_price=_cl,
+                                stop_loss=_ddpos.stop_loss, take_profit=_ddpos.take_profit,
+                                quantity=_ddpos.quantity, risk_amount=_ddpos.risk_amount,
+                                pnl=_ddpnl, pnl_r=_ddpnl / max(_ddpos.risk_amount, 1e-9),
+                                open_bar=_ddpos.open_bar, close_bar=global_step,
+                                exit_reason="dd_close_all", confidence=_ddpos.confidence,
+                                win_probability=_ddpos.win_probability,
+                                agent_votes=_ddpos.agent_votes,
+                            ))
+                    open_positions.clear()
+
+            _iso_week = bar_date.isocalendar()[1]
+            if _current_week != _iso_week:
+                _current_week = _iso_week
+                _wk_open_equity = equity
+                _wk_halted = False
+            if not _wk_halted and _wk_dd_pct > 0:
+                wk_dd = (equity - _wk_open_equity) / max(_wk_open_equity, 1e-9) * 100
+                if wk_dd <= -_wk_dd_pct:
+                    _wk_halted = True
+                    for _wkpos in list(open_positions):
+                        if not _wkpos.pending:
+                            _tv = sym_ctx[_wkpos.symbol]["tick_val"]
+                            _ps = sym_ctx[_wkpos.symbol]["pip_sz"]
+                            _mb = sym_ctx[_wkpos.symbol]["mid_bars"]
+                            _si = sym_ts_to_idx[_wkpos.symbol].get(bar_ts)
+                            _cl = float(_mb["close"][_si]) if _si is not None else _wkpos.entry_price
+                            _wkpnl = self._pnl_at(_wkpos, _cl, _tv, _ps, close_step=_si or 0)
+                            closed_trades.append(ClosedTrade(
+                                symbol=_wkpos.symbol, direction=_wkpos.direction,
+                                entry_price=_wkpos.entry_price, exit_price=_cl,
+                                stop_loss=_wkpos.stop_loss, take_profit=_wkpos.take_profit,
+                                quantity=_wkpos.quantity, risk_amount=_wkpos.risk_amount,
+                                pnl=_wkpnl, pnl_r=_wkpnl / max(_wkpos.risk_amount, 1e-9),
+                                open_bar=_wkpos.open_bar, close_bar=global_step,
+                                exit_reason="weekly_dd_close_all", confidence=_wkpos.confidence,
+                                win_probability=_wkpos.win_probability,
+                                agent_votes=_wkpos.agent_votes,
+                            ))
+                    open_positions.clear()
+
+            # ── Weekend close (shared across all symbols) ─────────────────
+            _weekday = bar_date.weekday()
+            if _wkend_enabled:
+                if _weekday == 4 and bar_date.hour >= _wkend_hour:
+                    if not _weekend_blocked:
+                        _weekend_blocked = True
+                        for _wpos in list(open_positions):
+                            if not _wpos.pending:
+                                _tv = sym_ctx[_wpos.symbol]["tick_val"]
+                                _ps = sym_ctx[_wpos.symbol]["pip_sz"]
+                                _mb = sym_ctx[_wpos.symbol]["mid_bars"]
+                                _si = sym_ts_to_idx[_wpos.symbol].get(bar_ts)
+                                _cl = float(_mb["close"][_si]) if _si is not None else _wpos.entry_price
+                                _wpnl = self._pnl_at(_wpos, _cl, _tv, _ps, close_step=_si or 0)
+                                closed_trades.append(ClosedTrade(
+                                    symbol=_wpos.symbol, direction=_wpos.direction,
+                                    entry_price=_wpos.entry_price, exit_price=_cl,
+                                    stop_loss=_wpos.stop_loss, take_profit=_wpos.take_profit,
+                                    quantity=_wpos.quantity, risk_amount=_wpos.risk_amount,
+                                    pnl=_wpnl, pnl_r=_wpnl / max(_wpos.risk_amount, 1e-9),
+                                    open_bar=_wpos.open_bar, close_bar=global_step,
+                                    exit_reason="weekend", confidence=_wpos.confidence,
+                                    win_probability=_wpos.win_probability,
+                                    agent_votes=_wpos.agent_votes,
+                                ))
+                        open_positions.clear()
+                elif _weekday < 4:
+                    _weekend_blocked = False
+
+            # ── Process each symbol that has a bar at this timestamp ──────
+            for sym in symbols:
+                idx = sym_ts_to_idx[sym].get(bar_ts)
+                if idx is None:
+                    continue
+
+                ctx = sym_ctx[sym]
+                mid_bars = ctx["mid_bars"]
+                tick_val = ctx["tick_val"]
+                pip_sz   = ctx["pip_sz"]
+                loader   = ctx["loader"]
+                executor = ctx["executor"]
+                graph    = ctx["graph"]
+
+                # Check warmup
+                if idx < _MIN_BARS:
+                    continue
+                if not _sym_warmup_done[sym]:
+                    if _start_dt and bar_date < _start_dt:
+                        continue
+                    _sym_warmup_done[sym] = True
+
+                _sym_step[sym] += 1
+                step = _sym_step[sym]
+
+                loader._current_step = idx
+                loader._current_bar_ts = float(mid_bars["time"][idx])
+
+                hi = float(mid_bars["high"][idx])
+                lo = float(mid_bars["low"][idx])
+                cl = float(mid_bars["close"][idx])
+                bar_open = float(mid_bars["open"][idx])
+
+                # Dynamic spread
+                _atr_win_sp = [mid_bars["high"][i] - mid_bars["low"][i]
+                               for i in range(max(0, idx - 14), idx)]
+                _atr_sp = float(np.mean(_atr_win_sp)) if _atr_win_sp else (hi - lo)
+                spread = self._dynamic_spread(sym, hi - lo, _atr_sp)
+                bid = cl - spread / 2
+                ask = cl + spread / 2
+                executor.set_price(sym, bid, ask)
+                executor._open_positions = [p for p in open_positions if p.symbol == sym]
+
+                # ── Fill pending entries at bar open ──────────────────────
+                _fill_rejects = []
+                for pos in open_positions:
+                    if pos.pending and pos.symbol == sym:
+                        _stop_dist = abs(pos.entry_price - pos.stop_loss)
+                        if _stop_dist > 1e-9 and spread / _stop_dist > self._MAX_SPREAD_FRAC:
+                            _fill_rejects.append(pos)
+                            continue
+                        pos.quantity = round(round(pos.quantity / self._VOL_STEP) * self._VOL_STEP, 8)
+                        pos.quantity = max(self._VOL_MIN, min(self._VOL_MAX, pos.quantity))
+                        _slip = _sym_rng[sym].uniform(-self._SLIPPAGE_PIPS, self._SLIPPAGE_PIPS) * pip_sz
+                        if pos.direction == "long":
+                            pos.entry_price = bar_open + spread / 2 + _slip
+                        else:
+                            pos.entry_price = bar_open - spread / 2 + _slip
+                        pos.pending = False
+                        pos.entry_atr = _atr_sp
+                for _rj in _fill_rejects:
+                    open_positions.remove(_rj)
+
+                # ── SL/TP exit check for this symbol's positions ─────────
+                sym_positions = [p for p in open_positions if p.symbol == sym and not p.pending]
+                still_open: List[SimPosition] = []
+                for pos in sym_positions:
+                    exited = self._check_exit(
+                        pos, hi, lo, idx, tick_val, pip_sz, closed_trades,
+                        bar_open=bar_open, bar_close=cl,
+                    )
+                    if exited:
+                        # Update bar index to global_step for consistent equity tracking
+                        closed_trades[-1] = ClosedTrade(
+                            **{**closed_trades[-1].__dict__, "close_bar": global_step}
+                        )
+                        open_positions.remove(pos)
+                    else:
+                        still_open.append(pos)
+
+                # ── Surveillance: run agents in exit_check_only mode ──────
+                if still_open and (step % _surv_interval == 0 or ctx["last_surv_state"] is None):
+                    try:
+                        _surv_feats_by_tf = loader.get_multi_features(sym)
+                        _surv_feat = (
+                            _surv_feats_by_tf.get("mid")
+                            or _surv_feats_by_tf.get("long")
+                            or _surv_feats_by_tf.get("short")
+                        )
+                        if _surv_feat is not None:
+                            _s = await graph.run(
+                                symbol=sym,
+                                features=_surv_feat,
+                                portfolio_state=None,
+                                risk_limits=risk_limits,
+                                features_by_tf=_surv_feats_by_tf,
+                                exit_check_only=True,
+                            )
+                            ctx["last_surv_state"] = _s
+                    except Exception:
+                        pass
+
+                # ── Position management: trailing SL, partial TP, etc. ───
+                _fusion = (ctx["last_surv_state"].get("timeframe_fusion")
+                           if ctx["last_surv_state"] else None)
+                _atr_wins = [mid_bars["high"][i] - mid_bars["low"][i]
+                             for i in range(max(0, idx - 14), idx)]
+                _atr = float(np.mean(_atr_wins)) if _atr_wins else 0.0
+
+                for pos in still_open:
+                    _one_r = abs(pos.entry_price - pos.entry_sl) if pos.entry_sl else 0.0
+                    if _one_r < 1e-9:
+                        continue
+                    _is_long = pos.direction == "long"
+                    _profit_dist = (cl - pos.entry_price) if _is_long else (pos.entry_price - cl)
+                    _profit_r = _profit_dist / _one_r
+                    if _profit_r > pos.peak_profit_r:
+                        pos.peak_profit_r = _profit_r
+
+                    _should_close = False
+                    _close_reason = ""
+
+                    # Time-stop
+                    if _max_hours_ts > 0:
+                        _hours_held = (idx - pos.open_bar) * _hrs_per_bar
+                        _is_ct = getattr(pos, "entry_type", "") == "counter-trend-scalp"
+                        _eff_ts = _ct_max_hours if _is_ct else _max_hours_ts
+                        if _hours_held >= _eff_ts:
+                            _should_close = True
+                            _close_reason = "time-stop"
+
+                    # Conviction fade / D1 flip / opposition
+                    if not _should_close and _fusion is not None:
+                        _d_long = _fusion.dir_long
+                        _d_mid = _fusion.dir_mid
+                        _d_short = _fusion.dir_short
+                        if _scalp_exits:
+                            if _is_long and _d_short < -_scalp_flip:
+                                _should_close = True; _close_reason = "scalp: short flip bearish"
+                            elif not _is_long and _d_short > _scalp_flip:
+                                _should_close = True; _close_reason = "scalp: short flip bullish"
+                            if not _should_close and _opp_enabled:
+                                if _is_long and _d_mid < -_opp_thresh and _d_short < -_opp_thresh:
+                                    _should_close = True; _close_reason = "scalp: mid+short bearish"
+                                elif not _is_long and _d_mid > _opp_thresh and _d_short > _opp_thresh:
+                                    _should_close = True; _close_reason = "scalp: mid+short bullish"
+                        else:
+                            _is_ct = getattr(pos, "entry_type", "") == "counter-trend-scalp"
+                            if not _is_ct:
+                                if _is_long and _d_long < -_flip_thresh:
+                                    _should_close = True; _close_reason = "D1 flipped bearish"
+                                elif not _is_long and _d_long > _flip_thresh:
+                                    _should_close = True; _close_reason = "D1 flipped bullish"
+                            if not _should_close and _fade_enabled and abs(_d_long) < _fade_thresh:
+                                if not _is_ct:
+                                    _should_close = True; _close_reason = "conviction faded"
+                            if not _should_close and _opp_enabled:
+                                if _is_long and _d_mid < -_opp_thresh and _d_short < -_opp_thresh:
+                                    _should_close = True; _close_reason = "mid+short opposition"
+                                elif not _is_long and _d_mid > _opp_thresh and _d_short > _opp_thresh:
+                                    _should_close = True; _close_reason = "mid+short opposition"
+                            if not _should_close and _is_ct:
+                                _trade_sign = 1.0 if _is_long else -1.0
+                                if _d_mid * _trade_sign < -_opp_thresh:
+                                    _should_close = True; _close_reason = "CT mid flipped against"
+
+                    if _should_close:
+                        _pnl_c = self._pnl_at(pos, cl, tick_val, pip_sz, close_step=idx)
+                        closed_trades.append(ClosedTrade(
+                            symbol=pos.symbol, direction=pos.direction,
+                            entry_price=pos.entry_price, exit_price=cl,
+                            stop_loss=pos.stop_loss, take_profit=pos.take_profit,
+                            quantity=pos.quantity, risk_amount=pos.risk_amount,
+                            pnl=_pnl_c, pnl_r=_pnl_c / max(pos.risk_amount, 1e-9),
+                            open_bar=pos.open_bar, close_bar=global_step,
+                            exit_reason=_close_reason, confidence=pos.confidence,
+                            win_probability=pos.win_probability,
+                            agent_votes=pos.agent_votes,
+                        ))
+                        open_positions.remove(pos)
+                        continue
+
+                    # Tighten-on-fade: conviction weakening but not close-worthy.
+                    # Lock SL at break-even and pull TP close when dir_long is
+                    # between fade_thresh and tighten_thresh and trade is green.
+                    if (_tighten_on and _fusion is not None
+                            and not _scalp_exits and _atr > 0
+                            and _profit_dist > 0
+                            and _fade_thresh < abs(_fusion.dir_long) < _tighten_thresh):
+                        if _is_long:
+                            _t_sl = max(pos.stop_loss, pos.entry_price)
+                            _t_tp = cl + _tighten_tp_m * _atr
+                            if _t_sl > pos.stop_loss:
+                                pos.stop_loss = _t_sl
+                            if pos.take_profit <= 0 or _t_tp < pos.take_profit - 0.2 * _atr:
+                                pos.take_profit = _t_tp
+                        else:
+                            _t_sl = min(pos.stop_loss, pos.entry_price) if pos.stop_loss > 0 else pos.entry_price
+                            _t_tp = cl - _tighten_tp_m * _atr
+                            if pos.stop_loss <= 0 or _t_sl < pos.stop_loss:
+                                pos.stop_loss = _t_sl
+                            if pos.take_profit <= 0 or _t_tp > pos.take_profit + 0.2 * _atr:
+                                pos.take_profit = _t_tp
+
+                    # Windfall exit
+                    if _windfall_on and not pos.windfall_fired and _profit_dist >= _windfall_r * _one_r:
+                        pos.windfall_fired = True
+                        _pnl_wf = self._pnl_at(pos, cl, tick_val, pip_sz, close_step=idx)
+                        closed_trades.append(ClosedTrade(
+                            symbol=pos.symbol, direction=pos.direction,
+                            entry_price=pos.entry_price, exit_price=cl,
+                            stop_loss=pos.stop_loss, take_profit=pos.take_profit,
+                            quantity=pos.quantity, risk_amount=pos.risk_amount,
+                            pnl=_pnl_wf, pnl_r=_pnl_wf / max(pos.risk_amount, 1e-9),
+                            open_bar=pos.open_bar, close_bar=global_step,
+                            exit_reason="windfall", confidence=pos.confidence,
+                            win_probability=pos.win_probability,
+                            agent_votes=pos.agent_votes,
+                        ))
+                        open_positions.remove(pos)
+                        continue
+
+                    # Partial TP1
+                    if (_partial1_on and not pos.partial_tp1_fired
+                            and 1.0 * _one_r <= _profit_dist < 1.5 * _one_r):
+                        _qty1 = pos.quantity * _partial1_frac
+                        _p1 = self._pnl_at_qty(pos, cl, _qty1, tick_val, pip_sz)
+                        _orig_risk = pos.risk_amount
+                        _part_risk = _orig_risk * _partial1_frac
+                        closed_trades.append(ClosedTrade(
+                            symbol=pos.symbol, direction=pos.direction,
+                            entry_price=pos.entry_price, exit_price=cl,
+                            stop_loss=pos.stop_loss, take_profit=pos.take_profit,
+                            quantity=_qty1, risk_amount=_part_risk,
+                            pnl=_p1, pnl_r=_p1 / max(_part_risk, 1e-9),
+                            open_bar=pos.open_bar, close_bar=global_step,
+                            exit_reason="partial_tp1", confidence=pos.confidence,
+                            win_probability=pos.win_probability, agent_votes=pos.agent_votes,
+                        ))
+                        pos.quantity -= _qty1
+                        pos.risk_amount = _orig_risk * (1.0 - _partial1_frac)
+                        pos.partial_tp1_fired = True
+                        if _is_long:
+                            pos.stop_loss = pos.entry_price - _be_buffer_r * _one_r
+                        else:
+                            pos.stop_loss = pos.entry_price + _be_buffer_r * _one_r
+
+                    # Partial TP2
+                    if _partial2_on and not pos.partial_tp2_fired and _profit_dist >= _partial2_r * _one_r:
+                        _qty2 = pos.quantity * _partial2_frac
+                        _p2 = self._pnl_at_qty(pos, cl, _qty2, tick_val, pip_sz)
+                        _orig_risk2 = pos.risk_amount
+                        _part_risk2 = _orig_risk2 * _partial2_frac
+                        closed_trades.append(ClosedTrade(
+                            symbol=pos.symbol, direction=pos.direction,
+                            entry_price=pos.entry_price, exit_price=cl,
+                            stop_loss=pos.stop_loss, take_profit=pos.take_profit,
+                            quantity=_qty2, risk_amount=_part_risk2,
+                            pnl=_p2, pnl_r=_p2 / max(_part_risk2, 1e-9),
+                            open_bar=pos.open_bar, close_bar=global_step,
+                            exit_reason="partial_tp2", confidence=pos.confidence,
+                            win_probability=pos.win_probability, agent_votes=pos.agent_votes,
+                        ))
+                        pos.quantity -= _qty2
+                        pos.risk_amount = _orig_risk2 * (1.0 - _partial2_frac)
+                        pos.partial_tp2_fired = True
+                        _bump = 0.7 * _one_r
+                        if _is_long:
+                            pos.stop_loss = max(pos.stop_loss, pos.entry_price + _bump)
+                        else:
+                            pos.stop_loss = min(pos.stop_loss, pos.entry_price - _bump)
+
+                    # Progressive stale-SL tightening
+                    if _stale_sl_hours > 0 and _profit_dist < 0:
+                        _hours_held_sl = (idx - pos.open_bar) * _hrs_per_bar
+                        if _hours_held_sl >= _stale_sl_hours:
+                            _overtime_frac = min(1.0, (_hours_held_sl - _stale_sl_hours)
+                                                      / (2.0 * _stale_sl_hours))
+                            _atr_ratio = min(1.0, _atr / pos.entry_atr) if pos.entry_atr > 1e-9 else 1.0
+                            _prog_r = _stale_sl_r * _atr_ratio * (1.0 - 0.40 * _overtime_frac)
+                            if _is_long:
+                                _tight_sl = pos.entry_price - _prog_r * _one_r
+                                if pos.stop_loss < _tight_sl - 1e-9:
+                                    pos.stop_loss = _tight_sl
+                            else:
+                                _tight_sl = pos.entry_price + _prog_r * _one_r
+                                if pos.stop_loss > _tight_sl + 1e-9:
+                                    pos.stop_loss = _tight_sl
+
+                    # Stale winner protection
+                    if (_stale_sl_hours > 0 and _profit_r > 0 and _profit_r < 1.0
+                            and pos.peak_profit_r - _profit_r >= 0.3):
+                        _hours_held_sw = (idx - pos.open_bar) * _hrs_per_bar
+                        if _hours_held_sw >= _stale_sl_hours:
+                            if _is_long:
+                                _be_floor = pos.entry_price - _be_buffer_r * _one_r
+                                if pos.stop_loss < _be_floor - 1e-9:
+                                    pos.stop_loss = _be_floor
+                            else:
+                                _be_floor = pos.entry_price + _be_buffer_r * _one_r
+                                if pos.stop_loss > _be_floor + 1e-9:
+                                    pos.stop_loss = _be_floor
+
+                    # Trailing SL stages
+                    if _atr > 0:
+                        _be_sl_long  = pos.entry_price - _be_buffer_r * _one_r
+                        _be_sl_short = pos.entry_price + _be_buffer_r * _one_r
+                        if _is_long:
+                            if _profit_dist >= 2.0 * _one_r:
+                                _new_sl = max(pos.stop_loss, cl - _atr * _atr_mult, pos.entry_price + 0.5 * _one_r)
+                                if _tp_extend_on and pos.take_profit > 0 and (pos.take_profit - cl) < _atr:
+                                    pos.take_profit = cl + _tp_extend_mult * _atr
+                            elif _profit_dist >= 1.5 * _one_r:
+                                _new_sl = max(pos.stop_loss, pos.entry_price + 0.5 * _one_r)
+                            elif _profit_dist >= 1.0 * _one_r:
+                                _new_sl = max(pos.stop_loss, _be_sl_long)
+                            elif _early_be_r > 0 and _profit_dist >= _early_be_r * _one_r:
+                                _new_sl = max(pos.stop_loss, _be_sl_long)
+                            else:
+                                _new_sl = pos.stop_loss
+                            if _new_sl > pos.stop_loss:
+                                pos.stop_loss = _new_sl
+                        else:
+                            if _profit_dist >= 2.0 * _one_r:
+                                _new_sl = min(pos.stop_loss, cl + _atr * _atr_mult, pos.entry_price - 0.5 * _one_r)
+                                if _tp_extend_on and pos.take_profit > 0 and (cl - pos.take_profit) < _atr:
+                                    pos.take_profit = cl - _tp_extend_mult * _atr
+                            elif _profit_dist >= 1.5 * _one_r:
+                                _new_sl = min(pos.stop_loss, pos.entry_price - 0.5 * _one_r)
+                            elif _profit_dist >= 1.0 * _one_r:
+                                _new_sl = min(pos.stop_loss, _be_sl_short)
+                            elif _early_be_r > 0 and _profit_dist >= _early_be_r * _one_r:
+                                _new_sl = min(pos.stop_loss, _be_sl_short)
+                            else:
+                                _new_sl = pos.stop_loss
+                            if _new_sl < pos.stop_loss:
+                                pos.stop_loss = _new_sl
+
+                    # Structural pivot ratchet (mirrors trailing_stop._update_structural_one)
+                    if not _skip_struct_ratchet and _atr > 0 and _profit_dist > 0:
+                        _struct_buf  = 0.25 * _atr
+                        _min_sl_dist = 1.5 * _atr
+                        _live_p = ask if _is_long else bid
+                        _pivots = loader.get_structural_levels(sym, _live_p, _atr)
+                        if _is_long:
+                            _struct_sl = _pivots["nearest_support"] - _struct_buf
+                            _struct_sl = min(_struct_sl, _live_p - _min_sl_dist)
+                            if _struct_sl > pos.stop_loss:
+                                pos.stop_loss = _struct_sl
+                            _resist_cands = sorted(
+                                l for l in (_pivots["r1"], _pivots["r2"])
+                                if l > pos.entry_price + _min_sl_dist
+                            )
+                            if _resist_cands and pos.take_profit > 0:
+                                _struct_tp = _resist_cands[0]
+                                if _struct_tp > pos.take_profit:
+                                    pos.take_profit = _struct_tp
+                        else:
+                            _struct_sl = _pivots["nearest_resist"] + _struct_buf
+                            _struct_sl = max(_struct_sl, _live_p + _min_sl_dist)
+                            if _struct_sl < pos.stop_loss:
+                                pos.stop_loss = _struct_sl
+                            _supp_cands = sorted(
+                                (l for l in (_pivots["s1"], _pivots["s2"])
+                                 if l < pos.entry_price - _min_sl_dist),
+                                reverse=True,
+                            )
+                            if _supp_cands and pos.take_profit > 0:
+                                _struct_tp = _supp_cands[0]
+                                if _struct_tp < pos.take_profit:
+                                    pos.take_profit = _struct_tp
+
+                    # Late _should_close check (stale_market_close sets it after
+                    # the early conviction check at section above).
+                    if _should_close:
+                        _pnl_lc = self._pnl_at(pos, cl, tick_val, pip_sz, close_step=idx)
+                        closed_trades.append(ClosedTrade(
+                            symbol=pos.symbol, direction=pos.direction,
+                            entry_price=pos.entry_price, exit_price=cl,
+                            stop_loss=pos.stop_loss, take_profit=pos.take_profit,
+                            quantity=pos.quantity, risk_amount=pos.risk_amount,
+                            pnl=_pnl_lc, pnl_r=_pnl_lc / max(pos.risk_amount, 1e-9),
+                            open_bar=pos.open_bar, close_bar=global_step,
+                            exit_reason=_close_reason, confidence=pos.confidence,
+                            win_probability=pos.win_probability,
+                            agent_votes=pos.agent_votes,
+                        ))
+                        open_positions.remove(pos)
+                        continue
+
+                # ── Signal pipeline: run agents and enter ─────────────────
+                executor.placed_orders.clear()
+                _run_agents = (step % _agent_interval == 0) or (ctx["last_agent_state"] is None)
+                if not _run_agents or _day_halted or _wk_halted or _weekend_blocked:
+                    continue
+
+                # Pre-graph entry guards (shared position count)
+                _skip_entry = False
+                if _cooldown_min > 0:
+                    _pre_last_t = ctx["last_order_attempt"].get(sym) or ctx["last_entry"].get(sym)
+                    if _pre_last_t is not None:
+                        _pre_elapsed = (bar_date - _pre_last_t).total_seconds() / 60.0
+                        if _pre_elapsed < _cooldown_min:
+                            _skip_entry = True
+                if not _skip_entry and _max_daily > 0 and _day_trade_count >= _max_daily:
+                    _skip_entry = True
+                # Shared max_concurrent across ALL symbols
+                if not _skip_entry:
+                    _pre_mc = risk_limits.max_concurrent_trades
+                    if _pre_mc > 0 and len([p for p in open_positions if not p.pending]) >= _pre_mc:
+                        _skip_entry = True
+                if not _skip_entry and _news_blackout_enabled and _atr_sp > 0:
+                    _bar_range_v = hi - lo
+                    if _bar_range_v > _news_atr_mult * _atr_sp:
+                        _skip_entry = True
+                if not _skip_entry and _leverage > 0:
+                    _margin_used = sum(
+                        p.quantity * p.entry_price * 100_000 / _leverage
+                        for p in open_positions if not p.pending
+                    )
+                    _free_margin = equity - _margin_used
+                    if _free_margin < 0.20 * equity:
+                        _skip_entry = True
+                if _skip_entry:
+                    continue
+
+                try:
+                    features_by_tf = loader.get_multi_features(sym)
+                    features = (
+                        features_by_tf.get("mid")
+                        or features_by_tf.get("long")
+                        or features_by_tf.get("short")
+                    )
+                    if features is None:
+                        continue
+
+                    # Build portfolio state with shared equity and ALL positions
+                    portfolio = self._make_portfolio_multi(
+                        equity, _day_open_equity, open_positions,
+                        sym_ctx, sym_ts_to_idx, bar_ts,
+                    )
+                    _sym_hist = ctx.get("streak_history", [])
+                    _recent_pnl_r = [1.0 if t[1] > 0 else -1.0 for t in _sym_hist[-6:]]
+
+                    state = await graph.run(
+                        symbol=sym,
+                        features=features,
+                        portfolio_state=portfolio,
+                        risk_limits=risk_limits,
+                        features_by_tf=features_by_tf,
+                        recent_pnl_r=_recent_pnl_r,
+                    )
+                    ctx["last_agent_state"] = state
+
+                    for order in executor.placed_orders:
+                        # Shared max_concurrent guard
+                        _max_conc = risk_limits.max_concurrent_trades
+                        if _max_conc > 0 and len([p for p in open_positions if not p.pending]) >= _max_conc:
+                            break
+
+                        if _cooldown_min > 0:
+                            last_t = ctx["last_entry"].get(sym)
+                            if last_t is not None:
+                                elapsed = (bar_date - last_t).total_seconds() / 60.0
+                                if elapsed < _cooldown_min:
+                                    continue
+
+                        if _max_daily > 0 and _day_trade_count >= _max_daily:
+                            break
+
+                        tp = order["trade_plan"]
+                        _dir = getattr(tp.recipe.direction, "value", str(tp.recipe.direction))
+                        if "." in _dir:
+                            _dir = _dir.split(".")[-1].lower()
+
+                        # Streak guard
+                        _blk_dir = ctx.get("streak_block_dir")
+                        _blk_until = ctx.get("streak_block_until", 0)
+                        if _blk_dir == _dir and step < _blk_until:
+                            continue
+                        elif _blk_dir and (step >= _blk_until or _dir != _blk_dir):
+                            if _dir != _blk_dir:
+                                ctx["streak_block_count"] = 0
+                            ctx["streak_block_dir"] = None
+                            ctx["streak_block_until"] = 0
+
+                        _sl_dist = abs((order["entry_price"] or 0) - (order["stop_loss"] or 0))
+                        if _sl_dist < 1e-7:
+                            continue
+
+                        pos = SimPosition(
+                            symbol=sym,
+                            direction=_dir,
+                            entry_price=order["entry_price"],
+                            stop_loss=order["stop_loss"],
+                            take_profit=order["take_profit"],
+                            quantity=tp.quantity,
+                            risk_amount=tp.risk_amount,
+                            open_bar=idx,  # symbol-local bar index (for hours_held calc)
+                            ticket=order["order_ticket"],
+                            open_global_step=global_step,
+                            confidence=tp.confidence,
+                            win_probability=tp.recipe.win_probability,
+                            agent_votes={
+                                name: float(out.dir_score)
+                                for name, out in state.get("agent_outputs", {}).items()
+                                if hasattr(out, "dir_score")
+                            },
+                            pending=True,
+                            entry_sl=order["stop_loss"],
+                            entry_type=state.get("metadata", {}).get("entry_type", "full-alignment"),
+                        )
+                        open_positions.append(pos)
+                        ctx["last_entry"][sym] = bar_date
+                        _day_trade_count += 1
+
+                    if executor.placed_orders:
+                        ctx["last_order_attempt"][sym] = bar_date
+
+                except Exception as exc:
+                    self.logger.debug(f"Portfolio step {global_step} {sym}: {exc}")
+
+            # ── Update shared equity from ALL positions ───────────────────
+            unrealized = 0.0
+            _sym_unrealized: Dict[str, float] = {s: 0.0 for s in symbols}
+            for p in open_positions:
+                if p.pending:
+                    continue
+                _pctx = sym_ctx[p.symbol]
+                _p_idx = sym_ts_to_idx[p.symbol].get(bar_ts)
+                if _p_idx is not None:
+                    _p_bid = float(_pctx["mid_bars"]["close"][_p_idx]) - self._spread(p.symbol) / 2
+                    _p_ask = float(_pctx["mid_bars"]["close"][_p_idx]) + self._spread(p.symbol) / 2
+                    _p_price = _p_bid if p.direction == "long" else _p_ask
+                    _p_pnl = self._pnl_at(p, _p_price, _pctx["tick_val"], _pctx["pip_sz"],
+                                               close_step=_p_idx)
+                    unrealized += _p_pnl
+                    _sym_unrealized[p.symbol] = _sym_unrealized.get(p.symbol, 0.0) + _p_pnl
+            realized = sum(t.pnl for t in closed_trades)
+            equity = initial_equity + realized + unrealized
+            equity_curve[-1] = equity
+
+            # Update per-symbol equity curves
+            for _ct in closed_trades[getattr(self, "_prev_closed_count_pf", 0):]:
+                _sym_realized[_ct.symbol] = _sym_realized.get(_ct.symbol, 0.0) + _ct.pnl
+            for _s in symbols:
+                _s_eq = initial_equity + _sym_realized[_s] + _sym_unrealized.get(_s, 0.0)
+                if len(_sym_equity_curve[_s]) < len(equity_curve):
+                    _sym_equity_curve[_s].append(_s_eq)
+                else:
+                    _sym_equity_curve[_s][-1] = _s_eq
+
+            # Record streak history for closed trades
+            for _ct in closed_trades[getattr(self, "_prev_closed_count_pf", 0):]:
+                if _ct.exit_reason not in ("partial_tp1", "partial_tp2"):
+                    sh = sym_ctx[_ct.symbol].get("streak_history", [])
+                    sh.append((_ct.direction, _ct.pnl, global_step))
+                    sym_ctx[_ct.symbol]["streak_history"] = sh
+                    if len(sh) >= 2 and sh[-1][1] < 0 and sh[-2][1] < 0 and sh[-1][0] == sh[-2][0]:
+                        _prev_count = sym_ctx[_ct.symbol].get("streak_block_count", 0)
+                        sym_ctx[_ct.symbol]["streak_block_count"] = _prev_count + 1
+                        _cooldown_bars = min(_streak_base_bars * (2 ** _prev_count), _streak_max_bars)
+                        sym_ctx[_ct.symbol]["streak_block_dir"] = sh[-1][0]
+                        sym_ctx[_ct.symbol]["streak_block_until"] = _sym_step[_ct.symbol] + _cooldown_bars
+            self._prev_closed_count_pf = len(closed_trades)
+
+            # Non-TTY progress
+            if not _is_tty:
+                _done = global_step + 1
+                if _done % _report_every == 0 or _done == n_bars_total:
+                    _pct = 100.0 * _done / n_bars_total
+                    print(f"  [portfolio] {_done}/{n_bars_total} bars ({_pct:.0f}%)",
+                          file=_sys_.stderr, flush=True)
+
+        # ── Close remaining positions at last bar ─────────────────────────
+        _graph_logger.setLevel(_graph_orig_level)
+        for pos in open_positions:
+            ctx = sym_ctx[pos.symbol]
+            _mb = ctx["mid_bars"]
+            _last_cl = float(_mb["close"][-1])
+            pnl = self._pnl_at(pos, _last_cl, ctx["tick_val"], ctx["pip_sz"],
+                                close_step=len(_mb["close"]) - 1)
+            pnl_r = pnl / max(pos.risk_amount, 1e-9)
+            closed_trades.append(ClosedTrade(
+                symbol=pos.symbol, direction=pos.direction,
+                entry_price=pos.entry_price, exit_price=_last_cl,
+                stop_loss=pos.stop_loss, take_profit=pos.take_profit,
+                quantity=pos.quantity, risk_amount=pos.risk_amount,
+                pnl=pnl, pnl_r=pnl_r,
+                open_bar=pos.open_bar, close_bar=n_bars_total - 1,
+                exit_reason="eod", confidence=pos.confidence,
+                win_probability=pos.win_probability, agent_votes=pos.agent_votes,
+            ))
+            _sym_realized[pos.symbol] = _sym_realized.get(pos.symbol, 0.0) + pnl
+
+        final_equity = initial_equity + sum(t.pnl for t in closed_trades)
+        if equity_curve:
+            equity_curve[-1] = final_equity
+        # Finalize per-symbol equity curves
+        for _s in symbols:
+            _s_final = initial_equity + _sym_realized[_s]
+            if _sym_equity_curve[_s]:
+                _sym_equity_curve[_s][-1] = _s_final
+
+        # Stamp open_dt / close_dt on trades
+        for t in closed_trades:
+            # open_bar is symbol-local → look up from per-symbol bar_dates
+            _sym_dates = sym_ctx[t.symbol]["bar_dates"]
+            if 0 <= t.open_bar < len(_sym_dates):
+                t.open_dt = _sym_dates[t.open_bar]
+            # close_bar is global_step → look up from unified_dates
+            if 0 <= t.close_bar < n_bars_total:
+                t.close_dt = unified_dates[min(t.close_bar, n_bars_total - 1)]
+
+        self.logger.info(
+            f"Portfolio backtest done: {len(closed_trades)} trades across "
+            f"{len(symbols)} symbols  equity {initial_equity:.0f} → {final_equity:.0f} "
+            f"({(final_equity / initial_equity - 1) * 100:+.2f}%)"
+        )
+
+        # ── Build per-symbol BacktestResults ──────────────────────────────
+        results: List[BacktestResult] = []
+        for sym in symbols:
+            sym_trades = [t for t in closed_trades if t.symbol == sym]
+            # Use per-symbol equity curve so that compute_metrics reports
+            # return%, maxDD, and Sharpe for THIS symbol's contribution,
+            # not the whole portfolio aggregate.
+            _s_curve = _sym_equity_curve.get(sym, equity_curve)
+            results.append(BacktestResult(
+                profile=self.config.profile,
+                symbol=sym,
+                start_date=start_date,
+                end_date=end_date,
+                trades=sym_trades,
+                equity_curve=_s_curve,
+                bar_dates=equity_dates,
+                initial_equity=initial_equity,
+                config=self.config.model_dump(),
+            ))
+
+        return results
     #   - Staged SL trail: break-even @ 1R, +0.5R @ 1.5R, ATR-trail @ 2R
     #   - TP extension: push TP forward when price closes within 1 ATR (stage 3)
     #   - Windfall exit at N×R (windfall_r_mult)
@@ -602,13 +1691,11 @@ class BacktestEngine:
     #   - Bar-level timestamp for dead zone (uses _current_bar_ts, not wall clock)
     #
     #  NOT SIMULATED ⚠️:
-    #   - Structural SL/TP pivot ratchet: DataLoader.get_structural_levels() returns
-    #     ATR-based fallback when simulation=True (same as staged trail stage 3).
-    #     Real D1 swing highs/lows can't narrowly distinguish from this in backtest.
-    #   - News calendar blackout: high-impact events are not skipped on entry.
-    #   - Swap rates: approximated as 0.3 tick_value × days_held.
-    #   - run_multi equity split: each symbol gets initial_equity/N independently
-    #     (no shared capital pool or cross-symbol correlation modelling).
+    #   - News calendar blackout: simulated via volatility-spike heuristic
+    #     (range > 3×ATR blocks entry); no ForexFactory feed in backtest.
+    #   - Cross-symbol capital sharing: handled by _run_async_portfolio()
+    #     (run_multi). This single-symbol _run_async is used only for
+    #     individual symbol backtests or walk-forward windows.
 
     async def _run_async(
         self,
@@ -632,9 +1719,28 @@ class BacktestEngine:
         tick_val = self._tick_value(symbol)
         pip_sz = self._pip_size(symbol)
 
+        # ── Deterministic slippage: seed RNG for reproducible backtests ──
+        random.seed(42)
+
         open_positions: List[SimPosition] = []
         closed_trades: List[ClosedTrade] = []
         executor._open_positions = open_positions
+
+        # ── Debug dump file for SL lifecycle analysis ─────────────────────
+        # Writes CSV to /tmp/bt_sl_debug_<symbol>.csv with every fill, SL change,
+        # and exit. Enable by checking for the file after a run.
+        import os as _os
+        _dump_path = f"/tmp/bt_sl_debug_{symbol}.csv"
+        try:
+            self._sl_dump = open(_dump_path, "w")
+            self._sl_dump.write(
+                "event,bar,time,symbol,direction,ticket,"
+                "entry,stop_loss,take_profit,entry_sl,"
+                "one_r_pip,sl_dist_pip,qty,risk_amt,"
+                "profit_r,reason\n"
+            )
+        except Exception:
+            self._sl_dump = None
 
         equity = initial_equity
         # equity_curve and equity_dates are populated INSIDE the bar loop (starting
@@ -672,6 +1778,7 @@ class BacktestEngine:
         # Early break-even: move SL to entry at +early_be_r (e.g. +0.5R).
         # Fires BEFORE stage 1 (+1R). 0 = disabled.
         _early_be_r     = float(_trailing_cfg.get("early_be_r", 0.0))
+        _be_buffer_r    = float(_trailing_cfg.get("be_buffer_r", 0.0))
         # Stale-SL tightening: after N hours if still losing, cap at -stale_r×1R.
         _stale_sl_hours = float(_trailing_cfg.get("stale_sl_hours", 0.0))
         _stale_sl_r     = float(_trailing_cfg.get("stale_sl_r_mult", 0.75))
@@ -698,6 +1805,9 @@ class BacktestEngine:
         _scalp_flip    = float(_exit_cfg_raw.get("short_flip_threshold", 0.35))
         # Counter-trend scalp time-stop: shorter than regular trades (default 2h)
         _ct_max_hours  = float(_exit_cfg_raw.get("ct_max_hours", 2.0))
+        # Structural pivot ratchet: disabled for profiles where mid_tf noise
+        # produces micro-structure that mangles staged trailing.
+        _skip_struct_ratchet = bool(_exit_cfg_raw.get("skip_structural_sl_tp_ratchet", False))
         # Time-stop: hours per bar by mid-tier timeframe
         _tf_hours_map  = {"1m": 1/60, "5m": 5/60, "15m": 0.25, "30m": 0.5,
                           "1H": 1.0,  "4H": 4.0,  "1D": 24.0}
@@ -708,6 +1818,13 @@ class BacktestEngine:
         _wkend_hour    = int(_rt_cfg.get("weekend_close_utc_hour", 20))
         # Weekly circuit breaker
         _wk_dd_pct     = float(_cfg_raw.get("risk", {}).get("max_weekly_drawdown_pct", 0))
+        # News blackout: volatility-spike heuristic (range > N×ATR blocks entry)
+        # Mirrors runner._NewsCalendar intent without needing ForexFactory data.
+        _news_atr_mult = float(_cfg_raw.get("execution", {}).get("news_spike_atr_mult", 3.0))
+        _news_blackout_enabled = bool(_cfg_raw.get("execution", {}).get("news_blackout_minutes", 0) > 0)
+        # Margin tracking: approximate free margin to reject oversized entries
+        _leverage      = float(_cfg_raw.get("risk", {}).get("leverage", 30))
+        _margin_used   = 0.0   # running total of margin consumed by open positions
 
         # Agent-run throttle: only invoke the full signal pipeline every N bars,
         # mirroring the live runner's signal loop vs surveillance loop separation.
@@ -726,11 +1843,16 @@ class BacktestEngine:
         _agent_interval = max(1, round(_sig_interval / _bar_seconds))
         _last_agent_state: Optional[dict] = None
         # Surveillance loop: exit_check_only (mirrors runner._surveillance_loop)
-        # Fresh fusion scores for conviction-fade/opposition exits every N bars.
-        #   risky + 1m : surveillance=60s / bar=60s → every 1 bar
-        #   risky + 5m : surveillance=60s / bar=300s → every 1 bar (can't go finer)
-        #   balanced+1H: surveillance=60s / bar=3600s → every 1 bar
-        _surv_seconds  = int(_cfg_raw.get("realtime", {}).get("surveillance_interval_seconds", 60))
+        # Auto-derive from mid TF when not explicitly set in config.
+        _surv_explicit = _cfg_raw.get("realtime", {}).get("surveillance_interval_seconds")
+        if _surv_explicit is not None:
+            _surv_seconds = int(_surv_explicit)
+        else:
+            _surv_by_tf = {
+                "1m": 10, "5m": 15, "15m": 30, "30m": 45,
+                "1H": 60, "4H": 90, "1D": 120,
+            }
+            _surv_seconds = _surv_by_tf.get(mid_tf, 60)
         _surv_interval = max(1, round(_surv_seconds / _bar_seconds))
         _last_surv_state: Optional[dict] = None
         self.logger.info(
@@ -866,6 +1988,30 @@ class BacktestEngine:
                 day_dd = (equity - _day_open_equity) / max(_day_open_equity, 1e-9) * 100
                 if day_dd <= -_dd_pct:
                     _day_halted = True
+                    # ── DD close-all: mirror live runner behaviour ─────────
+                    # The live runner force-closes every open position when
+                    # daily DD is breached (surveillance loop).  Without this
+                    # the backtest just blocks new entries while existing
+                    # losers keep bleeding — overstating performance vs live.
+                    for _ddpos in list(open_positions):
+                        if not _ddpos.pending:
+                            _ddpnl = self._pnl_at(_ddpos, cl, tick_val, pip_sz, close_step=step)
+                            closed_trades.append(ClosedTrade(
+                                symbol=_ddpos.symbol, direction=_ddpos.direction,
+                                entry_price=_ddpos.entry_price, exit_price=cl,
+                                stop_loss=_ddpos.stop_loss, take_profit=_ddpos.take_profit,
+                                quantity=_ddpos.quantity, risk_amount=_ddpos.risk_amount,
+                                pnl=_ddpnl, pnl_r=_ddpnl / max(_ddpos.risk_amount, 1e-9),
+                                open_bar=_ddpos.open_bar, close_bar=step,
+                                exit_reason="dd_close_all", confidence=_ddpos.confidence,
+                                win_probability=_ddpos.win_probability,
+                                agent_votes=_ddpos.agent_votes,
+                            ))
+                    open_positions.clear()
+                    logger.info(
+                        f"[DD CLOSE-ALL] bar={step} {bar_date:%H:%M} "
+                        f"daily_dd={day_dd:.2f}% — closed all positions"
+                    )
             _iso_week = bar_date.isocalendar()[1]
             if _current_week != _iso_week:
                 _current_week = _iso_week
@@ -875,6 +2021,26 @@ class BacktestEngine:
                 wk_dd = (equity - _wk_open_equity) / max(_wk_open_equity, 1e-9) * 100
                 if wk_dd <= -_wk_dd_pct:
                     _wk_halted = True
+                    # ── Weekly DD close-all (same logic as daily) ──────────
+                    for _wkpos in list(open_positions):
+                        if not _wkpos.pending:
+                            _wkpnl = self._pnl_at(_wkpos, cl, tick_val, pip_sz, close_step=step)
+                            closed_trades.append(ClosedTrade(
+                                symbol=_wkpos.symbol, direction=_wkpos.direction,
+                                entry_price=_wkpos.entry_price, exit_price=cl,
+                                stop_loss=_wkpos.stop_loss, take_profit=_wkpos.take_profit,
+                                quantity=_wkpos.quantity, risk_amount=_wkpos.risk_amount,
+                                pnl=_wkpnl, pnl_r=_wkpnl / max(_wkpos.risk_amount, 1e-9),
+                                open_bar=_wkpos.open_bar, close_bar=step,
+                                exit_reason="weekly_dd_close_all", confidence=_wkpos.confidence,
+                                win_probability=_wkpos.win_probability,
+                                agent_votes=_wkpos.agent_votes,
+                            ))
+                    open_positions.clear()
+                    logger.info(
+                        f"[WEEKLY DD CLOSE-ALL] bar={step} {bar_date:%H:%M} "
+                        f"weekly_dd={wk_dd:.2f}% — closed all positions"
+                    )
 
             # ── Weekend close ────────────────────────────────────────────────
             # Friday ≥ cutoff UTC: close all + block new entries until Monday.
@@ -908,31 +2074,79 @@ class BacktestEngine:
             # ── Fill pending entries at next bar's open (avoids look-ahead) ──
             # Signals fire at bar N close; we fill at bar N+1 open (realistic).
             bar_open = float(mid_bars["open"][step])
+            _fill_rejects: List[SimPosition] = []
             for pos in open_positions:
                 if pos.pending:
-                    if pos.direction == "long":
-                        pos.entry_price = bar_open + spread / 2   # fill at ask
+                    # ── Spread guard: reject if spread > 20% of stop distance ──
+                    _stop_dist = abs(pos.entry_price - pos.stop_loss)
+                    if _stop_dist > 1e-9 and spread / _stop_dist > self._MAX_SPREAD_FRAC:
                         logger.debug(
-                            f"[FILL] bar={step} {bar_date:%H:%M} {symbol} LONG filled "
-                            f"@ {pos.entry_price:.5f} (open={bar_open:.5f}+sprd/2) "
-                            f"SL={pos.stop_loss:.5f} TP={pos.take_profit:.5f}"
+                            f"[SPREAD-GUARD] bar={step} {bar_date:%H:%M} {symbol} "
+                            f"spread={spread:.5f} > {self._MAX_SPREAD_FRAC:.0%} of "
+                            f"stop_dist={_stop_dist:.5f} — rejecting"
                         )
+                        _fill_rejects.append(pos)
+                        continue
+                    # ── Lot rounding (mirrors MT5 vol_step) ──
+                    _raw_qty = pos.quantity
+                    pos.quantity = round(round(_raw_qty / self._VOL_STEP) * self._VOL_STEP, 8)
+                    pos.quantity = max(self._VOL_MIN, min(self._VOL_MAX, pos.quantity))
+                    # ── Slippage: random ±0.3 pip micro-noise ──
+                    _slip = random.uniform(-self._SLIPPAGE_PIPS, self._SLIPPAGE_PIPS) * pip_sz
+                    _planned_entry = pos.entry_price
+                    if pos.direction == "long":
+                        pos.entry_price = bar_open + spread / 2 + _slip  # fill at ask + slip
                     else:
-                        pos.entry_price = bar_open - spread / 2   # fill at bid
-                        logger.debug(
-                            f"[FILL] bar={step} {bar_date:%H:%M} {symbol} SHORT filled "
-                            f"@ {pos.entry_price:.5f} (open={bar_open:.5f}-sprd/2) "
-                            f"SL={pos.stop_loss:.5f} TP={pos.take_profit:.5f}"
+                        pos.entry_price = bar_open - spread / 2 + _slip  # fill at bid + slip
+
+                    _planned_sl_dist = abs(_planned_entry - pos.stop_loss)
+                    _actual_sl_dist  = abs(pos.entry_price - pos.stop_loss)
+                    logger.debug(
+                        f"[FILL] bar={step} {bar_date:%H:%M} {symbol} "
+                        f"{pos.direction.upper()} filled "
+                        f"@ {pos.entry_price:.5f} (planned={_planned_entry:.5f} "
+                        f"open={bar_open:.5f} slip={_slip:+.5f}) "
+                        f"qty={pos.quantity:.2f} SL={pos.stop_loss:.5f} TP={pos.take_profit:.5f} "
+                        f"sl_dist: plan={_planned_sl_dist/pip_sz:.1f}pip "
+                        f"actual={_actual_sl_dist/pip_sz:.1f}pip "
+                        f"entry_sl={pos.entry_sl:.5f} "
+                        f"1R={abs(pos.entry_price - pos.entry_sl)/pip_sz:.1f}pip "
+                        f"risk=${pos.risk_amount:.2f}"
+                    )
+                    # Debug: write to dump file for post-analysis
+                    _dump_f = getattr(self, '_sl_dump', None)
+                    if _dump_f:
+                        _dump_f.write(
+                            f"FILL,{step},{bar_date:%Y-%m-%d %H:%M},{symbol},"
+                            f"{pos.direction},{pos.ticket},"
+                            f"{pos.entry_price:.6f},{pos.stop_loss:.6f},"
+                            f"{pos.take_profit:.6f},{pos.entry_sl:.6f},"
+                            f"{abs(pos.entry_price - pos.entry_sl)/pip_sz:.1f},"
+                            f"{_actual_sl_dist/pip_sz:.1f},"
+                            f"{pos.quantity:.2f},{pos.risk_amount:.2f}\n"
                         )
                     pos.pending = False
+                    pos.entry_atr = _atr_sp  # snapshot ATR at fill for adaptive stale_sl
+            # Remove rejected fills
+            for _rj in _fill_rejects:
+                open_positions.remove(_rj)
 
             # ── Check exits ──────────────────────────────────────────────────
             if _ibs_mode:
-                # IBS: step through 4 OHLC waypoints within the bar.
-                # Using actual hi/lo means the SL/TP detection is equivalent to
-                # _check_exit, but we also know the SEQUENCE (which hit first).
-                _ibs_wps = ([bar_open, lo, hi, cl] if cl > bar_open
-                            else [bar_open, hi, lo, cl])
+                # IBS: step through OHLC waypoints within the bar.
+                # On volatile bars (range > 2×ATR), insert intermediate waypoints
+                # at 25%/50%/75% levels for higher-fidelity SL/TP resolution.
+                if cl >= bar_open:
+                    _ibs_wps = [bar_open, lo, hi, cl]     # bullish: dip first
+                else:
+                    _ibs_wps = [bar_open, hi, lo, cl]     # bearish: spike first
+                # Volatile bar: insert intermediate waypoints for denser path
+                if _atr_sp > 0 and (hi - lo) > 2.0 * _atr_sp:
+                    _mid1 = (_ibs_wps[0] + _ibs_wps[1]) * 0.5
+                    _mid2 = (_ibs_wps[1] + _ibs_wps[2]) * 0.5
+                    _mid3 = (_ibs_wps[2] + _ibs_wps[3]) * 0.5
+                    _ibs_wps = [_ibs_wps[0], _mid1, _ibs_wps[1], _mid2,
+                                _ibs_wps[2], _mid3, _ibs_wps[3]]
                 _ibs_this_bar = 0
                 still_open_ibs: List[SimPosition] = []
                 for pos in open_positions:
@@ -952,12 +2166,30 @@ class BacktestEngine:
                         _ep_ibs  = pos.stop_loss  if _sl_hit_ibs else pos.take_profit
                         _er_ibs  = "sl"           if _sl_hit_ibs else "tp"
                         _pnl_ibs = self._pnl_at(pos, _ep_ibs, tick_val, pip_sz, close_step=step)
+                        _pnl_r_ibs = _pnl_ibs / max(pos.risk_amount, 1e-9)
+                        logger.info(
+                            f"[EXIT-{_er_ibs.upper()}] {pos.symbol} {pos.direction.upper()} "
+                            f"entry={pos.entry_price:.5f} exit={_ep_ibs:.5f} "
+                            f"pnl={_pnl_ibs:+.2f} ({_pnl_r_ibs:+.2f}R) "
+                            f"bars_held={step - pos.open_bar} (ticket={pos.ticket})"
+                        )
+                        if _sl_hit_ibs:
+                            _one_r_ibs = abs(pos.entry_price - (pos.entry_sl or pos.stop_loss))
+                            logger.debug(
+                                f"[SL-DIAG] ticket={pos.ticket} "
+                                f"entry_sl={pos.entry_sl:.5f} current_sl={pos.stop_loss:.5f} "
+                                f"1R_dist={_one_r_ibs/pip_sz:.1f}pip "
+                                f"sl_dist={abs(pos.entry_price - pos.stop_loss)/pip_sz:.1f}pip "
+                                f"qty={pos.quantity:.2f} risk_amt=${pos.risk_amount:.2f} "
+                                f"partial1={'Y' if pos.partial_tp1_fired else 'N'} "
+                                f"partial2={'Y' if pos.partial_tp2_fired else 'N'}"
+                            )
                         closed_trades.append(ClosedTrade(
                             symbol=pos.symbol, direction=pos.direction,
                             entry_price=pos.entry_price, exit_price=_ep_ibs,
                             stop_loss=pos.stop_loss, take_profit=pos.take_profit,
                             quantity=pos.quantity, risk_amount=pos.risk_amount,
-                            pnl=_pnl_ibs, pnl_r=_pnl_ibs / max(pos.risk_amount, 1e-9),
+                            pnl=_pnl_ibs, pnl_r=_pnl_r_ibs,
                             open_bar=pos.open_bar, close_bar=step,
                             exit_reason=_er_ibs, confidence=pos.confidence,
                             win_probability=pos.win_probability,
@@ -967,11 +2199,13 @@ class BacktestEngine:
                         # ── TP hit → momentum continuation re-entry ──────────
                         # Re-enter in the same direction at the TP price.
                         # SL hits: signal failed — NO re-entry (avoids martingale).
+                        _mc = risk_limits.max_concurrent_trades
                         if (_tp_hit_ibs
                                 and _ibs_this_bar < _ibs_max
                                 and not _day_halted and not _wk_halted
                                 and not _weekend_blocked
                                 and (_max_daily == 0 or _day_trade_count < _max_daily)
+                                and (_mc <= 0 or len(still_open_ibs) < _mc)
                                 and _last_ibs_order is not None
                                 and _last_agent_state is not None):
                             _lo_ref  = _last_ibs_order
@@ -1082,6 +2316,22 @@ class BacktestEngine:
                         continue
                     _is_long     = pos.direction == "long"
                     _profit_dist = (cl - pos.entry_price) if _is_long else (pos.entry_price - cl)
+                    _profit_r    = _profit_dist / _one_r
+                    # Track peak profit for stale winner protection
+                    if _profit_r > pos.peak_profit_r:
+                        pos.peak_profit_r = _profit_r
+
+                    # Debug: log position state on first management bar and at key stages
+                    _bars_open = step - pos.open_bar
+                    if _bars_open <= 1:
+                        logger.debug(
+                            f"[POS-MGR] bar={step} {symbol} {pos.direction} "
+                            f"entry={pos.entry_price:.5f} entry_sl={pos.entry_sl:.5f} "
+                            f"SL={pos.stop_loss:.5f} TP={pos.take_profit:.5f} "
+                            f"1R={_one_r/pip_sz:.1f}pip SL_dist={abs(pos.entry_price - pos.stop_loss)/pip_sz:.1f}pip "
+                            f"profit={_profit_r:+.2f}R "
+                            f"(ticket={pos.ticket})"
+                        )
                     _should_close = False
                     _close_reason = ""
 
@@ -1204,64 +2454,153 @@ class BacktestEngine:
                     if (_partial1_on and not pos.partial_tp1_fired
                             and 1.0 * _one_r <= _profit_dist < 1.5 * _one_r):
                         _qty1 = pos.quantity * _partial1_frac
+                        # Commission: proportional share of original round-trip
+                        # (mirrors MT5 single-ticket model — no extra commission on partials)
                         _p1   = self._pnl_at_qty(pos, cl, _qty1, tick_val, pip_sz)
+                        _orig_risk = pos.risk_amount  # snapshot before reduction
+                        _part_risk = _orig_risk * _partial1_frac
                         closed_trades.append(ClosedTrade(
                             symbol=pos.symbol, direction=pos.direction,
                             entry_price=pos.entry_price, exit_price=cl,
                             stop_loss=pos.stop_loss, take_profit=pos.take_profit,
-                            quantity=_qty1, risk_amount=pos.risk_amount * _partial1_frac,
-                            pnl=_p1, pnl_r=_p1 / max(pos.risk_amount * _partial1_frac, 1e-9),
+                            quantity=_qty1, risk_amount=_part_risk,
+                            pnl=_p1, pnl_r=_p1 / max(_part_risk, 1e-9),
                             open_bar=pos.open_bar, close_bar=step,
                             exit_reason="partial_tp1", confidence=pos.confidence,
                             win_probability=pos.win_probability, agent_votes=pos.agent_votes,
                         ))
                         pos.quantity         -= _qty1
-                        pos.risk_amount      *= (1.0 - _partial1_frac)
+                        # Keep risk_amount proportional to remaining qty (not cascading)
+                        pos.risk_amount       = _orig_risk * (1.0 - _partial1_frac)
                         pos.partial_tp1_fired = True
-                        pos.stop_loss         = pos.entry_price  # break-even
+                        # Break-even with buffer: leave be_buffer_r × 1R of room
+                        # so the remaining qty isn't stopped by spread/noise.
+                        _old_sl_p1 = pos.stop_loss
+                        if _is_long:
+                            pos.stop_loss = pos.entry_price - _be_buffer_r * _one_r
+                        else:
+                            pos.stop_loss = pos.entry_price + _be_buffer_r * _one_r
+                        logger.info(
+                            f"[PARTIAL-TP1] bar={step} {symbol} {pos.direction} "
+                            f"closed {_partial1_frac:.0%} @ {cl:.5f} (+1R) "
+                            f"SL: {_old_sl_p1:.5f}→{pos.stop_loss:.5f} (BE+{_be_buffer_r:.0%}R) "
+                            f"rem_qty={pos.quantity:.2f} rem_risk=${pos.risk_amount:.2f} "
+                            f"(ticket={pos.ticket})"
+                        )
 
                     # 5. Partial TP2 (at +N×R)
                     if _partial2_on and not pos.partial_tp2_fired and _profit_dist >= _partial2_r * _one_r:
                         _qty2 = pos.quantity * _partial2_frac
                         _p2   = self._pnl_at_qty(pos, cl, _qty2, tick_val, pip_sz)
+                        _orig_risk2 = pos.risk_amount
+                        _part_risk2 = _orig_risk2 * _partial2_frac
                         closed_trades.append(ClosedTrade(
                             symbol=pos.symbol, direction=pos.direction,
                             entry_price=pos.entry_price, exit_price=cl,
                             stop_loss=pos.stop_loss, take_profit=pos.take_profit,
-                            quantity=_qty2, risk_amount=pos.risk_amount * _partial2_frac,
-                            pnl=_p2, pnl_r=_p2 / max(pos.risk_amount * _partial2_frac, 1e-9),
+                            quantity=_qty2, risk_amount=_part_risk2,
+                            pnl=_p2, pnl_r=_p2 / max(_part_risk2, 1e-9),
                             open_bar=pos.open_bar, close_bar=step,
                             exit_reason="partial_tp2", confidence=pos.confidence,
                             win_probability=pos.win_probability, agent_votes=pos.agent_votes,
                         ))
                         pos.quantity          -= _qty2
-                        pos.risk_amount       *= (1.0 - _partial2_frac)
+                        pos.risk_amount        = _orig_risk2 * (1.0 - _partial2_frac)
                         pos.partial_tp2_fired  = True
+                        _old_sl_p2 = pos.stop_loss
                         _bump = 0.7 * _one_r
                         if _is_long:
                             pos.stop_loss = max(pos.stop_loss, pos.entry_price + _bump)
                         else:
                             pos.stop_loss = min(pos.stop_loss, pos.entry_price - _bump)
+                        if pos.stop_loss != _old_sl_p2:
+                            logger.info(
+                                f"[PARTIAL-TP2] bar={step} {symbol} {pos.direction} "
+                                f"closed {_partial2_frac:.0%} @ {cl:.5f} (+{_partial2_r:.1f}R) "
+                                f"SL: {_old_sl_p2:.5f}→{pos.stop_loss:.5f} (+0.7R lock) "
+                                f"rem_qty={pos.quantity:.2f} rem_risk=${pos.risk_amount:.2f} "
+                                f"(ticket={pos.ticket})"
+                            )
 
                     # 6. Trailing SL stages + TP extension (mirrors trailing_stop.py _manage_one)
                     _old_sl = pos.stop_loss
                     _old_tp = pos.take_profit
 
-                    # 6a. Stale-SL tightening: trade open > N hours while losing →
-                    #     cap SL at -stale_r × 1R to reduce late SL losses.
+                    # 6a. Progressive stale-SL tightening:
+                    #     Once trade has been losing for stale_sl_hours, SL begins
+                    #     tightening from -stale_r × 1R.  Over the next 2× stale_sl_hours
+                    #     the cap squeezes to 0.60 × stale_r × 1R.  This gives early
+                    #     losers room to develop while progressively reducing risk on
+                    #     trades that remain stale.
                     if _stale_sl_hours > 0 and _profit_dist < 0:
                         _hours_held_sl = (step - pos.open_bar) * _hrs_per_bar
                         if _hours_held_sl >= _stale_sl_hours:
+                            _old_sl_stale = pos.stop_loss
+                            # Progressive factor: 1.0 at threshold → 0.60 at threshold + 2×stale_sl_hours
+                            _overtime_frac = min(1.0, (_hours_held_sl - _stale_sl_hours)
+                                                      / (2.0 * _stale_sl_hours))
+                            # ATR-adaptive: tighten proportionally when vol compresses
+                            _atr_ratio = (min(1.0, _atr / pos.entry_atr)
+                                          if pos.entry_atr > 1e-9 else 1.0)
+                            _prog_r = _stale_sl_r * _atr_ratio * (1.0 - 0.40 * _overtime_frac)
                             if _is_long:
-                                _tight_sl = pos.entry_price - _stale_sl_r * _one_r
+                                _tight_sl = pos.entry_price - _prog_r * _one_r
                                 if pos.stop_loss < _tight_sl - 1e-9:
                                     pos.stop_loss = _tight_sl
                             else:
-                                _tight_sl = pos.entry_price + _stale_sl_r * _one_r
+                                _tight_sl = pos.entry_price + _prog_r * _one_r
                                 if pos.stop_loss > _tight_sl + 1e-9:
                                     pos.stop_loss = _tight_sl
+                            # Only log when SL moved by ≥0.5 pip (suppress 1m bar spam)
+                            if abs(pos.stop_loss - _old_sl_stale) >= 0.5 * pip_sz:
+                                logger.info(
+                                    f"[STALE-SL] bar={step} {symbol} {pos.direction} "
+                                    f"open {_hours_held_sl:.1f}h still losing "
+                                    f"({_profit_dist/_one_r:+.2f}R) — "
+                                    f"SL tightened {_old_sl_stale:.5f}→{pos.stop_loss:.5f} "
+                                    f"(cap at {_prog_r:.2f}R, atr_ratio={_atr_ratio:.2f}, "
+                                    f"progress={_overtime_frac:.0%}) "
+                                    f"(ticket={pos.ticket})"
+                                )
+                            # Market-close when squeeze is maxed and still losing
+                            if _overtime_frac >= 1.0:
+                                _should_close = True
+                                _close_reason = "stale_market_close"
+                                logger.info(
+                                    f"[STALE-CLOSE] bar={step} {symbol} {pos.direction} "
+                                    f"stale squeeze maxed ({_hours_held_sl:.1f}h, "
+                                    f"{_profit_r:+.2f}R) — market close "
+                                    f"(ticket={pos.ticket})"
+                                )
+
+                    # 6b. Stale winner protection: profitable trade stalling after
+                    #     stale_sl_hours — lock SL at BE if profit dropped from peak.
+                    if (_stale_sl_hours > 0
+                            and _profit_r > 0 and _profit_r < 1.0
+                            and pos.peak_profit_r - _profit_r >= 0.3):
+                        _hours_held_sw = (step - pos.open_bar) * _hrs_per_bar
+                        if _hours_held_sw >= _stale_sl_hours:
+                            _old_sl_sw = pos.stop_loss
+                            if _is_long:
+                                _be_floor = pos.entry_price - _be_buffer_r * _one_r
+                                if pos.stop_loss < _be_floor - 1e-9:
+                                    pos.stop_loss = _be_floor
+                            else:
+                                _be_floor = pos.entry_price + _be_buffer_r * _one_r
+                                if pos.stop_loss > _be_floor + 1e-9:
+                                    pos.stop_loss = _be_floor
+                            if pos.stop_loss != _old_sl_sw:
+                                logger.info(
+                                    f"[STALE-WIN] bar={step} {symbol} {pos.direction} "
+                                    f"open {_hours_held_sw:.1f}h, profit stalling "
+                                    f"(now {_profit_r:+.2f}R, peak {pos.peak_profit_r:+.2f}R) — "
+                                    f"SL→BE {_old_sl_sw:.5f}→{pos.stop_loss:.5f} "
+                                    f"(ticket={pos.ticket})"
+                                )
 
                     if _atr > 0:
+                        _be_sl_long  = pos.entry_price - _be_buffer_r * _one_r
+                        _be_sl_short = pos.entry_price + _be_buffer_r * _one_r
                         if _is_long:
                             if _profit_dist >= 2.0 * _one_r:
                                 _new_sl = max(pos.stop_loss, cl - _atr * _atr_mult, pos.entry_price + 0.5 * _one_r)
@@ -1272,10 +2611,10 @@ class BacktestEngine:
                             elif _profit_dist >= 1.5 * _one_r:
                                 _new_sl = max(pos.stop_loss, pos.entry_price + 0.5 * _one_r)
                             elif _profit_dist >= 1.0 * _one_r:
-                                _new_sl = max(pos.stop_loss, pos.entry_price)
+                                _new_sl = max(pos.stop_loss, _be_sl_long)
                             elif _early_be_r > 0 and _profit_dist >= _early_be_r * _one_r:
-                                # Stage 0: early break-even
-                                _new_sl = max(pos.stop_loss, pos.entry_price)
+                                # Stage 0: early break-even (with buffer)
+                                _new_sl = max(pos.stop_loss, _be_sl_long)
                             else:
                                 _new_sl = pos.stop_loss
                             if _new_sl > pos.stop_loss:
@@ -1290,14 +2629,54 @@ class BacktestEngine:
                             elif _profit_dist >= 1.5 * _one_r:
                                 _new_sl = min(pos.stop_loss, pos.entry_price - 0.5 * _one_r)
                             elif _profit_dist >= 1.0 * _one_r:
-                                _new_sl = min(pos.stop_loss, pos.entry_price)
+                                _new_sl = min(pos.stop_loss, _be_sl_short)
                             elif _early_be_r > 0 and _profit_dist >= _early_be_r * _one_r:
-                                # Stage 0: early break-even
-                                _new_sl = min(pos.stop_loss, pos.entry_price)
+                                # Stage 0: early break-even (with buffer)
+                                _new_sl = min(pos.stop_loss, _be_sl_short)
                             else:
                                 _new_sl = pos.stop_loss
                             if _new_sl < pos.stop_loss:
                                 pos.stop_loss = _new_sl
+
+                    # 7. Structural pivot ratchet (mirrors trailing_stop._update_structural_one)
+                    # Uses D1 swing nodes + weekly pivots to adjust SL/TP to structure.
+                    # Gated by skip_structural_sl_tp_ratchet — on 1m bars the "nearest
+                    # support/resist" is micro-structure that changes every bar, collapsing
+                    # SL to a few pips from entry and producing all-SL exits.
+                    if not _skip_struct_ratchet and _atr > 0 and _profit_dist > 0:
+                        _struct_buf      = 0.25 * _atr
+                        _min_sl_dist     = 1.5 * _atr
+                        _live_p = ask if _is_long else bid
+                        _pivots = loader.get_structural_levels(symbol, _live_p, _atr)
+                        if _is_long:
+                            _struct_sl = _pivots["nearest_support"] - _struct_buf
+                            _struct_sl = min(_struct_sl, _live_p - _min_sl_dist)
+                            if _struct_sl > pos.stop_loss:
+                                pos.stop_loss = _struct_sl
+                            # TP ratchet: push to next resistance (only raise)
+                            _resist_cands = sorted(
+                                l for l in (_pivots["r1"], _pivots["r2"])
+                                if l > pos.entry_price + _min_sl_dist
+                            )
+                            if _resist_cands and pos.take_profit > 0:
+                                _struct_tp = _resist_cands[0]
+                                if _struct_tp > pos.take_profit:
+                                    pos.take_profit = _struct_tp
+                        else:
+                            _struct_sl = _pivots["nearest_resist"] + _struct_buf
+                            _struct_sl = max(_struct_sl, _live_p + _min_sl_dist)
+                            if _struct_sl < pos.stop_loss:
+                                pos.stop_loss = _struct_sl
+                            # TP ratchet: push to next support (only lower)
+                            _supp_cands = sorted(
+                                (l for l in (_pivots["s1"], _pivots["s2"])
+                                 if l < pos.entry_price - _min_sl_dist),
+                                reverse=True,
+                            )
+                            if _supp_cands and pos.take_profit > 0:
+                                _struct_tp = _supp_cands[0]
+                                if _struct_tp < pos.take_profit:
+                                    pos.take_profit = _struct_tp
 
                     # Log trailing SL/TP changes
                     if pos.stop_loss != _old_sl or pos.take_profit != _old_tp:
@@ -1308,13 +2687,41 @@ class BacktestEngine:
                             f"TP:{_old_tp:.5f}→{pos.take_profit:.5f}"
                         )
 
+                    # Late _should_close check (stale_market_close sets it after
+                    # the early check at section 2).
+                    if _should_close:
+                        _pnl_c = self._pnl_at(pos, cl, tick_val, pip_sz, close_step=step)
+                        logger.info(
+                            f"[EXIT-{_close_reason.upper().replace(' ', '_')}] {symbol} {pos.direction.upper()} "
+                            f"entry={pos.entry_price:.5f} exit={cl:.5f} "
+                            f"pnl={_pnl_c:+.2f} ({_pnl_c / max(pos.risk_amount, 1e-9):+.2f}R) "
+                            f"(ticket={pos.ticket})"
+                        )
+                        closed_trades.append(ClosedTrade(
+                            symbol=pos.symbol, direction=pos.direction,
+                            entry_price=pos.entry_price, exit_price=cl,
+                            stop_loss=pos.stop_loss, take_profit=pos.take_profit,
+                            quantity=pos.quantity, risk_amount=pos.risk_amount,
+                            pnl=_pnl_c, pnl_r=_pnl_c / max(pos.risk_amount, 1e-9),
+                            open_bar=pos.open_bar, close_bar=step,
+                            exit_reason=_close_reason, confidence=pos.confidence,
+                            win_probability=pos.win_probability,
+                            agent_votes=pos.agent_votes,
+                        ))
+                        continue
+
                     managed_open.append(pos)
 
                 open_positions.clear()
                 open_positions.extend(managed_open)
 
             # ── Update equity ──────────────────────────────────────────────
-            unrealized = sum(self._pnl_at(p, cl, tick_val, pip_sz, close_step=step) for p in open_positions)
+            # Use bid for longs, ask for shorts (mirrors MT5 floating P&L)
+            unrealized = sum(
+                self._pnl_at(p, bid if p.direction == "long" else ask,
+                             tick_val, pip_sz, close_step=step)
+                for p in open_positions if not p.pending
+            )
             realized   = sum(t.pnl for t in closed_trades)
             equity = initial_equity + realized + unrealized
             equity_curve[-1] = equity   # update the value appended at bar start
@@ -1383,6 +2790,31 @@ class BacktestEngine:
                 _pre_mc = risk_limits.max_concurrent_trades
                 if _pre_mc > 0 and len(open_positions) >= _pre_mc:
                     _skip_entry = True
+            # News blackout heuristic: block entry if current bar's range is
+            # an extreme outlier (> N×ATR) — proxy for high-impact news events
+            # that the live runner would skip via ForexFactory calendar.
+            if not _skip_entry and _news_blackout_enabled and _atr_sp > 0:
+                _bar_range_v = hi - lo
+                if _bar_range_v > _news_atr_mult * _atr_sp:
+                    _skip_entry = True
+                    logger.debug(
+                        f"[NEWS-SPIKE] bar={step} {bar_date:%H:%M} {symbol} "
+                        f"range={_bar_range_v:.5f} > {_news_atr_mult:.1f}×ATR={_atr_sp:.5f}"
+                    )
+            # Margin guard: reject entry if estimated margin usage > 80% of equity
+            if not _skip_entry and _leverage > 0:
+                _margin_used = sum(
+                    p.quantity * p.entry_price * 100_000 / _leverage
+                    for p in open_positions if not p.pending
+                )
+                _free_margin = equity - _margin_used
+                if _free_margin < 0.20 * equity:
+                    _skip_entry = True
+                    logger.debug(
+                        f"[MARGIN] bar={step} {bar_date:%H:%M} {symbol} "
+                        f"used={_margin_used:.0f} free={_free_margin:.0f} "
+                        f"< 20% equity={equity:.0f}"
+                    )
             if _skip_entry:
                 continue
 
@@ -1403,12 +2835,18 @@ class BacktestEngine:
                     symbol=symbol,
                 )
 
+                # Build recent P&L R-values for streak sizing (last 6 non-partial trades)
+                _sym_hist = _streak_history.get(symbol, [])
+                # _streak_history stores (dir, pnl_dollar, bar) — use sign of pnl
+                _recent_pnl_r = [1.0 if t[1] > 0 else -1.0 for t in _sym_hist[-6:]]
+
                 state = await graph.run(
                     symbol=symbol,
                     features=features,
                     portfolio_state=portfolio,
                     risk_limits=risk_limits,
                     features_by_tf=features_by_tf,
+                    recent_pnl_r=_recent_pnl_r,
                 )
                 _last_agent_state = state
 
@@ -1672,6 +3110,288 @@ class BacktestEngine:
 
     # ── Bar pre-loading ───────────────────────────────────────────────────────
 
+    # ── CSV / Parquet bar preload ─────────────────────────────────────────────
+
+    # Pandas resample rules for generating higher timeframes from 1m base.
+    _RESAMPLE_RULE: Dict[str, str] = {
+        "1m": "1min", "5m": "5min", "15m": "15min", "30m": "30min",
+        "1H": "1h", "4H": "4h", "1D": "1D",
+    }
+
+    def _preload_bars_csv(
+        self, symbol: str, start_date: str, end_date: str
+    ) -> Tuple[Dict, str, List[datetime]]:
+        """Load OHLCV bars from CSV or Parquet files in ``self._data_dir``.
+
+        Expected directory layout (any of these patterns)::
+
+            data_dir/
+              EURUSD_1m.csv          # single TF per file
+              EURUSD_1H.csv
+              EURUSD_1D.parquet
+              EURUSD.csv             # no TF suffix → auto-detect from timestamps
+              GBPUSD_1D.csv          # peer symbol for CorrelationAgent
+
+        Column requirements (case-insensitive, order doesn't matter):
+          - ``time`` or ``date`` or ``datetime``: ISO-8601, unix timestamp, or
+            ``YYYY.MM.DD HH:MM`` (MT5 export format).
+          - ``open``, ``high``, ``low``, ``close``
+          - ``volume`` (optional — defaults to 1.0)
+
+        When only one file exists for a symbol (e.g. ``EURUSD_1m.csv``), the
+        loader automatically resamples it to all required higher timeframes.
+        """
+        import pandas as pd
+        from pathlib import Path
+
+        data_dir = Path(self._data_dir)
+        if not data_dir.is_dir():
+            self.logger.error(f"[csv] data_dir not found: {data_dir}")
+            return {}, "", []
+
+        tf_cfg   = self.config.timeframes
+        long_tf  = tf_cfg.long[0]  if tf_cfg.long  else "1D"
+        mid_tf   = tf_cfg.mid[0]   if tf_cfg.mid   else "1H"
+        short_tf = tf_cfg.short[0] if tf_cfg.short else "15m"
+
+        raw_start_dt = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        end_dt       = datetime.strptime(end_date,   "%Y-%m-%d").replace(tzinfo=timezone.utc)
+
+        _WARM_UP_BY_TF = {
+            "1m": 3, "5m": 3, "15m": 7, "30m": 7,
+            "1H": 30, "4H": 75, "1D": 120,
+        }
+        warmup_days    = _WARM_UP_BY_TF.get(mid_tf, 100)
+        fetch_start_dt = raw_start_dt - timedelta(days=warmup_days)
+
+        # ── Discover & load files ────────────────────────────────────────
+        def _read_ohlcv(path: Path) -> Optional[pd.DataFrame]:
+            """Read a single CSV or Parquet file, normalise columns."""
+            if path.suffix.lower() in (".parquet", ".pq"):
+                df = pd.read_parquet(path)
+            else:
+                # Try common CSV separators
+                for sep in (",", "\t", ";"):
+                    try:
+                        df = pd.read_csv(path, sep=sep)
+                        if len(df.columns) >= 5:
+                            break
+                    except Exception:
+                        continue
+                else:
+                    return None
+
+            df.columns = [c.strip().lower().replace(" ", "_") for c in df.columns]
+
+            # Rename common time column variants
+            for alias in ("date", "datetime", "timestamp", "dt"):
+                if alias in df.columns and "time" not in df.columns:
+                    df = df.rename(columns={alias: "time"})
+                    break
+            if "time" not in df.columns:
+                return None
+
+            # Parse time column
+            sample = str(df["time"].iloc[0])
+            if sample.replace(".", "").replace("-", "").isdigit() and len(sample) >= 10:
+                # Unix timestamp (seconds or milliseconds)
+                vals = pd.to_numeric(df["time"], errors="coerce")
+                if vals.median() > 1e12:
+                    vals = vals / 1000  # ms → s
+                df.index = pd.to_datetime(vals, unit="s", utc=True)
+            else:
+                df.index = pd.to_datetime(df["time"], utc=True)
+            df.index.name = None
+
+            # Normalise OHLCV columns
+            for alias_map in [
+                {"o": "open"}, {"h": "high"}, {"l": "low"}, {"c": "close"},
+                {"v": "volume", "tick_volume": "volume", "vol": "volume"},
+            ]:
+                for alias, target in alias_map.items():
+                    if target not in df.columns and alias in df.columns:
+                        df = df.rename(columns={alias: target})
+
+            for col in ("open", "high", "low", "close"):
+                if col not in df.columns:
+                    self.logger.warning(f"[csv] missing column '{col}' in {path.name}")
+                    return None
+            if "volume" not in df.columns:
+                df["volume"] = 1.0
+
+            df = df[["open", "high", "low", "close", "volume"]].copy()
+            df = df.sort_index().dropna(subset=["open", "high", "low", "close"])
+            return df
+
+        def _detect_tf(df: pd.DataFrame) -> str:
+            """Infer the base timeframe from median bar spacing."""
+            if len(df) < 2:
+                return "1H"
+            diffs = df.index.to_series().diff().dropna().dt.total_seconds()
+            median_sec = diffs.median()
+            for tf, secs in [("1m", 60), ("5m", 300), ("15m", 900),
+                             ("30m", 1800), ("1H", 3600), ("4H", 14400), ("1D", 86400)]:
+                if abs(median_sec - secs) < secs * 0.4:
+                    return tf
+            return "1H"
+
+        def _resample(df: pd.DataFrame, target_tf: str) -> pd.DataFrame:
+            """Resample OHLCV to a higher timeframe."""
+            rule = self._RESAMPLE_RULE.get(target_tf)
+            if rule is None:
+                return df
+            return (
+                df.resample(rule)
+                .agg({"open": "first", "high": "max", "low": "min",
+                      "close": "last", "volume": "sum"})
+                .dropna(subset=["open", "high", "low", "close"])
+            )
+
+        # Search for files matching the symbol
+        sym_upper = symbol.upper()
+        sym_files: Dict[str, pd.DataFrame] = {}   # tf → DataFrame
+
+        # Pattern: {SYMBOL}_{TF}.csv/.parquet  or  {SYMBOL}.csv/.parquet
+        for p in sorted(data_dir.iterdir()):
+            if p.is_dir() or p.name.startswith("."):
+                continue
+            stem = p.stem.upper()
+            if not stem.startswith(sym_upper):
+                continue
+            df = _read_ohlcv(p)
+            if df is None:
+                continue
+            # Extract TF from filename suffix: EURUSD_1m → "1m", EURUSD_1H → "1H"
+            suffix = stem[len(sym_upper):]
+            if suffix.startswith("_"):
+                suffix = suffix[1:]
+            # Map common variants
+            tf_norm = {
+                "1M": "1m", "5M": "5m", "15M": "15m", "30M": "30m",
+                "1H": "1H", "4H": "4H", "1D": "1D", "D1": "1D",
+                "M1": "1m", "M5": "5m", "M15": "15m", "M30": "30m",
+                "H1": "1H", "H4": "4H",
+            }.get(suffix, "")
+            if not tf_norm:
+                tf_norm = _detect_tf(df)
+                self.logger.info(f"[csv] {p.name}: auto-detected TF={tf_norm}")
+            sym_files[tf_norm] = df
+            self.logger.info(f"[csv] loaded {p.name}: {len(df)} bars ({tf_norm})")
+
+        # Also scan for peer symbol files (for CorrelationAgent)
+        peer = DataLoader._CORR_PEERS.get(sym_upper.replace("m", ""))
+        peer_df_d1: Optional[pd.DataFrame] = None
+        if peer:
+            for p in sorted(data_dir.iterdir()):
+                stem = p.stem.upper()
+                if stem.startswith(peer.upper()):
+                    df = _read_ohlcv(p)
+                    if df is not None:
+                        detected = _detect_tf(df)
+                        if detected == "1D" or "_1D" in stem or "_D1" in stem:
+                            peer_df_d1 = df
+                        elif peer_df_d1 is None:
+                            peer_df_d1 = _resample(df, "1D")
+
+        if not sym_files:
+            self.logger.error(f"[csv] no files found for {symbol} in {data_dir}")
+            return {}, "", []
+
+        # ── Resample base data to all needed TFs ─────────────────────────
+        needed_tfs = {long_tf, mid_tf, short_tf, "1D", "1H"}
+        # Find the finest available TF to use as resampling base
+        _TF_ORDER = ["1m", "5m", "15m", "30m", "1H", "4H", "1D"]
+        base_tf = None
+        base_df = None
+        for tf in _TF_ORDER:
+            if tf in sym_files:
+                base_tf = tf
+                base_df = sym_files[tf]
+                break
+        if base_df is None:
+            self.logger.error(f"[csv] could not find usable data for {symbol}")
+            return {}, "", []
+
+        # For each needed TF, use the matching file or resample from base
+        all_bars: Dict[str, Dict[str, np.ndarray]] = {}
+        bar_dates: List[datetime] = []
+
+        for tf_name in needed_tfs:
+            if tf_name in sym_files:
+                df = sym_files[tf_name]
+            elif _TF_ORDER.index(tf_name) > _TF_ORDER.index(base_tf) if tf_name in _TF_ORDER and base_tf in _TF_ORDER else False:
+                # Resample up from base
+                df = _resample(base_df, tf_name)
+            else:
+                self.logger.debug(f"[csv] cannot produce {tf_name} from {base_tf} base — skipping")
+                continue
+
+            # Trim to date range with warmup
+            _tf_warmup = _WARM_UP_BY_TF.get(tf_name, 30)
+            _tf_start = raw_start_dt - timedelta(days=max(warmup_days, _tf_warmup))
+            df = df[(df.index >= _tf_start) & (df.index <= end_dt + timedelta(days=1))]
+
+            if len(df) < 2:
+                continue
+
+            timestamps = (df.index.astype(np.int64) // 10**9).values.astype(float)
+            bars_dict = {
+                "open":   df["open"].values.astype(float),
+                "high":   df["high"].values.astype(float),
+                "low":    df["low"].values.astype(float),
+                "close":  df["close"].values.astype(float),
+                "volume": df["volume"].values.astype(float),
+                "time":   timestamps,
+            }
+
+            # Strip NaN/inf
+            valid_mask = (
+                np.isfinite(bars_dict["open"]) & np.isfinite(bars_dict["high"])
+                & np.isfinite(bars_dict["low"]) & np.isfinite(bars_dict["close"])
+            )
+            if valid_mask.sum() < 2:
+                continue
+            bars_dict = {k: v[valid_mask] for k, v in bars_dict.items()}
+
+            key = f"{symbol}_{tf_name}"
+            all_bars[key] = bars_dict
+
+            if tf_name == mid_tf:
+                bar_dates = [
+                    datetime.fromtimestamp(int(t), tz=timezone.utc)
+                    for t in bars_dict["time"]
+                ]
+
+        # Add peer D1 bars
+        if peer and peer_df_d1 is not None and f"{peer}_1D" not in all_bars:
+            peer_df_d1 = peer_df_d1[
+                (peer_df_d1.index >= raw_start_dt - timedelta(days=120))
+                & (peer_df_d1.index <= end_dt + timedelta(days=1))
+            ]
+            if len(peer_df_d1) >= 2:
+                pts = (peer_df_d1.index.astype(np.int64) // 10**9).values.astype(float)
+                all_bars[f"{peer}_1D"] = {
+                    "open":   peer_df_d1["open"].values.astype(float),
+                    "high":   peer_df_d1["high"].values.astype(float),
+                    "low":    peer_df_d1["low"].values.astype(float),
+                    "close":  peer_df_d1["close"].values.astype(float),
+                    "volume": peer_df_d1["volume"].values.astype(float),
+                    "time":   pts,
+                }
+
+        if not bar_dates:
+            self.logger.error(
+                f"[csv] could not produce {mid_tf} bars for {symbol} from {data_dir}"
+            )
+            return {}, "", []
+
+        self.logger.info(
+            f"[csv] {symbol}: {len(bar_dates)} {mid_tf} bars "
+            f"({start_date}→{end_date}), TFs loaded: "
+            f"{[k.split('_',1)[1] for k in all_bars if k.startswith(symbol)]}"
+        )
+        return all_bars, mid_tf, bar_dates
+
     # ── yfinance-based bar preload (fallback when MT5 is unavailable) ────────
 
     def _preload_bars_yfinance(
@@ -1909,7 +3629,19 @@ class BacktestEngine:
     def _preload_bars(
         self, symbol: str, start_date: str, end_date: str
     ) -> Tuple[Dict, str, List[datetime]]:
-        """Pre-load all required timeframe bars from MT5 for the date range."""
+        """Pre-load all required timeframe bars.
+
+        Priority: CSV/Parquet (if _data_dir set) → MT5 → yfinance.
+        """
+        # ── CSV / Parquet path (highest priority when --data-dir given) ──
+        if self._data_dir:
+            result = self._preload_bars_csv(symbol, start_date, end_date)
+            if result[1]:  # mid_tf non-empty means success
+                return result
+            self.logger.warning(
+                f"[csv] failed for {symbol} — falling back to MT5/yfinance"
+            )
+
         tf_cfg  = self.config.timeframes
         long_tf  = tf_cfg.long[0]  if tf_cfg.long  else "1D"
         mid_tf   = tf_cfg.mid[0]   if tf_cfg.mid   else "1H"
@@ -2133,18 +3865,30 @@ class BacktestEngine:
             return False
 
         pnl = self._pnl_at(pos, exit_price, tick_val, pip_sz, close_step=step)
+        _pnl_r = pnl / max(pos.risk_amount, 1e-9)
+        _one_r_exit = abs(pos.entry_price - (pos.entry_sl or pos.stop_loss))
+        _sl_dist_exit = abs(pos.entry_price - pos.stop_loss)
         logger.info(
             f"[EXIT-{exit_reason.upper()}] {pos.symbol} {pos.direction.upper()} "
             f"entry={pos.entry_price:.5f} exit={exit_price:.5f} "
-            f"pnl={pnl:+.2f} ({pnl / max(pos.risk_amount, 1e-9):+.2f}R) "
+            f"pnl={pnl:+.2f} ({_pnl_r:+.2f}R) "
             f"bars_held={step - pos.open_bar} (ticket={pos.ticket})"
         )
+        if exit_reason == "sl":
+            logger.debug(
+                f"[SL-DIAG] ticket={pos.ticket} "
+                f"entry_sl={pos.entry_sl:.5f} current_sl={pos.stop_loss:.5f} "
+                f"1R_dist={_one_r_exit/pip_sz:.1f}pip sl_dist={_sl_dist_exit/pip_sz:.1f}pip "
+                f"qty={pos.quantity:.2f} risk_amt=${pos.risk_amount:.2f} "
+                f"partial1={'Y' if pos.partial_tp1_fired else 'N'} "
+                f"partial2={'Y' if pos.partial_tp2_fired else 'N'}"
+            )
         closed_trades.append(ClosedTrade(
             symbol=pos.symbol, direction=pos.direction,
             entry_price=pos.entry_price, exit_price=exit_price,
             stop_loss=pos.stop_loss, take_profit=pos.take_profit,
             quantity=pos.quantity, risk_amount=pos.risk_amount,
-            pnl=pnl, pnl_r=pnl / max(pos.risk_amount, 1e-9),
+            pnl=pnl, pnl_r=_pnl_r,
             open_bar=pos.open_bar, close_bar=step,
             exit_reason=exit_reason, confidence=pos.confidence,
             win_probability=pos.win_probability, agent_votes=pos.agent_votes,
@@ -2167,20 +3911,20 @@ class BacktestEngine:
         gross = pips * tick_val * pos.quantity
         # Commission: round-trip cost per lot (mirrors real ECN broker)
         gross -= self._commission(pos.symbol, pos.quantity)
-        # Swap cost: overnight financing, one charge per complete calendar day held.
-        # bars_held * _hrs_per_bar converts bar count to hours regardless of timeframe;
-        # integer-divide by 24 gives whole overnight rollovers (no charge for intraday).
+        # Swap cost: direction-aware overnight financing.
+        # Trading days → calendar days via 7/5 (accounts for Wed triple-swap).
         if close_step >= 0:
             bars_held = max(0, close_step - pos.open_bar)
             if bars_held > 0:
                 hrs_per_bar = getattr(self, "_hrs_per_bar", 1.0)
-                days_held   = int(bars_held * hrs_per_bar / 24)
-                if days_held > 0:
+                trading_days = int(bars_held * hrs_per_bar / 24)
+                if trading_days > 0:
+                    # Calendar correction: 7 swap charges per 5 trading days
+                    calendar_days = trading_days * 7.0 / 5.0
                     sym = pos.symbol.upper().rstrip("Mm")
-                    if any(s in sym for s in ("DAX", "UK100", "US30", "US500", "USTEC")):
-                        swap = -1.0 * pos.quantity * days_held
-                    else:
-                        swap = -0.3 * tick_val * pos.quantity * days_held
+                    rates = self._SWAP_RATE.get(sym, (-3.0, -1.0))
+                    rate = rates[0] if pos.direction == "long" else rates[1]
+                    swap = rate * pos.quantity * calendar_days
                     gross += swap
         return gross
 
@@ -2296,4 +4040,48 @@ class BacktestEngine:
             ),
             max_daily_drawdown=dd,
             leverage_used=0.0,
+            n_portfolio_symbols=getattr(self, "_n_portfolio_symbols", 1),
+        )
+
+    def _make_portfolio_multi(
+        self,
+        equity: float,
+        initial: float,
+        open_positions: List["SimPosition"],
+        sym_ctx: Dict[str, dict],
+        sym_ts_to_idx: Dict[str, dict],
+        bar_ts: float,
+    ) -> "PortfolioState":
+        """Portfolio state with correct per-symbol pricing (portfolio mode)."""
+        dd = (equity - initial) / max(initial, 1.0)
+        pos_map: dict = {}
+        for p in open_positions:
+            ctx = sym_ctx.get(p.symbol)
+            if ctx is None:
+                continue
+            _idx = sym_ts_to_idx[p.symbol].get(bar_ts)
+            if _idx is None:
+                _idx = len(ctx["mid_bars"]["close"]) - 1
+            _cl = float(ctx["mid_bars"]["close"][min(_idx, len(ctx["mid_bars"]["close"]) - 1)])
+            _tv = ctx["tick_val"]
+            _ps = ctx["pip_sz"]
+            profit = self._pnl_at(p, _cl, _tv, _ps, close_step=_idx)
+            entry = {
+                "ticket": p.ticket,
+                "type": "BUY" if p.direction == "long" else "SELL",
+                "profit": profit,
+                "price_open": p.entry_price,
+            }
+            pos_map.setdefault(p.symbol, []).append(entry)
+        return PortfolioState(
+            equity=equity,
+            margin_used=0.0,
+            free_margin=equity,
+            daily_pnl=equity - initial,
+            daily_drawdown=dd,
+            open_positions=[p.symbol for p in open_positions],
+            open_positions_map=pos_map,
+            max_daily_drawdown=dd,
+            leverage_used=0.0,
+            n_portfolio_symbols=getattr(self, "_n_portfolio_symbols", 1),
         )

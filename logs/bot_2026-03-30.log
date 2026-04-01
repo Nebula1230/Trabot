@@ -5263,3 +5263,1816 @@
 2026-03-30 19:19:13  INFO      TradingGraph: Completed 15 agents
 2026-03-30 19:19:13  INFO      TradingGraph: Fusing timeframe signals
 2026-03-30 19:19:13  INFO      TradingGraph: Fusion: L=0.266(csns=0.67), M=-0.570(csns=1.00), S=-0.141(csns=0.60), align_str=0.000
+2026-03-30 19:20:12  INFO      TrailingStopManager: Structural update SELL CHFJPY #56001767232: SL 201.14900->201.14888  TP 197.38100->197.38100  (live=199.30400 atr=0.22619)
+2026-03-30 19:20:12  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:20:12  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:20:12  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:20:12  INFO      TradingGraph: Fusion: L=-0.546(csns=1.00), M=-0.576(csns=1.00), S=-0.183(csns=0.67), align_str=0.386
+2026-03-30 19:20:13  INFO      TradingGraph: Running agents for GBPUSD
+2026-03-30 19:20:13  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:20:13  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:20:13  INFO      TradingGraph: Fusion: L=-0.578(csns=1.00), M=-0.585(csns=1.00), S=-0.192(csns=0.67), align_str=0.402
+2026-03-30 19:20:13  INFO      TradingGraph: Running agents for EURCHF
+2026-03-30 19:20:13  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:20:13  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:20:13  INFO      TradingGraph: Fusion: L=-0.198(csns=0.67), M=-0.136(csns=0.67), S=-0.034(csns=0.17), align_str=0.097
+2026-03-30 19:20:13  INFO      TradingGraph: Running agents for CHFJPY
+2026-03-30 19:20:14  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:20:14  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:20:14  INFO      TradingGraph: Fusion: L=0.266(csns=0.67), M=-0.570(csns=1.00), S=-0.141(csns=0.60), align_str=0.000
+2026-03-30 19:21:12  INFO      TrailingStopManager: Structural update SELL CHFJPY #56001767232: SL 201.14900->201.14888  TP 197.38100->197.38100  (live=199.32500 atr=0.22619)
+2026-03-30 19:21:12  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:21:12  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:21:12  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:21:12  INFO      TradingGraph: Fusion: L=-0.548(csns=1.00), M=-0.589(csns=1.00), S=-0.201(csns=0.67), align_str=0.402
+2026-03-30 19:21:13  INFO      TradingGraph: Running agents for GBPUSD
+2026-03-30 19:21:13  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:21:13  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:21:13  INFO      TradingGraph: Fusion: L=-0.580(csns=1.00), M=-0.597(csns=1.00), S=-0.214(csns=0.80), align_str=0.420
+2026-03-30 19:21:13  INFO      TradingGraph: Running agents for EURCHF
+2026-03-30 19:21:13  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:21:13  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:21:13  INFO      TradingGraph: Fusion: L=-0.198(csns=0.67), M=-0.144(csns=0.67), S=-0.038(csns=0.17), align_str=0.103
+2026-03-30 19:21:14  INFO      TradingGraph: Running agents for CHFJPY
+2026-03-30 19:21:14  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:21:14  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:21:14  INFO      TradingGraph: Fusion: L=0.265(csns=0.67), M=-0.556(csns=1.00), S=-0.120(csns=0.50), align_str=0.000
+2026-03-30 19:21:19  INFO      TradingRunner: Analysing EURUSD …
+2026-03-30 19:21:19  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:21:19  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:21:19  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:21:19  INFO      TradingGraph: Fusion: L=-0.549(csns=1.00), M=-0.593(csns=1.00), S=-0.202(csns=0.67), align_str=0.404
+2026-03-30 19:21:19  INFO      TradingGraph: Aligned [full-alignment] (bearish) — proceeding [L=-0.549 M=-0.593 S=-0.202 breadth=0.008]
+2026-03-30 19:21:19  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:21:19  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_FULL_ALIGNMENT_EURUSD
+2026-03-30 19:21:19  INFO      TradingGraph: Correlation guard: 2/2 long_usd positions already open — refusing EURUSD SELL
+2026-03-30 19:21:19  INFO      TradingRunner: Analysing USDJPY …
+2026-03-30 19:21:19  INFO      TradingGraph: Running agents for USDJPY
+2026-03-30 19:21:20  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:21:20  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:21:20  INFO      TradingGraph: Fusion: L=0.366(csns=0.67), M=-0.091(csns=1.00), S=0.070(csns=0.80), align_str=0.000
+2026-03-30 19:21:20  INFO      TradingGraph: Aligned [pullback-entry] (bullish) — proceeding [L=0.366 M=-0.091 S=0.070 breadth=0.008]
+2026-03-30 19:21:20  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:21:20  INFO      TradingGraph: Generated recipe: BALANCED_LONG_PULLBACK_ENTRY_USDJPY
+2026-03-30 19:21:20  INFO      TradingGraph: Correlation guard: 2/2 long_usd positions already open — refusing USDJPY BUY
+2026-03-30 19:21:20  INFO      TradingRunner: Analysing USDCHF …
+2026-03-30 19:21:20  INFO      TradingGraph: Running agents for USDCHF
+2026-03-30 19:21:20  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:21:20  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:21:20  INFO      TradingGraph: Fusion: L=0.573(csns=1.00), M=0.354(csns=0.67), S=0.194(csns=0.83), align_str=0.340
+2026-03-30 19:21:20  INFO      TradingGraph: Aligned [full-alignment] (bullish) — proceeding [L=0.573 M=0.354 S=0.194 breadth=0.008]
+2026-03-30 19:21:20  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:21:20  INFO      TradingGraph: Generated recipe: BALANCED_LONG_FULL_ALIGNMENT_USDCHF
+2026-03-30 19:21:20  INFO      TradingGraph: Correlation guard: 2/2 long_usd positions already open — refusing USDCHF BUY
+2026-03-30 19:21:20  INFO      TradingRunner: Analysing AUDUSD …
+2026-03-30 19:21:20  INFO      TradingGraph: Running agents for AUDUSD
+2026-03-30 19:21:20  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:21:20  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:21:20  INFO      TradingGraph: Fusion: L=-0.065(csns=1.00), M=-0.127(csns=0.67), S=-0.107(csns=0.75), align_str=0.096
+2026-03-30 19:21:20  INFO      TradingGraph: Timeframes not aligned — stopping (L=-0.065 M=-0.127 S=-0.107)
+2026-03-30 19:21:20  INFO      TradingRunner: Analysing USDCAD …
+2026-03-30 19:21:20  INFO      TradingGraph: Running agents for USDCAD
+2026-03-30 19:21:20  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:21:20  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:21:20  INFO      TradingGraph: Fusion: L=0.597(csns=1.00), M=0.342(csns=0.75), S=0.213(csns=0.83), align_str=0.352
+2026-03-30 19:21:20  INFO      TradingGraph: Aligned [full-alignment] (bullish) — proceeding [L=0.597 M=0.342 S=0.213 breadth=0.008]
+2026-03-30 19:21:20  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:21:20  INFO      TradingGraph: Generated recipe: BALANCED_LONG_FULL_ALIGNMENT_USDCAD
+2026-03-30 19:21:20  INFO      TradingGraph: Correlation guard: 2/2 long_usd positions already open — refusing USDCAD BUY
+2026-03-30 19:21:20  INFO      TradingRunner: Analysing NZDUSD …
+2026-03-30 19:21:20  INFO      TradingGraph: Running agents for NZDUSD
+2026-03-30 19:21:20  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:21:20  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:21:20  INFO      TradingGraph: Fusion: L=-0.621(csns=1.00), M=-0.345(csns=0.75), S=-0.227(csns=1.00), align_str=0.365
+2026-03-30 19:21:20  INFO      TradingGraph: Aligned [full-alignment] (bearish) — proceeding [L=-0.621 M=-0.345 S=-0.227 breadth=0.008]
+2026-03-30 19:21:20  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:21:20  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_FULL_ALIGNMENT_NZDUSD
+2026-03-30 19:21:20  INFO      TradingGraph: Correlation guard: 2/2 long_usd positions already open — refusing NZDUSD SELL
+2026-03-30 19:21:20  INFO      TradingRunner: Analysing US30 …
+2026-03-30 19:21:20  INFO      TradingGraph: Running agents for US30
+2026-03-30 19:21:20  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:21:20  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:21:20  INFO      TradingGraph: Fusion: L=-0.356(csns=1.00), M=-0.185(csns=1.00), S=-0.079(csns=1.00), align_str=0.173
+2026-03-30 19:21:20  INFO      TradingGraph: Aligned [pullback-entry] (bearish) — proceeding [L=-0.356 M=-0.185 S=-0.079 breadth=0.008]
+2026-03-30 19:21:20  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:21:20  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_PULLBACK_ENTRY_US30
+2026-03-30 19:21:20  INFO      TradingGraph: Risk check passed
+2026-03-30 19:21:20  INFO      TradingGraph: Creating trade plan
+2026-03-30 19:21:20  INFO      TradingGraph: VIX risk scaling: vix_fear=0.55 → risk ×0.88 (0.12)
+2026-03-30 19:21:20  INFO      TradingGraph: Structure SL/TP [US30] entry=45303.90000 sl=46640.95255 (3.93×ATR) tp=44395.40000 (R:R=0.68)
+2026-03-30 19:21:20  INFO      TradingGraph: Created trade plan: entry=45303.9000, sl=46640.9500, tp=43966.8500
+2026-03-30 19:21:20  INFO      TradingGraph: Executing trade for US30
+2026-03-30 19:21:20  WARNING   MT5Executor: US30: trading disabled on this symbol (trade_mode=0 — may be outside market hours or broker restriction). Skipping.
+2026-03-30 19:21:20  INFO      TradingGraph: Order not placed for US30 (executor returned None — see executor log for reason)
+2026-03-30 19:21:20  INFO      TradingRunner: Analysing US500 …
+2026-03-30 19:21:20  INFO      TradingGraph: Running agents for US500
+2026-03-30 19:21:20  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:21:20  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:21:20  INFO      TradingGraph: Fusion: L=-0.442(csns=1.00), M=-0.369(csns=1.00), S=-0.304(csns=0.83), align_str=0.368
+2026-03-30 19:21:20  INFO      TradingGraph: Aligned [full-alignment] (bearish) — proceeding [L=-0.442 M=-0.369 S=-0.304 breadth=0.008]
+2026-03-30 19:21:20  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:21:20  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_FULL_ALIGNMENT_US500
+2026-03-30 19:21:20  INFO      TradingGraph: Risk check passed
+2026-03-30 19:21:20  INFO      TradingGraph: Creating trade plan
+2026-03-30 19:21:20  INFO      TradingGraph: VIX risk scaling: vix_fear=0.55 → risk ×0.88 (0.12)
+2026-03-30 19:21:20  INFO      TradingGraph: SL cap [US500]: 6.01×ATR → 5.0×ATR
+2026-03-30 19:21:20  INFO      TradingGraph: Structure SL/TP [US500] entry=6361.70000 sl=6600.78088 (5.00×ATR) tp=6152.37713 (R:R=0.88)
+2026-03-30 19:21:20  INFO      TradingGraph: Created trade plan: entry=6361.7000, sl=6600.7800, tp=6122.6200
+2026-03-30 19:21:20  INFO      TradingGraph: Executing trade for US500
+2026-03-30 19:21:20  WARNING   MT5Executor: US500: trading disabled on this symbol (trade_mode=0 — may be outside market hours or broker restriction). Skipping.
+2026-03-30 19:21:20  INFO      TradingGraph: Order not placed for US500 (executor returned None — see executor log for reason)
+2026-03-30 19:21:20  INFO      TradingRunner: Analysing USTEC …
+2026-03-30 19:21:20  INFO      TradingGraph: Running agents for USTEC
+2026-03-30 19:21:21  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:21:21  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:21:21  INFO      TradingGraph: Fusion: L=-0.448(csns=1.00), M=-0.428(csns=1.00), S=-0.318(csns=0.83), align_str=0.394
+2026-03-30 19:21:21  INFO      TradingGraph: Aligned [full-alignment] (bearish) — proceeding [L=-0.448 M=-0.428 S=-0.318 breadth=0.008]
+2026-03-30 19:21:21  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:21:21  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_FULL_ALIGNMENT_USTEC
+2026-03-30 19:21:21  INFO      TradingGraph: Risk check passed
+2026-03-30 19:21:21  INFO      TradingGraph: Creating trade plan
+2026-03-30 19:21:21  INFO      TradingGraph: VIX risk scaling: vix_fear=0.51 → risk ×0.90 (0.12)
+2026-03-30 19:21:21  INFO      TradingGraph: SL cap [USTEC]: 6.68×ATR → 5.0×ATR
+2026-03-30 19:21:21  INFO      TradingGraph: Structure SL/TP [USTEC] entry=23042.10000 sl=24047.36147 (5.00×ATR) tp=22299.61446 (R:R=0.74)
+2026-03-30 19:21:21  INFO      TradingGraph: Created trade plan: entry=23042.1000, sl=24047.3600, tp=22036.8400
+2026-03-30 19:21:21  INFO      TradingGraph: Executing trade for USTEC
+2026-03-30 19:21:21  WARNING   MT5Executor: USTEC: trading disabled on this symbol (trade_mode=0 — may be outside market hours or broker restriction). Skipping.
+2026-03-30 19:21:21  INFO      TradingGraph: Order not placed for USTEC (executor returned None — see executor log for reason)
+2026-03-30 19:21:21  INFO      TradingRunner: Analysing DAX …
+2026-03-30 19:21:21  INFO      TradingGraph: Running agents for DAX
+2026-03-30 19:21:21  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:21:21  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:21:21  INFO      TradingGraph: Fusion: L=-0.160(csns=1.00), M=-0.094(csns=1.00), S=0.078(csns=0.83), align_str=0.000
+2026-03-30 19:21:21  INFO      TradingGraph: Aligned [pullback-entry] (bearish) — proceeding [L=-0.160 M=-0.094 S=0.078 breadth=0.008]
+2026-03-30 19:21:21  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:21:21  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_PULLBACK_ENTRY_DAX
+2026-03-30 19:21:21  INFO      TradingGraph: Win probability too low: 0.449 < 0.46
+2026-03-30 19:21:21  INFO      TradingRunner: Analysing UK100 …
+2026-03-30 19:21:21  INFO      TradingGraph: Running agents for UK100
+2026-03-30 19:21:21  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:21:21  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:21:21  INFO      TradingGraph: Fusion: L=0.135(csns=0.67), M=0.304(csns=1.00), S=0.009(csns=0.17), align_str=0.071
+2026-03-30 19:21:21  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.135 M=0.304 S=0.009)
+2026-03-30 19:21:21  INFO      TradingRunner: Analysing EURJPY …
+2026-03-30 19:21:21  INFO      TradingGraph: Running agents for EURJPY
+2026-03-30 19:21:21  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:21:21  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:21:21  INFO      TradingGraph: Fusion: L=-0.154(csns=1.00), M=-0.693(csns=1.00), S=-0.043(csns=0.50), align_str=0.167
+2026-03-30 19:21:21  INFO      TradingGraph: Aligned [pullback-entry] (bearish) — proceeding [L=-0.154 M=-0.693 S=-0.043 breadth=0.008]
+2026-03-30 19:21:21  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:21:21  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_PULLBACK_ENTRY_EURJPY
+2026-03-30 19:21:21  INFO      TradingGraph: Risk check passed
+2026-03-30 19:21:21  INFO      TradingGraph: Creating trade plan
+2026-03-30 19:21:21  INFO      TradingGraph: VIX risk scaling: vix_fear=0.45 → risk ×0.96 (0.13)
+2026-03-30 19:21:21  INFO      TradingGraph: Structure SL/TP [EURJPY] entry=182.83300 sl=184.17657 (3.63×ATR) tp=181.86900 (R:R=0.72)
+2026-03-30 19:21:21  INFO      TradingGraph: Created trade plan: entry=182.8330, sl=184.1770, tp=181.4890
+2026-03-30 19:21:21  INFO      TradingGraph: Executing trade for EURJPY
+2026-03-30 19:21:21  INFO      MT5Executor: EURJPY: lots=0.01 (risk=$7.35)
+2026-03-30 19:21:21  INFO      MT5Executor: Market order filled: ticket=56001861235 vol=0.01
+2026-03-30 19:21:21  INFO      TradingGraph: Order placed: ticket=56001861235
+2026-03-30 19:21:21  INFO      OrderManager: Created order order_4_20260330_192121 for EURJPY
+2026-03-30 19:21:21  INFO      TradeJournal: TRADE  EURJPY           Direction.SHORT  qty=0.01  entry=182.83300  sl=184.17700  tp=181.48900  ticket=56001861235
+2026-03-30 19:21:21  INFO      TradingRunner: EURJPY: trade placed — daily count 4/6, next entry in 60min
+2026-03-30 19:21:22  INFO      TradingRunner: Analysing GBPJPY …
+2026-03-30 19:21:22  INFO      TradingGraph: Running agents for GBPJPY
+2026-03-30 19:21:22  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:21:22  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:21:22  INFO      TradingGraph: Fusion: L=0.040(csns=0.33), M=-0.753(csns=1.00), S=-0.027(csns=0.50), align_str=0.000
+2026-03-30 19:21:22  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.040 M=-0.753 S=-0.027)
+2026-03-30 19:21:22  INFO      TradingRunner: Analysing AUDJPY …
+2026-03-30 19:21:22  INFO      TradingGraph: Running agents for AUDJPY
+2026-03-30 19:21:22  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:21:22  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:21:22  INFO      TradingGraph: Fusion: L=0.257(csns=0.33), M=-0.339(csns=1.00), S=-0.090(csns=0.50), align_str=0.000
+2026-03-30 19:21:22  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.257 M=-0.339 S=-0.090)
+2026-03-30 19:21:22  INFO      TradingRunner: Analysing EURGBP …
+2026-03-30 19:21:22  INFO      TradingGraph: Running agents for EURGBP
+2026-03-30 19:21:22  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:21:22  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:21:22  INFO      TradingGraph: Fusion: L=0.021(csns=0.33), M=0.379(csns=1.00), S=0.222(csns=0.86), align_str=0.120
+2026-03-30 19:21:22  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.021 M=0.379 S=0.222)
+2026-03-30 19:21:22  INFO      TradingRunner: Analysing XAGUSD …
+2026-03-30 19:21:22  INFO      TradingGraph: Running agents for XAGUSD
+2026-03-30 19:21:22  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:21:22  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:21:22  INFO      TradingGraph: Fusion: L=-0.184(csns=0.50), M=0.135(csns=1.00), S=-0.228(csns=0.83), align_str=0.000
+2026-03-30 19:21:22  INFO      TradingGraph: Timeframes not aligned — stopping (L=-0.184 M=0.135 S=-0.228)
+2026-03-30 19:21:22  INFO      TradingRunner: PnL — unrealized: -0.23  realized today: +0.00  total: -0.23
+2026-03-30 19:21:22  INFO      TradingRunner: Signal cycle done in 7.5s — sleeping 293s
+2026-03-30 19:22:15  WARNING   TradingRunner: [WATCHDOG] MT5 connection lost — attempting reconnect
+2026-03-30 19:22:15  INFO      TradingRunner: [WATCHDOG] Reconnect attempt 1/5 (waiting 10s)
+2026-03-30 19:22:25  INFO      MT5Executor: MT5 connection closed
+2026-03-30 19:22:25  INFO      MT5Executor: Using mt5linux backend → localhost:18812
+2026-03-30 19:22:25  INFO      MT5Executor: Connected to MT5: 5048478471 on MetaQuotes-Demo | balance=137.45 | trade_allowed=True
+2026-03-30 19:22:25  INFO      TradingRunner: [WATCHDOG] MT5 reconnected successfully
+2026-03-30 19:23:12  INFO      TrailingStopManager: Structural update SELL CHFJPY #56001767232: SL 201.14900->201.14888  TP 197.38100->197.38100  (live=199.32200 atr=0.22619)
+2026-03-30 19:23:12  INFO      TrailingStopManager: Structural update SELL EURJPY #56001861235: SL 184.17700->184.13402  TP 181.48900->181.48900  (live=182.82700 atr=0.20010)
+2026-03-30 19:23:12  INFO      MT5Executor: SL/TP modified for position 56001861235: SL=184.13402  TP=181.48900
+2026-03-30 19:23:13  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:23:13  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:23:13  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:23:13  INFO      TradingGraph: Fusion: L=-0.548(csns=1.00), M=-0.589(csns=1.00), S=-0.201(csns=0.67), align_str=0.402
+2026-03-30 19:23:13  INFO      TradingGraph: Running agents for GBPUSD
+2026-03-30 19:23:13  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:23:13  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:23:13  INFO      TradingGraph: Fusion: L=-0.580(csns=1.00), M=-0.597(csns=1.00), S=-0.214(csns=0.80), align_str=0.420
+2026-03-30 19:23:14  INFO      TradingGraph: Running agents for EURCHF
+2026-03-30 19:23:14  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:23:14  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:23:14  INFO      TradingGraph: Fusion: L=-0.198(csns=0.67), M=-0.142(csns=0.67), S=-0.037(csns=0.17), align_str=0.101
+2026-03-30 19:23:14  INFO      TradingGraph: Running agents for CHFJPY
+2026-03-30 19:23:14  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:23:14  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:23:14  INFO      TradingGraph: Fusion: L=0.265(csns=0.67), M=-0.557(csns=1.00), S=-0.120(csns=0.50), align_str=0.000
+2026-03-30 19:23:14  INFO      TradingGraph: Running agents for EURJPY
+2026-03-30 19:23:14  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:23:14  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:23:14  INFO      TradingGraph: Fusion: L=-0.155(csns=1.00), M=-0.698(csns=1.00), S=-0.045(csns=0.50), align_str=0.169
+2026-03-30 19:24:12  INFO      TrailingStopManager: Structural update SELL CHFJPY #56001767232: SL 201.14900->201.14888  TP 197.38100->197.38100  (live=199.32600 atr=0.22619)
+2026-03-30 19:24:13  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:24:13  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:24:13  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:24:13  INFO      TradingGraph: Fusion: L=-0.548(csns=1.00), M=-0.585(csns=1.00), S=-0.195(csns=0.67), align_str=0.396
+2026-03-30 19:24:13  INFO      TradingGraph: Running agents for GBPUSD
+2026-03-30 19:24:13  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:24:13  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:24:13  INFO      TradingGraph: Fusion: L=-0.580(csns=1.00), M=-0.595(csns=1.00), S=-0.214(csns=0.80), align_str=0.419
+2026-03-30 19:24:14  INFO      TradingGraph: Running agents for EURCHF
+2026-03-30 19:24:14  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:24:14  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:24:14  INFO      TradingGraph: Fusion: L=-0.198(csns=0.67), M=-0.146(csns=0.67), S=-0.039(csns=0.17), align_str=0.104
+2026-03-30 19:24:14  INFO      TradingGraph: Running agents for CHFJPY
+2026-03-30 19:24:14  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:24:14  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:24:14  INFO      TradingGraph: Fusion: L=0.265(csns=0.67), M=-0.554(csns=1.00), S=-0.120(csns=0.50), align_str=0.000
+2026-03-30 19:24:14  INFO      TradingGraph: Running agents for EURJPY
+2026-03-30 19:24:15  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:24:15  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:24:15  INFO      TradingGraph: Fusion: L=-0.155(csns=1.00), M=-0.698(csns=1.00), S=-0.045(csns=0.50), align_str=0.169
+2026-03-30 19:25:12  INFO      TrailingStopManager: Structural update SELL CHFJPY #56001767232: SL 201.14900->201.14888  TP 197.38100->197.38100  (live=199.34600 atr=0.22619)
+2026-03-30 19:25:13  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:25:13  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:25:13  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:25:13  INFO      TradingGraph: Fusion: L=-0.544(csns=1.00), M=-0.539(csns=1.00), S=-0.169(csns=0.67), align_str=0.367
+2026-03-30 19:25:13  INFO      TradingGraph: Running agents for GBPUSD
+2026-03-30 19:25:13  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:25:13  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:25:13  INFO      TradingGraph: Fusion: L=-0.578(csns=1.00), M=-0.579(csns=1.00), S=-0.185(csns=0.67), align_str=0.395
+2026-03-30 19:25:14  INFO      TradingGraph: Running agents for EURCHF
+2026-03-30 19:25:14  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:25:14  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:25:14  INFO      TradingGraph: Fusion: L=-0.198(csns=0.67), M=-0.135(csns=0.67), S=-0.034(csns=0.17), align_str=0.097
+2026-03-30 19:25:14  INFO      TradingGraph: Running agents for CHFJPY
+2026-03-30 19:25:14  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:25:14  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:25:14  INFO      TradingGraph: Fusion: L=0.265(csns=0.67), M=-0.539(csns=1.00), S=-0.108(csns=0.50), align_str=0.000
+2026-03-30 19:25:14  INFO      TradingGraph: Running agents for EURJPY
+2026-03-30 19:25:14  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:25:14  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:25:14  INFO      TradingGraph: Fusion: L=-0.154(csns=1.00), M=-0.687(csns=1.00), S=-0.030(csns=0.33), align_str=0.147
+2026-03-30 19:26:13  INFO      TrailingStopManager: Structural update SELL CHFJPY #56001767232: SL 201.14900->201.14888  TP 197.38100->197.38100  (live=199.35100 atr=0.22619)
+2026-03-30 19:26:13  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:26:13  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:26:13  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:26:13  INFO      TradingGraph: Fusion: L=-0.543(csns=1.00), M=-0.530(csns=1.00), S=-0.162(csns=0.67), align_str=0.360
+2026-03-30 19:26:14  INFO      TradingGraph: Running agents for GBPUSD
+2026-03-30 19:26:14  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:26:14  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:26:14  INFO      TradingGraph: Fusion: L=-0.578(csns=1.00), M=-0.576(csns=1.00), S=-0.184(csns=0.67), align_str=0.394
+2026-03-30 19:26:14  INFO      TradingGraph: Running agents for EURCHF
+2026-03-30 19:26:14  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:26:14  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:26:14  INFO      TradingGraph: Fusion: L=-0.198(csns=0.67), M=-0.130(csns=0.67), S=-0.032(csns=0.17), align_str=0.094
+2026-03-30 19:26:15  INFO      TradingGraph: Running agents for CHFJPY
+2026-03-30 19:26:15  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:26:15  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:26:15  INFO      TradingGraph: Fusion: L=0.265(csns=0.67), M=-0.535(csns=1.00), S=-0.107(csns=0.50), align_str=0.000
+2026-03-30 19:26:15  INFO      TradingGraph: Running agents for EURJPY
+2026-03-30 19:26:15  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:26:15  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:26:15  INFO      TradingGraph: Fusion: L=-0.153(csns=1.00), M=-0.683(csns=1.00), S=-0.024(csns=0.33), align_str=0.135
+2026-03-30 19:26:19  INFO      TradingRunner: Analysing EURUSD …
+2026-03-30 19:26:19  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:26:19  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:26:19  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:26:19  INFO      TradingGraph: Fusion: L=-0.543(csns=1.00), M=-0.530(csns=1.00), S=-0.162(csns=0.67), align_str=0.360
+2026-03-30 19:26:19  INFO      TradingGraph: Aligned [full-alignment] (bearish) — proceeding [L=-0.543 M=-0.530 S=-0.162 breadth=0.008]
+2026-03-30 19:26:19  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:26:19  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_FULL_ALIGNMENT_EURUSD
+2026-03-30 19:26:19  INFO      TradingGraph: Correlation guard: 2/2 long_usd positions already open — refusing EURUSD SELL
+2026-03-30 19:26:19  INFO      TradingRunner: Analysing USDJPY …
+2026-03-30 19:26:19  INFO      TradingGraph: Running agents for USDJPY
+2026-03-30 19:26:19  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:26:19  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:26:19  INFO      TradingGraph: Fusion: L=0.367(csns=0.67), M=-0.146(csns=1.00), S=0.020(csns=0.80), align_str=0.000
+2026-03-30 19:26:19  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.367 M=-0.146 S=0.020)
+2026-03-30 19:26:19  INFO      TradingRunner: Analysing USDCHF …
+2026-03-30 19:26:19  INFO      TradingGraph: Running agents for USDCHF
+2026-03-30 19:26:19  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:26:19  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:26:19  INFO      TradingGraph: Fusion: L=0.569(csns=1.00), M=0.325(csns=0.67), S=0.266(csns=1.00), align_str=0.367
+2026-03-30 19:26:19  INFO      TradingGraph: Aligned [full-alignment] (bullish) — proceeding [L=0.569 M=0.325 S=0.266 breadth=0.008]
+2026-03-30 19:26:19  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:26:19  INFO      TradingGraph: Generated recipe: BALANCED_LONG_FULL_ALIGNMENT_USDCHF
+2026-03-30 19:26:19  INFO      TradingGraph: Correlation guard: 2/2 long_usd positions already open — refusing USDCHF BUY
+2026-03-30 19:26:19  INFO      TradingRunner: Analysing AUDUSD …
+2026-03-30 19:26:19  INFO      TradingGraph: Running agents for AUDUSD
+2026-03-30 19:26:19  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:26:19  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:26:19  INFO      TradingGraph: Fusion: L=-0.065(csns=1.00), M=-0.099(csns=0.67), S=-0.003(csns=0.20), align_str=0.028
+2026-03-30 19:26:19  INFO      TradingGraph: Timeframes not aligned — stopping (L=-0.065 M=-0.099 S=-0.003)
+2026-03-30 19:26:19  INFO      TradingRunner: Analysing USDCAD …
+2026-03-30 19:26:19  INFO      TradingGraph: Running agents for USDCAD
+2026-03-30 19:26:20  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:26:20  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:26:20  INFO      TradingGraph: Fusion: L=0.593(csns=1.00), M=0.314(csns=0.75), S=0.170(csns=0.75), align_str=0.317
+2026-03-30 19:26:20  INFO      TradingGraph: Aligned [full-alignment] (bullish) — proceeding [L=0.593 M=0.314 S=0.170 breadth=0.008]
+2026-03-30 19:26:20  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:26:20  INFO      TradingGraph: Generated recipe: BALANCED_LONG_FULL_ALIGNMENT_USDCAD
+2026-03-30 19:26:20  INFO      TradingGraph: Correlation guard: 2/2 long_usd positions already open — refusing USDCAD BUY
+2026-03-30 19:26:20  INFO      TradingRunner: Analysing NZDUSD …
+2026-03-30 19:26:20  INFO      TradingGraph: Running agents for NZDUSD
+2026-03-30 19:26:20  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:26:20  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:26:20  INFO      TradingGraph: Fusion: L=-0.618(csns=1.00), M=-0.316(csns=0.75), S=-0.073(csns=0.33), align_str=0.242
+2026-03-30 19:26:20  INFO      TradingGraph: Aligned [pullback-entry] (bearish) — proceeding [L=-0.618 M=-0.316 S=-0.073 breadth=0.008]
+2026-03-30 19:26:20  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:26:20  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_PULLBACK_ENTRY_NZDUSD
+2026-03-30 19:26:20  INFO      TradingGraph: Correlation guard: 2/2 long_usd positions already open — refusing NZDUSD SELL
+2026-03-30 19:26:20  INFO      TradingRunner: Analysing US30 …
+2026-03-30 19:26:20  INFO      TradingGraph: Running agents for US30
+2026-03-30 19:26:20  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:26:20  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:26:20  INFO      TradingGraph: Fusion: L=-0.270(csns=0.67), M=-0.172(csns=1.00), S=-0.080(csns=0.75), align_str=0.155
+2026-03-30 19:26:20  INFO      TradingGraph: Aligned [full-alignment] (bearish) — proceeding [L=-0.270 M=-0.172 S=-0.080 breadth=0.008]
+2026-03-30 19:26:20  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:26:20  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_FULL_ALIGNMENT_US30
+2026-03-30 19:26:20  INFO      TradingGraph: Risk check passed
+2026-03-30 19:26:20  INFO      TradingGraph: Creating trade plan
+2026-03-30 19:26:20  INFO      TradingGraph: VIX risk scaling: vix_fear=0.55 → risk ×0.87 (0.12)
+2026-03-30 19:26:20  INFO      TradingGraph: Structure SL/TP [US30] entry=45326.00000 sl=46641.40077 (3.84×ATR) tp=44395.40000 (R:R=0.71)
+2026-03-30 19:26:20  INFO      TradingGraph: Created trade plan: entry=45326.0000, sl=46641.4000, tp=44010.6000
+2026-03-30 19:26:20  INFO      TradingGraph: Executing trade for US30
+2026-03-30 19:26:20  WARNING   MT5Executor: US30: trading disabled on this symbol (trade_mode=0 — may be outside market hours or broker restriction). Skipping.
+2026-03-30 19:26:20  INFO      TradingGraph: Order not placed for US30 (executor returned None — see executor log for reason)
+2026-03-30 19:26:20  INFO      TradingRunner: Analysing US500 …
+2026-03-30 19:26:20  INFO      TradingGraph: Running agents for US500
+2026-03-30 19:26:20  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:26:20  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:26:20  INFO      TradingGraph: Fusion: L=-0.443(csns=1.00), M=-0.368(csns=1.00), S=-0.310(csns=0.83), align_str=0.370
+2026-03-30 19:26:20  INFO      TradingGraph: Aligned [full-alignment] (bearish) — proceeding [L=-0.443 M=-0.368 S=-0.310 breadth=0.008]
+2026-03-30 19:26:20  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:26:20  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_FULL_ALIGNMENT_US500
+2026-03-30 19:26:20  INFO      TradingGraph: Risk check passed
+2026-03-30 19:26:20  INFO      TradingGraph: Creating trade plan
+2026-03-30 19:26:20  INFO      TradingGraph: VIX risk scaling: vix_fear=0.55 → risk ×0.87 (0.12)
+2026-03-30 19:26:20  INFO      TradingGraph: SL cap [US500]: 6.00×ATR → 5.0×ATR
+2026-03-30 19:26:20  INFO      TradingGraph: Structure SL/TP [US500] entry=6360.90000 sl=6601.12374 (5.00×ATR) tp=6151.86927 (R:R=0.87)
+2026-03-30 19:26:20  INFO      TradingGraph: Created trade plan: entry=6360.9000, sl=6601.1200, tp=6120.6800
+2026-03-30 19:26:20  INFO      TradingGraph: Executing trade for US500
+2026-03-30 19:26:20  WARNING   MT5Executor: US500: trading disabled on this symbol (trade_mode=0 — may be outside market hours or broker restriction). Skipping.
+2026-03-30 19:26:20  INFO      TradingGraph: Order not placed for US500 (executor returned None — see executor log for reason)
+2026-03-30 19:26:20  INFO      TradingRunner: Analysing USTEC …
+2026-03-30 19:26:20  INFO      TradingGraph: Running agents for USTEC
+2026-03-30 19:26:20  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:26:20  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:26:20  INFO      TradingGraph: Fusion: L=-0.449(csns=1.00), M=-0.433(csns=1.00), S=-0.349(csns=1.00), align_str=0.408
+2026-03-30 19:26:20  INFO      TradingGraph: Aligned [full-alignment] (bearish) — proceeding [L=-0.449 M=-0.433 S=-0.349 breadth=0.008]
+2026-03-30 19:26:20  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:26:20  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_FULL_ALIGNMENT_USTEC
+2026-03-30 19:26:20  INFO      TradingGraph: Risk check passed
+2026-03-30 19:26:20  INFO      TradingGraph: Creating trade plan
+2026-03-30 19:26:20  INFO      TradingGraph: VIX risk scaling: vix_fear=0.52 → risk ×0.90 (0.12)
+2026-03-30 19:26:20  INFO      TradingGraph: SL cap [USTEC]: 6.71×ATR → 5.0×ATR
+2026-03-30 19:26:20  INFO      TradingGraph: Structure SL/TP [USTEC] entry=23033.60000 sl=24041.14718 (5.00×ATR) tp=22300.50318 (R:R=0.73)
+2026-03-30 19:26:20  INFO      TradingGraph: Created trade plan: entry=23033.6000, sl=24041.1500, tp=22026.0500
+2026-03-30 19:26:20  INFO      TradingGraph: Executing trade for USTEC
+2026-03-30 19:26:20  WARNING   MT5Executor: USTEC: trading disabled on this symbol (trade_mode=0 — may be outside market hours or broker restriction). Skipping.
+2026-03-30 19:26:20  INFO      TradingGraph: Order not placed for USTEC (executor returned None — see executor log for reason)
+2026-03-30 19:26:20  INFO      TradingRunner: Analysing DAX …
+2026-03-30 19:26:20  INFO      TradingGraph: Running agents for DAX
+2026-03-30 19:26:20  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:26:20  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:26:20  INFO      TradingGraph: Fusion: L=-0.160(csns=1.00), M=-0.094(csns=1.00), S=0.078(csns=0.83), align_str=0.000
+2026-03-30 19:26:20  INFO      TradingGraph: Aligned [pullback-entry] (bearish) — proceeding [L=-0.160 M=-0.094 S=0.078 breadth=0.008]
+2026-03-30 19:26:20  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:26:20  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_PULLBACK_ENTRY_DAX
+2026-03-30 19:26:20  INFO      TradingGraph: Win probability too low: 0.449 < 0.46
+2026-03-30 19:26:20  INFO      TradingRunner: Analysing UK100 …
+2026-03-30 19:26:20  INFO      TradingGraph: Running agents for UK100
+2026-03-30 19:26:20  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:26:20  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:26:20  INFO      TradingGraph: Fusion: L=0.135(csns=0.67), M=0.311(csns=1.00), S=0.007(csns=0.17), align_str=0.065
+2026-03-30 19:26:20  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.135 M=0.311 S=0.007)
+2026-03-30 19:26:20  INFO      TradingRunner: Analysing GBPJPY …
+2026-03-30 19:26:20  INFO      TradingGraph: Running agents for GBPJPY
+2026-03-30 19:26:20  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:26:20  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:26:20  INFO      TradingGraph: Fusion: L=0.040(csns=0.33), M=-0.747(csns=1.00), S=-0.024(csns=0.50), align_str=0.000
+2026-03-30 19:26:20  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.040 M=-0.747 S=-0.024)
+2026-03-30 19:26:20  INFO      TradingRunner: Analysing AUDJPY …
+2026-03-30 19:26:20  INFO      TradingGraph: Running agents for AUDJPY
+2026-03-30 19:26:20  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:26:20  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:26:20  INFO      TradingGraph: Fusion: L=0.256(csns=0.33), M=-0.313(csns=1.00), S=-0.073(csns=0.40), align_str=0.000
+2026-03-30 19:26:20  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.256 M=-0.313 S=-0.073)
+2026-03-30 19:26:20  INFO      TradingRunner: Analysing EURGBP …
+2026-03-30 19:26:20  INFO      TradingGraph: Running agents for EURGBP
+2026-03-30 19:26:20  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:26:20  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:26:20  INFO      TradingGraph: Fusion: L=0.023(csns=0.33), M=0.390(csns=1.00), S=0.205(csns=0.86), align_str=0.123
+2026-03-30 19:26:20  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.023 M=0.390 S=0.205)
+2026-03-30 19:26:20  INFO      TradingRunner: Analysing XAGUSD …
+2026-03-30 19:26:20  INFO      TradingGraph: Running agents for XAGUSD
+2026-03-30 19:26:20  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:26:20  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:26:20  INFO      TradingGraph: Fusion: L=-0.183(csns=0.50), M=0.159(csns=1.00), S=-0.197(csns=0.83), align_str=0.000
+2026-03-30 19:26:20  INFO      TradingGraph: Timeframes not aligned — stopping (L=-0.183 M=0.159 S=-0.197)
+2026-03-30 19:26:21  INFO      TradingRunner: PnL — unrealized: -1.43  realized today: +0.00  total: -1.43
+2026-03-30 19:26:21  INFO      TradingRunner: Signal cycle done in 5.7s — sleeping 294s
+2026-03-30 19:27:24  INFO      MT5Executor: Using mt5linux backend → localhost:18812
+2026-03-30 19:27:24  INFO      MT5Executor: Connected to MT5: 5048478471 on MetaQuotes-Demo | balance=137.45 | trade_allowed=True
+2026-03-30 19:27:24  INFO      root: Registered agent: RegimeAgent
+2026-03-30 19:27:24  INFO      root: Registered agent: TrendAgent
+2026-03-30 19:27:24  INFO      root: Registered agent: MomentumAgent
+2026-03-30 19:27:24  INFO      root: Registered agent: MeanReversionAgent
+2026-03-30 19:27:24  INFO      root: Registered agent: VolatilityAgent
+2026-03-30 19:27:24  INFO      root: Registered agent: BreadthAgent
+2026-03-30 19:27:24  INFO      root: Registered agent: PatternAgent
+2026-03-30 19:27:24  INFO      root: Registered agent: IntermarketAgent
+2026-03-30 19:27:24  INFO      root: Registered agent: SessionBreakoutAgent
+2026-03-30 19:27:24  INFO      root: Registered agent: DivergenceAgent
+2026-03-30 19:27:24  INFO      root: Registered agent: ScalpingAgent
+2026-03-30 19:27:24  INFO      root: Registered agent: VwapScalpAgent
+2026-03-30 19:27:24  INFO      root: Registered agent: SqueezeBreakoutAgent
+2026-03-30 19:27:24  INFO      root: Registered agent: OrderFlowAgent
+2026-03-30 19:27:24  INFO      root: Registered agent: CorrelationAgent
+2026-03-30 19:27:25  INFO      TradingRunner: [State] Restored: daily_trades=4, cooldowns=4, sod_balance=138.47
+2026-03-30 19:27:25  INFO      TradingRunner: TradingRunner started — symbols: ['EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'USDCAD', 'NZDUSD', 'US30', 'US500', 'USTEC', 'DAX', 'UK100', 'EURJPY', 'GBPJPY', 'AUDJPY', 'EURGBP', 'EURCHF', 'CHFJPY', 'XAGUSD'] | profile: balanced | signal: 300s | surveillance: 60s
+2026-03-30 19:27:25  INFO      numexpr.utils: Note: NumExpr detected 12 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+2026-03-30 19:27:25  INFO      numexpr.utils: NumExpr defaulting to 8 threads.
+2026-03-30 19:27:27  INFO      TrailingStopManager: Structural update SELL CHFJPY #56001767232: SL 201.14900->201.14888  TP 197.38100->197.38100  (live=199.34600 atr=0.22619)
+2026-03-30 19:27:28  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:27:28  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:27:28  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:27:28  INFO      TradingGraph: Fusion: L=-0.542(csns=1.00), M=-0.497(csns=1.00), S=-0.155(csns=0.67), align_str=0.347
+2026-03-30 19:27:28  INFO      TradingGraph: Running agents for GBPUSD
+2026-03-30 19:27:28  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:27:28  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:27:28  INFO      TradingGraph: Fusion: L=-0.579(csns=1.00), M=-0.581(csns=1.00), S=-0.192(csns=0.67), align_str=0.401
+2026-03-30 19:27:29  INFO      TradingGraph: Running agents for EURCHF
+2026-03-30 19:27:29  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:27:29  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:27:29  INFO      TradingGraph: Fusion: L=-0.198(csns=0.67), M=-0.113(csns=0.67), S=-0.030(csns=0.17), align_str=0.088
+2026-03-30 19:27:29  INFO      TradingGraph: Running agents for CHFJPY
+2026-03-30 19:27:29  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:27:29  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:27:29  INFO      TradingGraph: Fusion: L=0.265(csns=0.67), M=-0.539(csns=1.00), S=-0.108(csns=0.50), align_str=0.000
+2026-03-30 19:27:30  INFO      TradingGraph: Running agents for EURJPY
+2026-03-30 19:27:30  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:27:30  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:27:30  INFO      TradingGraph: Fusion: L=-0.153(csns=1.00), M=-0.682(csns=1.00), S=-0.022(csns=0.33), align_str=0.131
+2026-03-30 19:27:38  INFO      TradingRunner: Analysing EURUSD …
+2026-03-30 19:27:39  INFO      NewsCalendar: [NEWS] Loaded 11 high-impact events (source: ForexFactory)
+2026-03-30 19:27:39  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:27:39  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:27:39  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:27:39  INFO      TradingGraph: Fusion: L=-0.543(csns=1.00), M=-0.528(csns=1.00), S=-0.160(csns=0.67), align_str=0.358
+2026-03-30 19:27:39  INFO      TradingGraph: Aligned [full-alignment] (bearish) — proceeding [L=-0.543 M=-0.528 S=-0.160 breadth=0.003]
+2026-03-30 19:27:39  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:27:39  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_FULL_ALIGNMENT_EURUSD
+2026-03-30 19:27:39  INFO      TradingGraph: Correlation guard: 2/2 long_usd positions already open — refusing EURUSD SELL
+2026-03-30 19:27:39  INFO      TradingRunner: Analysing USDJPY …
+2026-03-30 19:27:39  INFO      TradingGraph: Running agents for USDJPY
+2026-03-30 19:27:39  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:27:39  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:27:39  INFO      TradingGraph: Fusion: L=0.367(csns=0.67), M=-0.148(csns=1.00), S=0.092(csns=1.00), align_str=0.000
+2026-03-30 19:27:39  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.367 M=-0.148 S=0.092)
+2026-03-30 19:27:39  INFO      TradingRunner: Analysing USDCHF …
+2026-03-30 19:27:39  INFO      TradingGraph: Running agents for USDCHF
+2026-03-30 19:27:39  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:27:39  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:27:39  INFO      TradingGraph: Fusion: L=0.570(csns=1.00), M=0.327(csns=0.67), S=0.257(csns=1.00), align_str=0.363
+2026-03-30 19:27:39  INFO      TradingGraph: Aligned [full-alignment] (bullish) — proceeding [L=0.570 M=0.327 S=0.257 breadth=0.003]
+2026-03-30 19:27:39  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:27:40  INFO      TradingGraph: Generated recipe: BALANCED_LONG_FULL_ALIGNMENT_USDCHF
+2026-03-30 19:27:40  INFO      TradingGraph: Correlation guard: 2/2 long_usd positions already open — refusing USDCHF BUY
+2026-03-30 19:27:40  INFO      TradingRunner: Analysing AUDUSD …
+2026-03-30 19:27:40  INFO      TradingGraph: Running agents for AUDUSD
+2026-03-30 19:27:40  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:27:40  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:27:40  INFO      TradingGraph: Fusion: L=-0.065(csns=1.00), M=-0.115(csns=0.67), S=-0.055(csns=0.50), align_str=0.074
+2026-03-30 19:27:40  INFO      TradingGraph: Timeframes not aligned — stopping (L=-0.065 M=-0.115 S=-0.055)
+2026-03-30 19:27:40  INFO      TradingRunner: Analysing USDCAD …
+2026-03-30 19:27:40  INFO      TradingGraph: Running agents for USDCAD
+2026-03-30 19:27:40  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:27:40  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:27:40  INFO      TradingGraph: Fusion: L=0.594(csns=1.00), M=0.321(csns=0.75), S=0.187(csns=0.75), align_str=0.329
+2026-03-30 19:27:40  INFO      TradingGraph: Aligned [full-alignment] (bullish) — proceeding [L=0.594 M=0.321 S=0.187 breadth=0.003]
+2026-03-30 19:27:40  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:27:40  INFO      TradingGraph: Generated recipe: BALANCED_LONG_FULL_ALIGNMENT_USDCAD
+2026-03-30 19:27:40  INFO      TradingGraph: Correlation guard: 2/2 long_usd positions already open — refusing USDCAD BUY
+2026-03-30 19:27:40  INFO      TradingRunner: Analysing NZDUSD …
+2026-03-30 19:27:40  INFO      TradingGraph: Running agents for NZDUSD
+2026-03-30 19:27:40  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:27:40  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:27:40  INFO      TradingGraph: Fusion: L=-0.619(csns=1.00), M=-0.329(csns=0.75), S=-0.103(csns=0.50), align_str=0.276
+2026-03-30 19:27:40  INFO      TradingGraph: Aligned [full-alignment] (bearish) — proceeding [L=-0.619 M=-0.329 S=-0.103 breadth=0.003]
+2026-03-30 19:27:40  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:27:40  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_FULL_ALIGNMENT_NZDUSD
+2026-03-30 19:27:40  INFO      TradingGraph: Correlation guard: 2/2 long_usd positions already open — refusing NZDUSD SELL
+2026-03-30 19:27:40  INFO      TradingRunner: Analysing US30 …
+2026-03-30 19:27:40  INFO      TradingGraph: Running agents for US30
+2026-03-30 19:27:41  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:27:41  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:27:41  INFO      TradingGraph: Fusion: L=-0.356(csns=1.00), M=-0.188(csns=1.00), S=-0.089(csns=1.00), align_str=0.181
+2026-03-30 19:27:41  INFO      TradingGraph: Aligned [full-alignment] (bearish) — proceeding [L=-0.356 M=-0.188 S=-0.089 breadth=0.003]
+2026-03-30 19:27:41  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:27:41  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_FULL_ALIGNMENT_US30
+2026-03-30 19:27:41  INFO      TradingGraph: Risk check passed
+2026-03-30 19:27:41  INFO      TradingGraph: Creating trade plan
+2026-03-30 19:27:41  INFO      TradingGraph: VIX risk scaling: vix_fear=0.55 → risk ×0.87 (0.12)
+2026-03-30 19:27:41  INFO      TradingGraph: Structure SL/TP [US30] entry=45312.50000 sl=46641.40077 (3.88×ATR) tp=44395.40000 (R:R=0.69)
+2026-03-30 19:27:41  INFO      TradingGraph: Created trade plan: entry=45312.5000, sl=46641.4000, tp=43983.6000
+2026-03-30 19:27:41  INFO      TradingGraph: Executing trade for US30
+2026-03-30 19:27:41  WARNING   MT5Executor: US30: trading disabled on this symbol (trade_mode=0 — may be outside market hours or broker restriction). Skipping.
+2026-03-30 19:27:41  INFO      TradingGraph: Order not placed for US30 (executor returned None — see executor log for reason)
+2026-03-30 19:27:41  INFO      TradingRunner: Analysing US500 …
+2026-03-30 19:27:41  INFO      TradingGraph: Running agents for US500
+2026-03-30 19:27:42  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:27:42  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:27:42  INFO      TradingGraph: Fusion: L=-0.445(csns=1.00), M=-0.414(csns=1.00), S=-0.316(csns=0.83), align_str=0.388
+2026-03-30 19:27:42  INFO      TradingGraph: Aligned [full-alignment] (bearish) — proceeding [L=-0.445 M=-0.414 S=-0.316 breadth=0.003]
+2026-03-30 19:27:42  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:27:42  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_FULL_ALIGNMENT_US500
+2026-03-30 19:27:42  INFO      TradingGraph: Risk check passed
+2026-03-30 19:27:42  INFO      TradingGraph: Creating trade plan
+2026-03-30 19:27:42  INFO      TradingGraph: VIX risk scaling: vix_fear=0.55 → risk ×0.87 (0.12)
+2026-03-30 19:27:42  INFO      TradingGraph: SL cap [US500]: 6.05×ATR → 5.0×ATR
+2026-03-30 19:27:42  INFO      TradingGraph: Structure SL/TP [US500] entry=6357.40000 sl=6598.26660 (5.00×ATR) tp=6153.23890 (R:R=0.85)
+2026-03-30 19:27:42  INFO      TradingGraph: Created trade plan: entry=6357.4000, sl=6598.2700, tp=6116.5300
+2026-03-30 19:27:42  INFO      TradingGraph: Executing trade for US500
+2026-03-30 19:27:42  WARNING   MT5Executor: US500: trading disabled on this symbol (trade_mode=0 — may be outside market hours or broker restriction). Skipping.
+2026-03-30 19:27:42  INFO      TradingGraph: Order not placed for US500 (executor returned None — see executor log for reason)
+2026-03-30 19:27:42  INFO      TradingRunner: Analysing USTEC …
+2026-03-30 19:27:42  INFO      TradingGraph: Running agents for USTEC
+2026-03-30 19:27:43  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:27:43  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:27:43  INFO      TradingGraph: Fusion: L=-0.451(csns=1.00), M=-0.417(csns=1.00), S=-0.244(csns=0.67), align_str=0.358
+2026-03-30 19:27:43  INFO      TradingGraph: Aligned [full-alignment] (bearish) — proceeding [L=-0.451 M=-0.417 S=-0.244 breadth=0.003]
+2026-03-30 19:27:43  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:27:43  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_FULL_ALIGNMENT_USTEC
+2026-03-30 19:27:43  INFO      TradingGraph: Risk check passed
+2026-03-30 19:27:43  INFO      TradingGraph: Creating trade plan
+2026-03-30 19:27:43  INFO      TradingGraph: VIX risk scaling: vix_fear=0.52 → risk ×0.90 (0.12)
+2026-03-30 19:27:44  INFO      TradingGraph: SL cap [USTEC]: 6.76×ATR → 5.0×ATR
+2026-03-30 19:27:44  INFO      TradingGraph: Structure SL/TP [USTEC] entry=23017.20000 sl=24029.78290 (5.00×ATR) tp=22301.53827 (R:R=0.71)
+2026-03-30 19:27:44  INFO      TradingGraph: Created trade plan: entry=23017.2000, sl=24029.7800, tp=22004.6200
+2026-03-30 19:27:44  INFO      TradingGraph: Executing trade for USTEC
+2026-03-30 19:27:44  WARNING   MT5Executor: USTEC: trading disabled on this symbol (trade_mode=0 — may be outside market hours or broker restriction). Skipping.
+2026-03-30 19:27:44  INFO      TradingGraph: Order not placed for USTEC (executor returned None — see executor log for reason)
+2026-03-30 19:27:44  INFO      TradingRunner: Analysing DAX …
+2026-03-30 19:27:44  INFO      TradingGraph: Running agents for DAX
+2026-03-30 19:27:44  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:27:44  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:27:44  INFO      TradingGraph: Fusion: L=-0.160(csns=1.00), M=-0.094(csns=1.00), S=0.078(csns=0.83), align_str=0.000
+2026-03-30 19:27:44  INFO      TradingGraph: Aligned [pullback-entry] (bearish) — proceeding [L=-0.160 M=-0.094 S=0.078 breadth=0.003]
+2026-03-30 19:27:44  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:27:44  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_PULLBACK_ENTRY_DAX
+2026-03-30 19:27:44  INFO      TradingGraph: Win probability too low: 0.449 < 0.46
+2026-03-30 19:27:44  INFO      TradingRunner: Analysing UK100 …
+2026-03-30 19:27:44  INFO      TradingGraph: Running agents for UK100
+2026-03-30 19:27:44  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:27:44  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:27:44  INFO      TradingGraph: Fusion: L=0.133(csns=0.67), M=0.280(csns=1.00), S=0.002(csns=0.17), align_str=0.040
+2026-03-30 19:27:44  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.133 M=0.280 S=0.002)
+2026-03-30 19:27:44  INFO      TradingRunner: Analysing GBPJPY …
+2026-03-30 19:27:44  INFO      TradingGraph: Running agents for GBPJPY
+2026-03-30 19:27:45  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:27:45  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:27:45  INFO      TradingGraph: Fusion: L=0.040(csns=0.33), M=-0.753(csns=1.00), S=-0.027(csns=0.50), align_str=0.000
+2026-03-30 19:27:45  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.040 M=-0.753 S=-0.027)
+2026-03-30 19:27:45  INFO      TradingRunner: Analysing AUDJPY …
+2026-03-30 19:27:45  INFO      TradingGraph: Running agents for AUDJPY
+2026-03-30 19:27:45  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:27:45  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:27:45  INFO      TradingGraph: Fusion: L=0.257(csns=0.33), M=-0.345(csns=1.00), S=-0.105(csns=0.50), align_str=0.000
+2026-03-30 19:27:45  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.257 M=-0.345 S=-0.105)
+2026-03-30 19:27:45  INFO      TradingRunner: Analysing EURGBP …
+2026-03-30 19:27:45  INFO      TradingGraph: Running agents for EURGBP
+2026-03-30 19:27:45  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:27:45  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:27:45  INFO      TradingGraph: Fusion: L=0.024(csns=0.33), M=0.401(csns=1.00), S=0.212(csns=0.86), align_str=0.126
+2026-03-30 19:27:45  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.024 M=0.401 S=0.212)
+2026-03-30 19:27:45  INFO      TradingRunner: Analysing XAGUSD …
+2026-03-30 19:27:45  INFO      TradingGraph: Running agents for XAGUSD
+2026-03-30 19:27:45  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:27:45  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:27:45  INFO      TradingGraph: Fusion: L=-0.183(csns=0.50), M=0.157(csns=1.00), S=-0.196(csns=0.83), align_str=0.000
+2026-03-30 19:27:45  INFO      TradingGraph: Timeframes not aligned — stopping (L=-0.183 M=0.157 S=-0.196)
+2026-03-30 19:27:46  INFO      TradingRunner: PnL — unrealized: -1.41  realized today: +0.00  total: -1.41
+2026-03-30 19:27:46  INFO      TradingRunner: Signal cycle done in 18.1s — sleeping 282s
+2026-03-30 19:28:27  INFO      TrailingStopManager: Structural update SELL CHFJPY #56001767232: SL 201.14900->201.14888  TP 197.38100->197.38100  (live=199.34600 atr=0.22619)
+2026-03-30 19:28:28  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:28:28  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:28:28  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:28:28  INFO      TradingGraph: Fusion: L=-0.542(csns=1.00), M=-0.490(csns=1.00), S=-0.148(csns=0.67), align_str=0.340
+2026-03-30 19:28:29  INFO      TradingGraph: Running agents for GBPUSD
+2026-03-30 19:28:29  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:28:29  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:28:29  INFO      TradingGraph: Fusion: L=-0.577(csns=1.00), M=-0.576(csns=1.00), S=-0.173(csns=0.67), align_str=0.386
+2026-03-30 19:28:30  INFO      TradingGraph: Running agents for EURCHF
+2026-03-30 19:28:30  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:28:30  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:28:30  INFO      TradingGraph: Fusion: L=-0.197(csns=0.67), M=-0.116(csns=0.67), S=-0.031(csns=0.17), align_str=0.089
+2026-03-30 19:28:30  INFO      TradingGraph: Running agents for CHFJPY
+2026-03-30 19:28:30  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:28:30  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:28:30  INFO      TradingGraph: Fusion: L=0.265(csns=0.67), M=-0.539(csns=1.00), S=-0.108(csns=0.50), align_str=0.000
+2026-03-30 19:28:30  INFO      TradingGraph: Running agents for EURJPY
+2026-03-30 19:28:30  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:28:30  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:28:30  INFO      TradingGraph: Fusion: L=-0.153(csns=1.00), M=-0.685(csns=1.00), S=-0.024(csns=0.33), align_str=0.136
+2026-03-30 19:28:58  INFO      TradingRunner: [WATCHDOG] alive | equity=136.23 | cycle=1 | profile=balanced
+2026-03-30 19:29:26  INFO      TrailingStopManager: Structural update SELL CHFJPY #56001767232: SL 201.14900->201.14888  TP 197.38100->197.38100  (live=199.34300 atr=0.22619)
+2026-03-30 19:29:26  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:29:27  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:29:27  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:29:27  INFO      TradingGraph: Fusion: L=-0.544(csns=1.00), M=-0.533(csns=1.00), S=-0.167(csns=0.67), align_str=0.364
+2026-03-30 19:29:27  INFO      TradingGraph: Running agents for GBPUSD
+2026-03-30 19:29:27  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:29:27  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:29:27  INFO      TradingGraph: Fusion: L=-0.578(csns=1.00), M=-0.571(csns=1.00), S=-0.177(csns=0.67), align_str=0.388
+2026-03-30 19:29:27  INFO      TradingGraph: Running agents for EURCHF
+2026-03-30 19:29:27  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:29:27  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:29:27  INFO      TradingGraph: Fusion: L=-0.198(csns=0.67), M=-0.146(csns=0.67), S=-0.038(csns=0.17), align_str=0.103
+2026-03-30 19:29:28  INFO      TradingGraph: Running agents for CHFJPY
+2026-03-30 19:29:28  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:29:28  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:29:28  INFO      TradingGraph: Fusion: L=0.265(csns=0.67), M=-0.541(csns=1.00), S=-0.108(csns=0.50), align_str=0.000
+2026-03-30 19:29:28  INFO      TradingGraph: Running agents for EURJPY
+2026-03-30 19:29:28  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:29:28  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:29:28  INFO      TradingGraph: Fusion: L=-0.154(csns=1.00), M=-0.694(csns=1.00), S=-0.032(csns=0.33), align_str=0.151
+2026-03-30 19:30:26  INFO      TrailingStopManager: Structural update SELL CHFJPY #56001767232: SL 201.14900->201.14888  TP 197.38100->197.38100  (live=199.33000 atr=0.22619)
+2026-03-30 19:30:26  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:30:27  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:30:27  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:30:27  INFO      TradingGraph: Fusion: L=-0.545(csns=1.00), M=-0.544(csns=1.00), S=-0.021(csns=0.17), align_str=0.184
+2026-03-30 19:30:27  INFO      TradingGraph: Running agents for GBPUSD
+2026-03-30 19:30:27  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:30:27  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:30:27  INFO      TradingGraph: Fusion: L=-0.578(csns=1.00), M=-0.575(csns=1.00), S=-0.019(csns=0.20), align_str=0.184
+2026-03-30 19:30:27  INFO      TradingGraph: Running agents for EURCHF
+2026-03-30 19:30:27  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:30:27  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:30:27  INFO      TradingGraph: Fusion: L=-0.199(csns=0.67), M=-0.148(csns=0.67), S=-0.021(csns=0.14), align_str=0.085
+2026-03-30 19:30:28  INFO      TradingGraph: Running agents for CHFJPY
+2026-03-30 19:30:28  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:30:28  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:30:28  INFO      TradingGraph: Fusion: L=0.265(csns=0.67), M=-0.551(csns=1.00), S=-0.117(csns=0.50), align_str=0.000
+2026-03-30 19:30:28  INFO      TradingGraph: Running agents for EURJPY
+2026-03-30 19:30:28  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:30:28  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:30:28  INFO      TradingGraph: Fusion: L=-0.155(csns=1.00), M=-0.701(csns=1.00), S=-0.071(csns=0.20), align_str=0.198
+2026-03-30 19:31:26  INFO      TrailingStopManager: Structural update SELL CHFJPY #56001767232: SL 201.14900->201.14888  TP 197.38100->197.38100  (live=199.33300 atr=0.22619)
+2026-03-30 19:31:27  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:31:27  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:31:27  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:31:27  INFO      TradingGraph: Fusion: L=-0.545(csns=1.00), M=-0.538(csns=1.00), S=-0.021(csns=0.17), align_str=0.184
+2026-03-30 19:31:27  INFO      TradingGraph: Running agents for GBPUSD
+2026-03-30 19:31:27  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:31:27  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:31:27  INFO      TradingGraph: Fusion: L=-0.576(csns=1.00), M=-0.557(csns=1.00), S=-0.020(csns=0.17), align_str=0.185
+2026-03-30 19:31:27  INFO      TradingGraph: Running agents for EURCHF
+2026-03-30 19:31:28  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:31:28  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:31:28  INFO      TradingGraph: Fusion: L=-0.198(csns=0.67), M=-0.150(csns=0.67), S=-0.021(csns=0.14), align_str=0.085
+2026-03-30 19:31:28  INFO      TradingGraph: Running agents for CHFJPY
+2026-03-30 19:31:28  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:31:28  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:31:28  INFO      TradingGraph: Fusion: L=0.265(csns=0.67), M=-0.550(csns=1.00), S=-0.117(csns=0.50), align_str=0.000
+2026-03-30 19:31:28  INFO      TradingGraph: Running agents for EURJPY
+2026-03-30 19:31:28  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:31:28  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:31:28  INFO      TradingGraph: Fusion: L=-0.155(csns=1.00), M=-0.700(csns=1.00), S=-0.071(csns=0.20), align_str=0.197
+2026-03-30 19:32:26  INFO      TrailingStopManager: Structural update SELL CHFJPY #56001767232: SL 201.14900->201.14888  TP 197.38100->197.38100  (live=199.30600 atr=0.22619)
+2026-03-30 19:32:27  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:32:27  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:32:27  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:32:27  INFO      TradingGraph: Fusion: L=-0.546(csns=1.00), M=-0.544(csns=1.00), S=-0.021(csns=0.17), align_str=0.184
+2026-03-30 19:32:28  INFO      TradingGraph: Running agents for GBPUSD
+2026-03-30 19:32:28  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:32:28  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:32:28  INFO      TradingGraph: Fusion: L=-0.577(csns=1.00), M=-0.574(csns=1.00), S=-0.020(csns=0.17), align_str=0.187
+2026-03-30 19:32:28  INFO      TradingGraph: Running agents for EURCHF
+2026-03-30 19:32:28  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:32:28  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:32:28  INFO      TradingGraph: Fusion: L=-0.197(csns=0.67), M=-0.141(csns=0.67), S=-0.021(csns=0.14), align_str=0.083
+2026-03-30 19:32:28  INFO      TradingGraph: Running agents for CHFJPY
+2026-03-30 19:32:28  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:32:28  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:32:28  INFO      TradingGraph: Fusion: L=0.266(csns=0.67), M=-0.567(csns=1.00), S=-0.160(csns=0.75), align_str=0.000
+2026-03-30 19:32:29  INFO      TradingGraph: Running agents for EURJPY
+2026-03-30 19:32:29  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:32:29  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:32:29  INFO      TradingGraph: Fusion: L=-0.156(csns=1.00), M=-0.709(csns=1.00), S=-0.076(csns=0.25), align_str=0.203
+2026-03-30 19:32:33  INFO      TradingRunner: Analysing EURUSD …
+2026-03-30 19:32:33  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:32:33  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:32:33  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:32:33  INFO      TradingGraph: Fusion: L=-0.547(csns=1.00), M=-0.545(csns=1.00), S=-0.021(csns=0.17), align_str=0.185
+2026-03-30 19:32:33  INFO      TradingGraph: Aligned [pullback-entry] (bearish) — proceeding [L=-0.547 M=-0.545 S=-0.021 breadth=0.003]
+2026-03-30 19:32:33  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:32:33  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_PULLBACK_ENTRY_EURUSD
+2026-03-30 19:32:33  INFO      TradingGraph: Correlation guard: 2/2 long_usd positions already open — refusing EURUSD SELL
+2026-03-30 19:32:33  INFO      TradingRunner: Analysing USDJPY …
+2026-03-30 19:32:33  INFO      TradingGraph: Running agents for USDJPY
+2026-03-30 19:32:33  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:32:33  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:32:33  INFO      TradingGraph: Fusion: L=0.368(csns=0.67), M=-0.173(csns=1.00), S=-0.005(csns=0.25), align_str=0.000
+2026-03-30 19:32:33  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.368 M=-0.173 S=-0.005)
+2026-03-30 19:32:33  INFO      TradingRunner: Analysing USDCHF …
+2026-03-30 19:32:33  INFO      TradingGraph: Running agents for USDCHF
+2026-03-30 19:32:33  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:32:33  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:32:33  INFO      TradingGraph: Fusion: L=0.571(csns=1.00), M=0.333(csns=0.67), S=0.115(csns=0.60), align_str=0.280
+2026-03-30 19:32:33  INFO      TradingGraph: Aligned [full-alignment] (bullish) — proceeding [L=0.571 M=0.333 S=0.115 breadth=0.003]
+2026-03-30 19:32:33  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:32:33  INFO      TradingGraph: Generated recipe: BALANCED_LONG_FULL_ALIGNMENT_USDCHF
+2026-03-30 19:32:33  INFO      TradingGraph: Correlation guard: 2/2 long_usd positions already open — refusing USDCHF BUY
+2026-03-30 19:32:33  INFO      TradingRunner: Analysing AUDUSD …
+2026-03-30 19:32:33  INFO      TradingGraph: Running agents for AUDUSD
+2026-03-30 19:32:33  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:32:33  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:32:33  INFO      TradingGraph: Fusion: L=-0.067(csns=1.00), M=-0.198(csns=0.67), S=0.018(csns=0.75), align_str=0.000
+2026-03-30 19:32:33  INFO      TradingGraph: Timeframes not aligned — stopping (L=-0.067 M=-0.198 S=0.018)
+2026-03-30 19:32:33  INFO      TradingRunner: Analysing USDCAD …
+2026-03-30 19:32:33  INFO      TradingGraph: Running agents for USDCAD
+2026-03-30 19:32:33  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:32:33  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:32:33  INFO      TradingGraph: Fusion: L=0.596(csns=1.00), M=0.333(csns=0.75), S=0.057(csns=0.33), align_str=0.225
+2026-03-30 19:32:33  INFO      TradingGraph: Aligned [pullback-entry] (bullish) — proceeding [L=0.596 M=0.333 S=0.057 breadth=0.003]
+2026-03-30 19:32:33  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:32:33  INFO      TradingGraph: Generated recipe: BALANCED_LONG_PULLBACK_ENTRY_USDCAD
+2026-03-30 19:32:33  INFO      TradingGraph: Correlation guard: 2/2 long_usd positions already open — refusing USDCAD BUY
+2026-03-30 19:32:33  INFO      TradingRunner: Analysing NZDUSD …
+2026-03-30 19:32:33  INFO      TradingGraph: Running agents for NZDUSD
+2026-03-30 19:32:33  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:32:33  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:32:33  INFO      TradingGraph: Fusion: L=-0.621(csns=1.00), M=-0.337(csns=0.75), S=-0.048(csns=0.33), align_str=0.216
+2026-03-30 19:32:33  INFO      TradingGraph: Aligned [pullback-entry] (bearish) — proceeding [L=-0.621 M=-0.337 S=-0.048 breadth=0.003]
+2026-03-30 19:32:33  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:32:33  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_PULLBACK_ENTRY_NZDUSD
+2026-03-30 19:32:33  INFO      TradingGraph: Correlation guard: 2/2 long_usd positions already open — refusing NZDUSD SELL
+2026-03-30 19:32:33  INFO      TradingRunner: Analysing US30 …
+2026-03-30 19:32:33  INFO      TradingGraph: Running agents for US30
+2026-03-30 19:32:33  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:32:33  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:32:33  INFO      TradingGraph: Fusion: L=-0.359(csns=1.00), M=-0.200(csns=1.00), S=-0.079(csns=1.00), align_str=0.179
+2026-03-30 19:32:33  INFO      TradingGraph: Aligned [pullback-entry] (bearish) — proceeding [L=-0.359 M=-0.200 S=-0.079 breadth=0.003]
+2026-03-30 19:32:33  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:32:33  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_PULLBACK_ENTRY_US30
+2026-03-30 19:32:33  INFO      TradingGraph: Risk check passed
+2026-03-30 19:32:33  INFO      TradingGraph: Creating trade plan
+2026-03-30 19:32:33  INFO      TradingGraph: VIX risk scaling: vix_fear=0.57 → risk ×0.86 (0.12)
+2026-03-30 19:32:33  INFO      TradingGraph: Structure SL/TP [US30] entry=45274.40000 sl=46641.63470 (3.98×ATR) tp=44395.40000 (R:R=0.64)
+2026-03-30 19:32:33  INFO      TradingGraph: Created trade plan: entry=45274.4000, sl=46641.6300, tp=43907.1700
+2026-03-30 19:32:33  INFO      TradingGraph: Executing trade for US30
+2026-03-30 19:32:33  WARNING   MT5Executor: US30: trading disabled on this symbol (trade_mode=0 — may be outside market hours or broker restriction). Skipping.
+2026-03-30 19:32:33  INFO      TradingGraph: Order not placed for US30 (executor returned None — see executor log for reason)
+2026-03-30 19:32:33  INFO      TradingRunner: Analysing US500 …
+2026-03-30 19:32:33  INFO      TradingGraph: Running agents for US500
+2026-03-30 19:32:33  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:32:33  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:32:33  INFO      TradingGraph: Fusion: L=-0.448(csns=1.00), M=-0.422(csns=1.00), S=-0.318(csns=0.83), align_str=0.391
+2026-03-30 19:32:33  INFO      TradingGraph: Aligned [full-alignment] (bearish) — proceeding [L=-0.448 M=-0.422 S=-0.318 breadth=0.003]
+2026-03-30 19:32:33  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:32:33  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_FULL_ALIGNMENT_US500
+2026-03-30 19:32:33  INFO      TradingGraph: Risk check passed
+2026-03-30 19:32:33  INFO      TradingGraph: Creating trade plan
+2026-03-30 19:32:33  INFO      TradingGraph: VIX risk scaling: vix_fear=0.57 → risk ×0.86 (0.12)
+2026-03-30 19:32:33  INFO      TradingGraph: SL cap [US500]: 6.13×ATR → 5.0×ATR
+2026-03-30 19:32:33  INFO      TradingGraph: Structure SL/TP [US500] entry=6352.20000 sl=6594.20946 (5.00×ATR) tp=6154.94101 (R:R=0.82)
+2026-03-30 19:32:33  INFO      TradingGraph: Created trade plan: entry=6352.2000, sl=6594.2100, tp=6110.1900
+2026-03-30 19:32:33  INFO      TradingGraph: Executing trade for US500
+2026-03-30 19:32:33  WARNING   MT5Executor: US500: trading disabled on this symbol (trade_mode=0 — may be outside market hours or broker restriction). Skipping.
+2026-03-30 19:32:33  INFO      TradingGraph: Order not placed for US500 (executor returned None — see executor log for reason)
+2026-03-30 19:32:33  INFO      TradingRunner: Analysing USTEC …
+2026-03-30 19:32:33  INFO      TradingGraph: Running agents for USTEC
+2026-03-30 19:32:34  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:32:34  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:32:34  INFO      TradingGraph: Fusion: L=-0.454(csns=1.00), M=-0.427(csns=1.00), S=-0.241(csns=0.67), align_str=0.360
+2026-03-30 19:32:34  INFO      TradingGraph: Timeframes not aligned — stopping (L=-0.454 M=-0.427 S=-0.241; mean-rev blocks SHORT (score=0.53))
+2026-03-30 19:32:34  INFO      TradingRunner: Analysing DAX …
+2026-03-30 19:32:34  INFO      TradingGraph: Running agents for DAX
+2026-03-30 19:32:34  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:32:34  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:32:34  INFO      TradingGraph: Fusion: L=-0.159(csns=1.00), M=-0.094(csns=1.00), S=0.078(csns=0.83), align_str=0.000
+2026-03-30 19:32:34  INFO      TradingGraph: Aligned [pullback-entry] (bearish) — proceeding [L=-0.159 M=-0.094 S=0.078 breadth=0.003]
+2026-03-30 19:32:34  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:32:34  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_PULLBACK_ENTRY_DAX
+2026-03-30 19:32:34  INFO      TradingGraph: Win probability too low: 0.449 < 0.46
+2026-03-30 19:32:34  INFO      TradingRunner: Analysing UK100 …
+2026-03-30 19:32:34  INFO      TradingGraph: Running agents for UK100
+2026-03-30 19:32:34  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:32:34  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:32:34  INFO      TradingGraph: Fusion: L=0.131(csns=0.67), M=0.279(csns=1.00), S=0.004(csns=0.17), align_str=0.054
+2026-03-30 19:32:34  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.131 M=0.279 S=0.004)
+2026-03-30 19:32:34  INFO      TradingRunner: Analysing GBPJPY …
+2026-03-30 19:32:34  INFO      TradingGraph: Running agents for GBPJPY
+2026-03-30 19:32:34  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:32:34  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:32:34  INFO      TradingGraph: Fusion: L=0.040(csns=0.33), M=-0.750(csns=1.00), S=0.128(csns=1.00), align_str=0.000
+2026-03-30 19:32:34  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.040 M=-0.750 S=0.128)
+2026-03-30 19:32:34  INFO      TradingRunner: Analysing AUDJPY …
+2026-03-30 19:32:34  INFO      TradingGraph: Running agents for AUDJPY
+2026-03-30 19:32:34  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:32:34  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:32:34  INFO      TradingGraph: Fusion: L=0.257(csns=0.33), M=-0.432(csns=1.00), S=-0.028(csns=0.25), align_str=0.000
+2026-03-30 19:32:34  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.257 M=-0.432 S=-0.028)
+2026-03-30 19:32:34  INFO      TradingRunner: Analysing EURGBP …
+2026-03-30 19:32:34  INFO      TradingGraph: Running agents for EURGBP
+2026-03-30 19:32:34  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:32:34  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:32:34  INFO      TradingGraph: Fusion: L=0.016(csns=0.33), M=0.389(csns=1.00), S=0.171(csns=0.86), align_str=0.103
+2026-03-30 19:32:34  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.016 M=0.389 S=0.171)
+2026-03-30 19:32:34  INFO      TradingRunner: Analysing XAGUSD …
+2026-03-30 19:32:34  INFO      TradingGraph: Running agents for XAGUSD
+2026-03-30 19:32:34  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:32:34  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:32:34  INFO      TradingGraph: Fusion: L=-0.184(csns=0.50), M=0.123(csns=1.00), S=-0.227(csns=1.00), align_str=0.000
+2026-03-30 19:32:34  INFO      TradingGraph: Timeframes not aligned — stopping (L=-0.184 M=0.123 S=-0.227)
+2026-03-30 19:32:34  INFO      TradingRunner: PnL — unrealized: -0.84  realized today: +0.00  total: -0.84
+2026-03-30 19:32:34  INFO      TradingRunner: Signal cycle done in 6.3s — sleeping 294s
+2026-03-30 19:33:26  INFO      TrailingStopManager: Structural update SELL CHFJPY #56001767232: SL 201.14900->201.14888  TP 197.38100->197.38100  (live=199.29700 atr=0.22619)
+2026-03-30 19:33:27  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:33:27  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:33:27  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:33:27  INFO      TradingGraph: Fusion: L=-0.547(csns=1.00), M=-0.551(csns=1.00), S=-0.021(csns=0.17), align_str=0.185
+2026-03-30 19:33:27  INFO      TradingGraph: Running agents for GBPUSD
+2026-03-30 19:33:27  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:33:27  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:33:27  INFO      TradingGraph: Fusion: L=-0.576(csns=1.00), M=-0.570(csns=1.00), S=-0.020(csns=0.17), align_str=0.186
+2026-03-30 19:33:28  INFO      TradingGraph: Running agents for EURCHF
+2026-03-30 19:33:28  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:33:28  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:33:28  INFO      TradingGraph: Fusion: L=-0.177(csns=0.67), M=-0.145(csns=0.67), S=-0.021(csns=0.14), align_str=0.081
+2026-03-30 19:33:28  INFO      TradingGraph: Running agents for CHFJPY
+2026-03-30 19:33:28  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:33:28  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:33:28  INFO      TradingGraph: Fusion: L=0.267(csns=0.67), M=-0.575(csns=1.00), S=-0.169(csns=0.80), align_str=0.000
+2026-03-30 19:33:29  INFO      TradingGraph: Running agents for EURJPY
+2026-03-30 19:33:29  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:33:29  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:33:29  INFO      TradingGraph: Fusion: L=-0.156(csns=1.00), M=-0.713(csns=1.00), S=-0.076(csns=0.25), align_str=0.204
+2026-03-30 19:34:27  INFO      TrailingStopManager: Structural update SELL CHFJPY #56001767232: SL 201.14900->201.14888  TP 197.38100->197.38100  (live=199.29400 atr=0.22619)
+2026-03-30 19:34:27  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:34:27  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:34:27  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:34:27  INFO      TradingGraph: Fusion: L=-0.547(csns=1.00), M=-0.550(csns=1.00), S=-0.021(csns=0.17), align_str=0.185
+2026-03-30 19:34:27  INFO      TradingGraph: Running agents for GBPUSD
+2026-03-30 19:34:27  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:34:27  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:34:27  INFO      TradingGraph: Fusion: L=-0.577(csns=1.00), M=-0.574(csns=1.00), S=-0.020(csns=0.17), align_str=0.187
+2026-03-30 19:34:28  INFO      TradingGraph: Running agents for EURCHF
+2026-03-30 19:34:28  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:34:28  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:34:28  INFO      TradingGraph: Fusion: L=-0.197(csns=0.67), M=-0.145(csns=0.67), S=-0.021(csns=0.14), align_str=0.084
+2026-03-30 19:34:28  INFO      TradingGraph: Running agents for CHFJPY
+2026-03-30 19:34:28  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:34:28  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:34:28  INFO      TradingGraph: Fusion: L=0.267(csns=0.67), M=-0.576(csns=1.00), S=-0.169(csns=0.80), align_str=0.000
+2026-03-30 19:34:28  INFO      TradingGraph: Running agents for EURJPY
+2026-03-30 19:34:28  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:34:28  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:34:28  INFO      TradingGraph: Fusion: L=-0.156(csns=1.00), M=-0.714(csns=1.00), S=-0.076(csns=0.25), align_str=0.204
+2026-03-30 19:35:19  INFO      TradingRunner: Shutdown signal received — stopping after current cycle
+2026-03-30 19:35:19  INFO      MT5Executor: MT5 connection closed
+2026-03-30 19:36:00  INFO      MT5Executor: Using mt5linux backend → localhost:18812
+2026-03-30 19:36:00  INFO      MT5Executor: Connected to MT5: 5048478471 on MetaQuotes-Demo | balance=137.45 | trade_allowed=True
+2026-03-30 19:36:00  INFO      root: Registered agent: RegimeAgent
+2026-03-30 19:36:00  INFO      root: Registered agent: TrendAgent
+2026-03-30 19:36:00  INFO      root: Registered agent: MomentumAgent
+2026-03-30 19:36:00  INFO      root: Registered agent: MeanReversionAgent
+2026-03-30 19:36:00  INFO      root: Registered agent: VolatilityAgent
+2026-03-30 19:36:00  INFO      root: Registered agent: BreadthAgent
+2026-03-30 19:36:00  INFO      root: Registered agent: PatternAgent
+2026-03-30 19:36:00  INFO      root: Registered agent: IntermarketAgent
+2026-03-30 19:36:00  INFO      root: Registered agent: SessionBreakoutAgent
+2026-03-30 19:36:00  INFO      root: Registered agent: DivergenceAgent
+2026-03-30 19:36:00  INFO      root: Registered agent: ScalpingAgent
+2026-03-30 19:36:00  INFO      root: Registered agent: VwapScalpAgent
+2026-03-30 19:36:00  INFO      root: Registered agent: SqueezeBreakoutAgent
+2026-03-30 19:36:00  INFO      root: Registered agent: OrderFlowAgent
+2026-03-30 19:36:00  INFO      root: Registered agent: CorrelationAgent
+2026-03-30 19:36:00  INFO      TradingRunner: [State] Restored: daily_trades=4, cooldowns=4, sod_balance=138.47
+2026-03-30 19:36:00  INFO      TradingRunner: TradingRunner started — symbols: ['EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'USDCAD', 'NZDUSD', 'US30', 'US500', 'USTEC', 'DAX', 'UK100', 'EURJPY', 'GBPJPY', 'AUDJPY', 'EURGBP', 'EURCHF', 'CHFJPY', 'XAGUSD'] | profile: balanced | signal: 300s | surveillance: 60s
+2026-03-30 19:36:01  INFO      numexpr.utils: Note: NumExpr detected 12 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+2026-03-30 19:36:01  INFO      numexpr.utils: NumExpr defaulting to 8 threads.
+2026-03-30 19:36:03  INFO      TrailingStopManager: Structural update SELL CHFJPY #56001767232: SL 201.14900->201.14888  TP 197.38100->197.38100  (live=199.29000 atr=0.22619)
+2026-03-30 19:36:04  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:36:04  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:36:04  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:36:04  INFO      TradingGraph: Fusion: L=-0.548(csns=1.00), M=-0.567(csns=1.00), S=-0.019(csns=0.20), align_str=0.182
+2026-03-30 19:36:04  INFO      TradingGraph: Running agents for GBPUSD
+2026-03-30 19:36:05  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:36:05  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:36:05  INFO      TradingGraph: Fusion: L=-0.578(csns=1.00), M=-0.570(csns=1.00), S=-0.018(csns=0.20), align_str=0.180
+2026-03-30 19:36:05  INFO      TradingGraph: Running agents for EURCHF
+2026-03-30 19:36:05  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:36:05  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:36:05  INFO      TradingGraph: Fusion: L=-0.197(csns=0.67), M=-0.143(csns=0.67), S=-0.021(csns=0.14), align_str=0.084
+2026-03-30 19:36:05  INFO      TradingGraph: Running agents for CHFJPY
+2026-03-30 19:36:05  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:36:05  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:36:05  INFO      TradingGraph: Fusion: L=0.267(csns=0.67), M=-0.580(csns=1.00), S=-0.169(csns=0.80), align_str=0.000
+2026-03-30 19:36:06  INFO      TradingGraph: Running agents for EURJPY
+2026-03-30 19:36:06  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:36:06  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:36:06  INFO      TradingGraph: Fusion: L=-0.157(csns=1.00), M=-0.715(csns=1.00), S=-0.077(csns=0.25), align_str=0.205
+2026-03-30 19:36:11  INFO      TradingRunner: Analysing EURUSD …
+2026-03-30 19:36:11  INFO      NewsCalendar: [NEWS] Loaded 11 high-impact events (source: ForexFactory)
+2026-03-30 19:36:11  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:36:12  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:36:12  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:36:12  INFO      TradingGraph: Fusion: L=-0.548(csns=1.00), M=-0.568(csns=1.00), S=-0.019(csns=0.20), align_str=0.182
+2026-03-30 19:36:12  INFO      TradingGraph: Aligned [pullback-entry] (bearish) — proceeding [L=-0.548 M=-0.568 S=-0.019 breadth=0.002]
+2026-03-30 19:36:12  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:36:12  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_PULLBACK_ENTRY_EURUSD
+2026-03-30 19:36:12  INFO      TradingGraph: Correlation guard: 2/2 long_usd positions already open — refusing EURUSD SELL
+2026-03-30 19:36:12  INFO      TradingRunner: Analysing USDJPY …
+2026-03-30 19:36:12  INFO      TradingGraph: Running agents for USDJPY
+2026-03-30 19:36:12  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:36:12  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:36:12  INFO      TradingGraph: Fusion: L=0.367(csns=0.67), M=-0.173(csns=1.00), S=-0.005(csns=0.25), align_str=0.000
+2026-03-30 19:36:12  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.367 M=-0.173 S=-0.005)
+2026-03-30 19:36:12  INFO      TradingRunner: Analysing USDCHF …
+2026-03-30 19:36:12  INFO      TradingGraph: Running agents for USDCHF
+2026-03-30 19:36:12  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:36:12  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:36:12  INFO      TradingGraph: Fusion: L=0.572(csns=1.00), M=0.340(csns=0.67), S=0.152(csns=0.75), align_str=0.309
+2026-03-30 19:36:12  INFO      TradingGraph: Aligned [full-alignment] (bullish) — proceeding [L=0.572 M=0.340 S=0.152 breadth=0.002]
+2026-03-30 19:36:12  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:36:12  INFO      TradingGraph: Generated recipe: BALANCED_LONG_FULL_ALIGNMENT_USDCHF
+2026-03-30 19:36:12  INFO      TradingGraph: Correlation guard: 2/2 long_usd positions already open — refusing USDCHF BUY
+2026-03-30 19:36:12  INFO      TradingRunner: Analysing AUDUSD …
+2026-03-30 19:36:12  INFO      TradingGraph: Running agents for AUDUSD
+2026-03-30 19:36:12  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:36:12  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:36:12  INFO      TradingGraph: Fusion: L=-0.067(csns=1.00), M=-0.198(csns=0.67), S=0.026(csns=0.75), align_str=0.000
+2026-03-30 19:36:12  INFO      TradingGraph: Timeframes not aligned — stopping (L=-0.067 M=-0.198 S=0.026)
+2026-03-30 19:36:12  INFO      TradingRunner: Analysing USDCAD …
+2026-03-30 19:36:12  INFO      TradingGraph: Running agents for USDCAD
+2026-03-30 19:36:12  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:36:12  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:36:12  INFO      TradingGraph: Fusion: L=0.593(csns=1.00), M=0.314(csns=0.75), S=0.030(csns=0.17), align_str=0.177
+2026-03-30 19:36:12  INFO      TradingGraph: Aligned [pullback-entry] (bullish) — proceeding [L=0.593 M=0.314 S=0.030 breadth=0.002]
+2026-03-30 19:36:12  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:36:12  INFO      TradingGraph: Generated recipe: BALANCED_LONG_PULLBACK_ENTRY_USDCAD
+2026-03-30 19:36:12  INFO      TradingGraph: Correlation guard: 2/2 long_usd positions already open — refusing USDCAD BUY
+2026-03-30 19:36:12  INFO      TradingRunner: Analysing NZDUSD …
+2026-03-30 19:36:12  INFO      TradingGraph: Running agents for NZDUSD
+2026-03-30 19:36:12  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:36:12  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:36:12  INFO      TradingGraph: Fusion: L=-0.622(csns=1.00), M=-0.340(csns=0.75), S=-0.048(csns=0.33), align_str=0.217
+2026-03-30 19:36:12  INFO      TradingGraph: Aligned [pullback-entry] (bearish) — proceeding [L=-0.622 M=-0.340 S=-0.048 breadth=0.002]
+2026-03-30 19:36:12  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:36:12  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_PULLBACK_ENTRY_NZDUSD
+2026-03-30 19:36:12  INFO      TradingGraph: Correlation guard: 2/2 long_usd positions already open — refusing NZDUSD SELL
+2026-03-30 19:36:12  INFO      TradingRunner: Analysing US30 …
+2026-03-30 19:36:12  INFO      TradingGraph: Running agents for US30
+2026-03-30 19:36:12  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:36:12  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:36:12  INFO      TradingGraph: Fusion: L=-0.360(csns=1.00), M=-0.202(csns=1.00), S=-0.090(csns=1.00), align_str=0.187
+2026-03-30 19:36:12  INFO      TradingGraph: Aligned [full-alignment] (bearish) — proceeding [L=-0.360 M=-0.202 S=-0.090 breadth=0.002]
+2026-03-30 19:36:12  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:36:12  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_FULL_ALIGNMENT_US30
+2026-03-30 19:36:12  INFO      TradingGraph: Risk check passed
+2026-03-30 19:36:12  INFO      TradingGraph: Creating trade plan
+2026-03-30 19:36:12  INFO      TradingGraph: VIX risk scaling: vix_fear=0.58 → risk ×0.85 (0.12)
+2026-03-30 19:36:13  INFO      TradingGraph: Structure SL/TP [US30] entry=45280.00000 sl=46642.19005 (3.94×ATR) tp=44395.40000 (R:R=0.65)
+2026-03-30 19:36:13  INFO      TradingGraph: Created trade plan: entry=45280.0000, sl=46642.1900, tp=43917.8100
+2026-03-30 19:36:13  INFO      TradingGraph: Executing trade for US30
+2026-03-30 19:36:13  WARNING   MT5Executor: US30: trading disabled on this symbol (trade_mode=0 — may be outside market hours or broker restriction). Skipping.
+2026-03-30 19:36:13  INFO      TradingGraph: Order not placed for US30 (executor returned None — see executor log for reason)
+2026-03-30 19:36:13  INFO      TradingRunner: Analysing US500 …
+2026-03-30 19:36:13  INFO      TradingGraph: Running agents for US500
+2026-03-30 19:36:13  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:36:13  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:36:13  INFO      TradingGraph: Fusion: L=-0.447(csns=1.00), M=-0.420(csns=1.00), S=-0.323(csns=0.83), align_str=0.393
+2026-03-30 19:36:13  INFO      TradingGraph: Aligned [full-alignment] (bearish) — proceeding [L=-0.447 M=-0.420 S=-0.323 breadth=0.002]
+2026-03-30 19:36:13  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:36:13  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_FULL_ALIGNMENT_US500
+2026-03-30 19:36:13  INFO      TradingGraph: Risk check passed
+2026-03-30 19:36:13  INFO      TradingGraph: Creating trade plan
+2026-03-30 19:36:13  INFO      TradingGraph: VIX risk scaling: vix_fear=0.58 → risk ×0.85 (0.12)
+2026-03-30 19:36:13  INFO      TradingGraph: SL cap [US500]: 6.04×ATR → 5.0×ATR
+2026-03-30 19:36:13  INFO      TradingGraph: Structure SL/TP [US500] entry=6355.40000 sl=6598.40946 (5.00×ATR) tp=6152.55465 (R:R=0.83)
+2026-03-30 19:36:13  INFO      TradingGraph: Created trade plan: entry=6355.4000, sl=6598.4100, tp=6112.3900
+2026-03-30 19:36:13  INFO      TradingGraph: Executing trade for US500
+2026-03-30 19:36:13  WARNING   MT5Executor: US500: trading disabled on this symbol (trade_mode=0 — may be outside market hours or broker restriction). Skipping.
+2026-03-30 19:36:13  INFO      TradingGraph: Order not placed for US500 (executor returned None — see executor log for reason)
+2026-03-30 19:36:13  INFO      TradingRunner: Analysing USTEC …
+2026-03-30 19:36:13  INFO      TradingGraph: Running agents for USTEC
+2026-03-30 19:36:13  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:36:13  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:36:13  INFO      TradingGraph: Fusion: L=-0.454(csns=1.00), M=-0.422(csns=1.00), S=-0.246(csns=0.67), align_str=0.361
+2026-03-30 19:36:13  INFO      TradingGraph: Aligned [full-alignment] (bearish) — proceeding [L=-0.454 M=-0.422 S=-0.246 breadth=0.002]
+2026-03-30 19:36:13  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:36:13  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_FULL_ALIGNMENT_USTEC
+2026-03-30 19:36:13  INFO      TradingGraph: Risk check passed
+2026-03-30 19:36:13  INFO      TradingGraph: Creating trade plan
+2026-03-30 19:36:13  INFO      TradingGraph: VIX risk scaling: vix_fear=0.54 → risk ×0.88 (0.12)
+2026-03-30 19:36:13  INFO      TradingGraph: SL cap [USTEC]: 6.74×ATR → 5.0×ATR
+2026-03-30 19:36:13  INFO      TradingGraph: Structure SL/TP [USTEC] entry=23008.90000 sl=24030.12575 (5.00×ATR) tp=22297.86033 (R:R=0.70)
+2026-03-30 19:36:13  INFO      TradingGraph: Created trade plan: entry=23008.9000, sl=24030.1300, tp=21987.6700
+2026-03-30 19:36:13  INFO      TradingGraph: Executing trade for USTEC
+2026-03-30 19:36:14  WARNING   MT5Executor: USTEC: trading disabled on this symbol (trade_mode=0 — may be outside market hours or broker restriction). Skipping.
+2026-03-30 19:36:14  INFO      TradingGraph: Order not placed for USTEC (executor returned None — see executor log for reason)
+2026-03-30 19:36:14  INFO      TradingRunner: Analysing DAX …
+2026-03-30 19:36:14  INFO      TradingGraph: Running agents for DAX
+2026-03-30 19:36:14  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:36:14  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:36:14  INFO      TradingGraph: Fusion: L=-0.159(csns=1.00), M=-0.094(csns=1.00), S=0.078(csns=0.83), align_str=0.000
+2026-03-30 19:36:14  INFO      TradingGraph: Aligned [pullback-entry] (bearish) — proceeding [L=-0.159 M=-0.094 S=0.078 breadth=0.002]
+2026-03-30 19:36:14  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:36:14  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_PULLBACK_ENTRY_DAX
+2026-03-30 19:36:14  INFO      TradingGraph: Win probability too low: 0.449 < 0.46
+2026-03-30 19:36:14  INFO      TradingRunner: Analysing UK100 …
+2026-03-30 19:36:14  INFO      TradingGraph: Running agents for UK100
+2026-03-30 19:36:14  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:36:14  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:36:14  INFO      TradingGraph: Fusion: L=0.131(csns=0.67), M=0.279(csns=1.00), S=0.009(csns=0.17), align_str=0.070
+2026-03-30 19:36:14  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.131 M=0.279 S=0.009)
+2026-03-30 19:36:14  INFO      TradingRunner: Analysing GBPJPY …
+2026-03-30 19:36:14  INFO      TradingGraph: Running agents for GBPJPY
+2026-03-30 19:36:14  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:36:14  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:36:14  INFO      TradingGraph: Fusion: L=0.040(csns=0.33), M=-0.756(csns=1.00), S=0.115(csns=1.00), align_str=0.000
+2026-03-30 19:36:14  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.040 M=-0.756 S=0.115)
+2026-03-30 19:36:14  INFO      TradingRunner: Analysing AUDJPY …
+2026-03-30 19:36:14  INFO      TradingGraph: Running agents for AUDJPY
+2026-03-30 19:36:14  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:36:14  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:36:14  INFO      TradingGraph: Fusion: L=0.257(csns=0.33), M=-0.430(csns=1.00), S=-0.028(csns=0.25), align_str=0.000
+2026-03-30 19:36:14  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.257 M=-0.430 S=-0.028)
+2026-03-30 19:36:14  INFO      TradingRunner: Analysing EURGBP …
+2026-03-30 19:36:14  INFO      TradingGraph: Running agents for EURGBP
+2026-03-30 19:36:14  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:36:14  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:36:14  INFO      TradingGraph: Fusion: L=0.016(csns=0.33), M=0.387(csns=1.00), S=0.169(csns=0.86), align_str=0.101
+2026-03-30 19:36:14  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.016 M=0.387 S=0.169)
+2026-03-30 19:36:14  INFO      TradingRunner: Analysing XAGUSD …
+2026-03-30 19:36:14  INFO      TradingGraph: Running agents for XAGUSD
+2026-03-30 19:36:14  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:36:14  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:36:14  INFO      TradingGraph: Fusion: L=-0.183(csns=0.50), M=0.138(csns=1.00), S=-0.192(csns=0.83), align_str=0.000
+2026-03-30 19:36:14  INFO      TradingGraph: Timeframes not aligned — stopping (L=-0.183 M=0.138 S=-0.192)
+2026-03-30 19:36:14  INFO      TradingRunner: PnL — unrealized: -0.66  realized today: +0.00  total: -0.66
+2026-03-30 19:36:15  INFO      TradingRunner: Signal cycle done in 10.5s — sleeping 290s
+2026-03-30 19:37:01  INFO      TrailingStopManager: Structural update SELL CHFJPY #56001767232: SL 201.14900->201.14888  TP 197.38100->197.38100  (live=199.28500 atr=0.22619)
+2026-03-30 19:37:02  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:37:02  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:37:02  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:37:02  INFO      TradingGraph: Fusion: L=-0.547(csns=1.00), M=-0.544(csns=1.00), S=-0.021(csns=0.17), align_str=0.185
+2026-03-30 19:37:02  INFO      TradingGraph: Running agents for GBPUSD
+2026-03-30 19:37:02  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:37:02  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:37:02  INFO      TradingGraph: Fusion: L=-0.576(csns=1.00), M=-0.557(csns=1.00), S=-0.020(csns=0.17), align_str=0.185
+2026-03-30 19:37:02  INFO      TradingGraph: Running agents for EURCHF
+2026-03-30 19:37:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:37:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:37:03  INFO      TradingGraph: Fusion: L=-0.197(csns=0.67), M=-0.141(csns=0.67), S=-0.021(csns=0.14), align_str=0.083
+2026-03-30 19:37:03  INFO      TradingGraph: Running agents for CHFJPY
+2026-03-30 19:37:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:37:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:37:03  INFO      TradingGraph: Fusion: L=0.267(csns=0.67), M=-0.582(csns=1.00), S=-0.170(csns=0.80), align_str=0.000
+2026-03-30 19:37:03  INFO      TradingGraph: Running agents for EURJPY
+2026-03-30 19:37:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:37:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:37:03  INFO      TradingGraph: Fusion: L=-0.157(csns=1.00), M=-0.715(csns=1.00), S=-0.077(csns=0.25), align_str=0.205
+2026-03-30 19:37:34  INFO      TradingRunner: [WATCHDOG] alive | equity=137.22 | cycle=1 | profile=balanced
+2026-03-30 19:38:01  INFO      TrailingStopManager: Structural update SELL CHFJPY #56001767232: SL 201.14900->201.14888  TP 197.38100->197.38100  (live=199.27200 atr=0.22619)
+2026-03-30 19:38:02  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:38:02  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:38:02  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:38:02  INFO      TradingGraph: Fusion: L=-0.548(csns=1.00), M=-0.568(csns=1.00), S=-0.019(csns=0.20), align_str=0.182
+2026-03-30 19:38:02  INFO      TradingGraph: Running agents for GBPUSD
+2026-03-30 19:38:02  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:38:02  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:38:02  INFO      TradingGraph: Fusion: L=-0.578(csns=1.00), M=-0.577(csns=1.00), S=-0.020(csns=0.17), align_str=0.188
+2026-03-30 19:38:02  INFO      TradingGraph: Running agents for EURCHF
+2026-03-30 19:38:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:38:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:38:03  INFO      TradingGraph: Fusion: L=-0.197(csns=0.67), M=-0.143(csns=0.67), S=-0.021(csns=0.14), align_str=0.084
+2026-03-30 19:38:03  INFO      TradingGraph: Running agents for CHFJPY
+2026-03-30 19:38:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:38:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:38:03  INFO      TradingGraph: Fusion: L=0.267(csns=0.67), M=-0.590(csns=1.00), S=-0.181(csns=0.80), align_str=0.000
+2026-03-30 19:38:03  INFO      TradingGraph: Running agents for EURJPY
+2026-03-30 19:38:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:38:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:38:03  INFO      TradingGraph: Fusion: L=-0.157(csns=1.00), M=-0.720(csns=1.00), S=-0.078(csns=0.25), align_str=0.207
+2026-03-30 19:39:01  INFO      TrailingStopManager: Structural update SELL CHFJPY #56001767232: SL 201.14900->201.14888  TP 197.38100->197.38100  (live=199.27300 atr=0.22619)
+2026-03-30 19:39:02  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:39:02  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:39:02  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:39:02  INFO      TradingGraph: Fusion: L=-0.548(csns=1.00), M=-0.573(csns=1.00), S=-0.019(csns=0.20), align_str=0.183
+2026-03-30 19:39:02  INFO      TradingGraph: Running agents for GBPUSD
+2026-03-30 19:39:02  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:39:02  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:39:02  INFO      TradingGraph: Fusion: L=-0.578(csns=1.00), M=-0.570(csns=1.00), S=-0.018(csns=0.20), align_str=0.180
+2026-03-30 19:39:03  INFO      TradingGraph: Running agents for EURCHF
+2026-03-30 19:39:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:39:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:39:03  INFO      TradingGraph: Fusion: L=-0.198(csns=0.67), M=-0.147(csns=0.67), S=-0.021(csns=0.14), align_str=0.085
+2026-03-30 19:39:03  INFO      TradingGraph: Running agents for CHFJPY
+2026-03-30 19:39:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:39:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:39:03  INFO      TradingGraph: Fusion: L=0.267(csns=0.67), M=-0.590(csns=1.00), S=-0.181(csns=0.80), align_str=0.000
+2026-03-30 19:39:03  INFO      TradingGraph: Running agents for EURJPY
+2026-03-30 19:39:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:39:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:39:03  INFO      TradingGraph: Fusion: L=-0.157(csns=1.00), M=-0.750(csns=1.00), S=-0.080(csns=0.25), align_str=0.211
+2026-03-30 19:40:01  INFO      TrailingStopManager: Structural update SELL CHFJPY #56001767232: SL 201.14900->201.14888  TP 197.38100->197.38100  (live=199.26700 atr=0.22619)
+2026-03-30 19:40:02  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:40:02  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:40:02  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:40:02  INFO      TradingGraph: Fusion: L=-0.547(csns=1.00), M=-0.542(csns=1.00), S=-0.021(csns=0.17), align_str=0.185
+2026-03-30 19:40:02  INFO      TradingGraph: Running agents for GBPUSD
+2026-03-30 19:40:02  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:40:02  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:40:02  INFO      TradingGraph: Fusion: L=-0.576(csns=1.00), M=-0.556(csns=1.00), S=-0.020(csns=0.17), align_str=0.185
+2026-03-30 19:40:03  INFO      TradingGraph: Running agents for EURCHF
+2026-03-30 19:40:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:40:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:40:03  INFO      TradingGraph: Fusion: L=-0.196(csns=0.67), M=-0.137(csns=0.67), S=-0.020(csns=0.14), align_str=0.082
+2026-03-30 19:40:03  INFO      TradingGraph: Running agents for CHFJPY
+2026-03-30 19:40:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:40:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:40:03  INFO      TradingGraph: Fusion: L=0.268(csns=0.67), M=-0.594(csns=1.00), S=-0.182(csns=0.80), align_str=0.000
+2026-03-30 19:40:03  INFO      TradingGraph: Running agents for EURJPY
+2026-03-30 19:40:04  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:40:04  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:40:04  INFO      TradingGraph: Fusion: L=-0.157(csns=1.00), M=-0.719(csns=1.00), S=-0.078(csns=0.25), align_str=0.206
+2026-03-30 19:41:01  INFO      TrailingStopManager: Structural update SELL CHFJPY #56001767232: SL 201.14900->201.14888  TP 197.38100->197.38100  (live=199.25500 atr=0.22619)
+2026-03-30 19:41:02  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:41:02  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:41:02  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:41:02  INFO      TradingGraph: Fusion: L=-0.546(csns=1.00), M=-0.539(csns=1.00), S=-0.021(csns=0.17), align_str=0.184
+2026-03-30 19:41:03  INFO      TradingGraph: Running agents for GBPUSD
+2026-03-30 19:41:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:41:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:41:03  INFO      TradingGraph: Fusion: L=-0.577(csns=1.00), M=-0.556(csns=1.00), S=-0.020(csns=0.17), align_str=0.185
+2026-03-30 19:41:03  INFO      TradingGraph: Running agents for EURCHF
+2026-03-30 19:41:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:41:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:41:03  INFO      TradingGraph: Fusion: L=-0.196(csns=0.67), M=-0.118(csns=0.67), S=-0.021(csns=0.14), align_str=0.078
+2026-03-30 19:41:04  INFO      TradingGraph: Running agents for CHFJPY
+2026-03-30 19:41:04  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:41:04  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:41:04  INFO      TradingGraph: Fusion: L=0.268(csns=0.67), M=-0.601(csns=1.00), S=-0.194(csns=0.80), align_str=0.000
+2026-03-30 19:41:04  INFO      TradingGraph: Running agents for EURJPY
+2026-03-30 19:41:04  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:41:04  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:41:04  INFO      TradingGraph: Fusion: L=-0.157(csns=1.00), M=-0.751(csns=1.00), S=-0.080(csns=0.25), align_str=0.211
+2026-03-30 19:41:08  INFO      TradingRunner: Analysing EURUSD …
+2026-03-30 19:41:08  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:41:08  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:41:08  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:41:08  INFO      TradingGraph: Fusion: L=-0.547(csns=1.00), M=-0.538(csns=1.00), S=-0.021(csns=0.17), align_str=0.184
+2026-03-30 19:41:08  INFO      TradingGraph: Aligned [pullback-entry] (bearish) — proceeding [L=-0.547 M=-0.538 S=-0.021 breadth=0.002]
+2026-03-30 19:41:08  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:41:08  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_PULLBACK_ENTRY_EURUSD
+2026-03-30 19:41:08  INFO      TradingGraph: Correlation guard: 2/2 long_usd positions already open — refusing EURUSD SELL
+2026-03-30 19:41:08  INFO      TradingRunner: Analysing USDJPY …
+2026-03-30 19:41:08  INFO      TradingGraph: Running agents for USDJPY
+2026-03-30 19:41:08  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:41:08  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:41:08  INFO      TradingGraph: Fusion: L=0.369(csns=0.67), M=-0.214(csns=1.00), S=0.001(csns=0.40), align_str=0.000
+2026-03-30 19:41:08  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.369 M=-0.214 S=0.001)
+2026-03-30 19:41:08  INFO      TradingRunner: Analysing USDCHF …
+2026-03-30 19:41:08  INFO      TradingGraph: Running agents for USDCHF
+2026-03-30 19:41:09  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:41:09  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:41:09  INFO      TradingGraph: Fusion: L=0.572(csns=1.00), M=0.334(csns=0.67), S=0.118(csns=0.60), align_str=0.282
+2026-03-30 19:41:09  INFO      TradingGraph: Aligned [full-alignment] (bullish) — proceeding [L=0.572 M=0.334 S=0.118 breadth=0.002]
+2026-03-30 19:41:09  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:41:09  INFO      TradingGraph: Generated recipe: BALANCED_LONG_FULL_ALIGNMENT_USDCHF
+2026-03-30 19:41:09  INFO      TradingGraph: Correlation guard: 2/2 long_usd positions already open — refusing USDCHF BUY
+2026-03-30 19:41:09  INFO      TradingRunner: Analysing AUDUSD …
+2026-03-30 19:41:09  INFO      TradingGraph: Running agents for AUDUSD
+2026-03-30 19:41:09  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:41:09  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:41:09  INFO      TradingGraph: Fusion: L=-0.067(csns=1.00), M=-0.110(csns=0.67), S=0.040(csns=0.80), align_str=0.000
+2026-03-30 19:41:09  INFO      TradingGraph: Timeframes not aligned — stopping (L=-0.067 M=-0.110 S=0.040)
+2026-03-30 19:41:09  INFO      TradingRunner: Analysing USDCAD …
+2026-03-30 19:41:09  INFO      TradingGraph: Running agents for USDCAD
+2026-03-30 19:41:09  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:41:09  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:41:09  INFO      TradingGraph: Fusion: L=0.591(csns=1.00), M=0.300(csns=0.75), S=0.058(csns=0.33), align_str=0.218
+2026-03-30 19:41:09  INFO      TradingGraph: Aligned [pullback-entry] (bullish) — proceeding [L=0.591 M=0.300 S=0.058 breadth=0.002]
+2026-03-30 19:41:09  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:41:09  INFO      TradingGraph: Generated recipe: BALANCED_LONG_PULLBACK_ENTRY_USDCAD
+2026-03-30 19:41:09  INFO      TradingGraph: Correlation guard: 2/2 long_usd positions already open — refusing USDCAD BUY
+2026-03-30 19:41:09  INFO      TradingRunner: Analysing NZDUSD …
+2026-03-30 19:41:09  INFO      TradingGraph: Running agents for NZDUSD
+2026-03-30 19:41:09  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:41:09  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:41:09  INFO      TradingGraph: Fusion: L=-0.620(csns=1.00), M=-0.318(csns=0.75), S=-0.043(csns=0.33), align_str=0.204
+2026-03-30 19:41:09  INFO      TradingGraph: Aligned [pullback-entry] (bearish) — proceeding [L=-0.620 M=-0.318 S=-0.043 breadth=0.002]
+2026-03-30 19:41:09  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:41:09  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_PULLBACK_ENTRY_NZDUSD
+2026-03-30 19:41:09  INFO      TradingGraph: Correlation guard: 2/2 long_usd positions already open — refusing NZDUSD SELL
+2026-03-30 19:41:09  INFO      TradingRunner: Analysing US30 …
+2026-03-30 19:41:09  INFO      TradingGraph: Running agents for US30
+2026-03-30 19:41:09  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:41:09  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:41:09  INFO      TradingGraph: Fusion: L=-0.272(csns=0.67), M=-0.175(csns=1.00), S=-0.085(csns=0.75), align_str=0.159
+2026-03-30 19:41:09  INFO      TradingGraph: Aligned [full-alignment] (bearish) — proceeding [L=-0.272 M=-0.175 S=-0.085 breadth=0.002]
+2026-03-30 19:41:09  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:41:09  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_FULL_ALIGNMENT_US30
+2026-03-30 19:41:09  INFO      TradingGraph: Risk check passed
+2026-03-30 19:41:09  INFO      TradingGraph: Creating trade plan
+2026-03-30 19:41:09  INFO      TradingGraph: VIX risk scaling: vix_fear=0.58 → risk ×0.85 (0.12)
+2026-03-30 19:41:09  INFO      TradingGraph: Structure SL/TP [US30] entry=45314.70000 sl=46642.19005 (3.84×ATR) tp=44395.40000 (R:R=0.69)
+2026-03-30 19:41:09  INFO      TradingGraph: Created trade plan: entry=45314.7000, sl=46642.1900, tp=43987.2100
+2026-03-30 19:41:09  INFO      TradingGraph: Executing trade for US30
+2026-03-30 19:41:09  WARNING   MT5Executor: US30: trading disabled on this symbol (trade_mode=0 — may be outside market hours or broker restriction). Skipping.
+2026-03-30 19:41:09  INFO      TradingGraph: Order not placed for US30 (executor returned None — see executor log for reason)
+2026-03-30 19:41:09  INFO      TradingRunner: Analysing US500 …
+2026-03-30 19:41:10  INFO      TradingGraph: Running agents for US500
+2026-03-30 19:41:10  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:41:10  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:41:10  INFO      TradingGraph: Fusion: L=-0.445(csns=1.00), M=-0.368(csns=1.00), S=-0.345(csns=0.83), align_str=0.384
+2026-03-30 19:41:10  INFO      TradingGraph: Aligned [full-alignment] (bearish) — proceeding [L=-0.445 M=-0.368 S=-0.345 breadth=0.002]
+2026-03-30 19:41:10  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:41:10  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_FULL_ALIGNMENT_US500
+2026-03-30 19:41:10  INFO      TradingGraph: Risk check passed
+2026-03-30 19:41:10  INFO      TradingGraph: Creating trade plan
+2026-03-30 19:41:10  INFO      TradingGraph: VIX risk scaling: vix_fear=0.58 → risk ×0.85 (0.12)
+2026-03-30 19:41:10  INFO      TradingGraph: SL cap [US500]: 5.96×ATR → 5.0×ATR
+2026-03-30 19:41:10  INFO      TradingGraph: Structure SL/TP [US500] entry=6359.40000 sl=6602.40946 (5.00×ATR) tp=6150.39963 (R:R=0.86)
+2026-03-30 19:41:10  INFO      TradingGraph: Created trade plan: entry=6359.4000, sl=6602.4100, tp=6116.3900
+2026-03-30 19:41:10  INFO      TradingGraph: Executing trade for US500
+2026-03-30 19:41:10  WARNING   MT5Executor: US500: trading disabled on this symbol (trade_mode=0 — may be outside market hours or broker restriction). Skipping.
+2026-03-30 19:41:10  INFO      TradingGraph: Order not placed for US500 (executor returned None — see executor log for reason)
+2026-03-30 19:41:10  INFO      TradingRunner: Analysing USTEC …
+2026-03-30 19:41:10  INFO      TradingGraph: Running agents for USTEC
+2026-03-30 19:41:10  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:41:10  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:41:10  INFO      TradingGraph: Fusion: L=-0.453(csns=1.00), M=-0.400(csns=1.00), S=-0.335(csns=0.83), align_str=0.393
+2026-03-30 19:41:10  INFO      TradingGraph: Aligned [full-alignment] (bearish) — proceeding [L=-0.453 M=-0.400 S=-0.335 breadth=0.002]
+2026-03-30 19:41:10  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:41:10  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_FULL_ALIGNMENT_USTEC
+2026-03-30 19:41:10  INFO      TradingGraph: Risk check passed
+2026-03-30 19:41:10  INFO      TradingGraph: Creating trade plan
+2026-03-30 19:41:10  INFO      TradingGraph: VIX risk scaling: vix_fear=0.54 → risk ×0.88 (0.12)
+2026-03-30 19:41:10  INFO      TradingGraph: SL cap [USTEC]: 6.68×ATR → 5.0×ATR
+2026-03-30 19:41:10  INFO      TradingGraph: Structure SL/TP [USTEC] entry=23022.10000 sl=24043.32575 (5.00×ATR) tp=22294.29722 (R:R=0.71)
+2026-03-30 19:41:10  INFO      TradingGraph: Created trade plan: entry=23022.1000, sl=24043.3300, tp=22000.8700
+2026-03-30 19:41:10  INFO      TradingGraph: Executing trade for USTEC
+2026-03-30 19:41:10  WARNING   MT5Executor: USTEC: trading disabled on this symbol (trade_mode=0 — may be outside market hours or broker restriction). Skipping.
+2026-03-30 19:41:10  INFO      TradingGraph: Order not placed for USTEC (executor returned None — see executor log for reason)
+2026-03-30 19:41:10  INFO      TradingRunner: Analysing DAX …
+2026-03-30 19:41:10  INFO      TradingGraph: Running agents for DAX
+2026-03-30 19:41:10  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:41:10  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:41:10  INFO      TradingGraph: Fusion: L=-0.160(csns=1.00), M=-0.094(csns=1.00), S=0.078(csns=0.83), align_str=0.000
+2026-03-30 19:41:10  INFO      TradingGraph: Aligned [pullback-entry] (bearish) — proceeding [L=-0.160 M=-0.094 S=0.078 breadth=0.002]
+2026-03-30 19:41:10  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:41:10  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_PULLBACK_ENTRY_DAX
+2026-03-30 19:41:10  INFO      TradingGraph: Win probability too low: 0.449 < 0.46
+2026-03-30 19:41:10  INFO      TradingRunner: Analysing UK100 …
+2026-03-30 19:41:10  INFO      TradingGraph: Running agents for UK100
+2026-03-30 19:41:10  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:41:10  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:41:10  INFO      TradingGraph: Fusion: L=0.132(csns=0.67), M=0.301(csns=1.00), S=0.002(csns=0.17), align_str=0.045
+2026-03-30 19:41:10  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.132 M=0.301 S=0.002)
+2026-03-30 19:41:10  INFO      TradingRunner: Analysing GBPJPY …
+2026-03-30 19:41:10  INFO      TradingGraph: Running agents for GBPJPY
+2026-03-30 19:41:10  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:41:10  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:41:10  INFO      TradingGraph: Fusion: L=0.040(csns=0.33), M=-0.761(csns=1.00), S=0.106(csns=1.00), align_str=0.000
+2026-03-30 19:41:10  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.040 M=-0.761 S=0.106)
+2026-03-30 19:41:10  INFO      TradingRunner: Analysing AUDJPY …
+2026-03-30 19:41:10  INFO      TradingGraph: Running agents for AUDJPY
+2026-03-30 19:41:10  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:41:10  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:41:10  INFO      TradingGraph: Fusion: L=0.257(csns=0.33), M=-0.421(csns=1.00), S=-0.059(csns=0.50), align_str=0.000
+2026-03-30 19:41:10  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.257 M=-0.421 S=-0.059)
+2026-03-30 19:41:10  INFO      TradingRunner: Analysing EURGBP …
+2026-03-30 19:41:10  INFO      TradingGraph: Running agents for EURGBP
+2026-03-30 19:41:10  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:41:10  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:41:10  INFO      TradingGraph: Fusion: L=0.016(csns=0.33), M=0.387(csns=1.00), S=0.169(csns=0.86), align_str=0.101
+2026-03-30 19:41:10  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.016 M=0.387 S=0.169)
+2026-03-30 19:41:10  INFO      TradingRunner: Analysing XAGUSD …
+2026-03-30 19:41:10  INFO      TradingGraph: Running agents for XAGUSD
+2026-03-30 19:41:11  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:41:11  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:41:11  INFO      TradingGraph: Fusion: L=-0.184(csns=0.50), M=0.146(csns=1.00), S=-0.189(csns=0.83), align_str=0.000
+2026-03-30 19:41:11  INFO      TradingGraph: Timeframes not aligned — stopping (L=-0.184 M=0.146 S=-0.189)
+2026-03-30 19:41:11  INFO      TradingRunner: PnL — unrealized: -0.61  realized today: +0.00  total: -0.61
+2026-03-30 19:41:11  INFO      TradingRunner: Signal cycle done in 6.5s — sleeping 294s
+2026-03-30 19:42:02  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:42:02  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:42:02  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:42:02  INFO      TradingGraph: Fusion: L=-0.547(csns=1.00), M=-0.534(csns=1.00), S=-0.020(csns=0.17), align_str=0.181
+2026-03-30 19:42:02  INFO      TradingGraph: Running agents for GBPUSD
+2026-03-30 19:42:02  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:42:02  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:42:02  INFO      TradingGraph: Fusion: L=-0.577(csns=1.00), M=-0.551(csns=1.00), S=-0.020(csns=0.17), align_str=0.184
+2026-03-30 19:42:03  INFO      TradingGraph: Running agents for EURCHF
+2026-03-30 19:42:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:42:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:42:03  INFO      TradingGraph: Fusion: L=-0.175(csns=0.67), M=-0.113(csns=0.67), S=-0.020(csns=0.14), align_str=0.074
+2026-03-30 19:42:03  INFO      TradingGraph: Running agents for CHFJPY
+2026-03-30 19:42:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:42:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:42:03  INFO      TradingGraph: Fusion: L=0.268(csns=0.67), M=-0.595(csns=1.00), S=-0.182(csns=0.80), align_str=0.000
+2026-03-30 19:42:03  INFO      TradingGraph: Running agents for EURJPY
+2026-03-30 19:42:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:42:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:42:03  INFO      TradingGraph: Fusion: L=-0.156(csns=1.00), M=-0.714(csns=1.00), S=-0.077(csns=0.25), align_str=0.204
+2026-03-30 19:43:02  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:43:02  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:43:02  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:43:02  INFO      TradingGraph: Fusion: L=-0.547(csns=1.00), M=-0.538(csns=1.00), S=-0.021(csns=0.17), align_str=0.184
+2026-03-30 19:43:02  INFO      TradingGraph: Running agents for GBPUSD
+2026-03-30 19:43:02  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:43:02  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:43:02  INFO      TradingGraph: Fusion: L=-0.577(csns=1.00), M=-0.556(csns=1.00), S=-0.020(csns=0.17), align_str=0.185
+2026-03-30 19:43:03  INFO      TradingGraph: Running agents for EURCHF
+2026-03-30 19:43:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:43:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:43:03  INFO      TradingGraph: Fusion: L=-0.197(csns=0.67), M=-0.145(csns=0.67), S=-0.022(csns=0.14), align_str=0.086
+2026-03-30 19:43:03  INFO      TradingGraph: Running agents for CHFJPY
+2026-03-30 19:43:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:43:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:43:03  INFO      TradingGraph: Fusion: L=0.267(csns=0.67), M=-0.587(csns=1.00), S=-0.181(csns=0.80), align_str=0.000
+2026-03-30 19:43:04  INFO      TradingGraph: Running agents for EURJPY
+2026-03-30 19:43:04  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:43:04  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:43:04  INFO      TradingGraph: Fusion: L=-0.157(csns=1.00), M=-0.718(csns=1.00), S=-0.078(csns=0.25), align_str=0.206
+2026-03-30 19:44:02  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:44:02  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:44:02  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:44:02  INFO      TradingGraph: Fusion: L=-0.547(csns=1.00), M=-0.534(csns=1.00), S=-0.020(csns=0.17), align_str=0.181
+2026-03-30 19:44:02  INFO      TradingGraph: Running agents for GBPUSD
+2026-03-30 19:44:02  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:44:02  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:44:02  INFO      TradingGraph: Fusion: L=-0.577(csns=1.00), M=-0.551(csns=1.00), S=-0.020(csns=0.17), align_str=0.185
+2026-03-30 19:44:03  INFO      TradingGraph: Running agents for EURCHF
+2026-03-30 19:44:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:44:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:44:03  INFO      TradingGraph: Fusion: L=-0.198(csns=0.67), M=-0.152(csns=0.67), S=-0.023(csns=0.14), align_str=0.088
+2026-03-30 19:44:03  INFO      TradingGraph: Running agents for CHFJPY
+2026-03-30 19:44:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:44:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:44:03  INFO      TradingGraph: Fusion: L=0.267(csns=0.67), M=-0.575(csns=1.00), S=-0.169(csns=0.80), align_str=0.000
+2026-03-30 19:44:03  INFO      TradingGraph: Running agents for EURJPY
+2026-03-30 19:44:04  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:44:04  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:44:04  INFO      TradingGraph: Fusion: L=-0.156(csns=1.00), M=-0.714(csns=1.00), S=-0.077(csns=0.25), align_str=0.205
+2026-03-30 19:45:02  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:45:02  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:45:02  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:45:02  INFO      TradingGraph: Fusion: L=-0.544(csns=1.00), M=-0.487(csns=1.00), S=-0.019(csns=0.17), align_str=0.172
+2026-03-30 19:45:03  INFO      TradingGraph: Running agents for GBPUSD
+2026-03-30 19:45:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:45:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:45:03  INFO      TradingGraph: Fusion: L=-0.576(csns=1.00), M=-0.543(csns=1.00), S=-0.027(csns=0.17), align_str=0.202
+2026-03-30 19:45:03  INFO      TradingGraph: Running agents for EURCHF
+2026-03-30 19:45:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:45:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:45:03  INFO      TradingGraph: Fusion: L=-0.197(csns=0.67), M=-0.141(csns=0.67), S=-0.017(csns=0.14), align_str=0.078
+2026-03-30 19:45:03  INFO      TradingGraph: Running agents for CHFJPY
+2026-03-30 19:45:04  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:45:04  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:45:04  INFO      TradingGraph: Fusion: L=0.266(csns=0.67), M=-0.560(csns=1.00), S=-0.159(csns=0.75), align_str=0.000
+2026-03-30 19:45:04  INFO      TradingGraph: Running agents for EURJPY
+2026-03-30 19:45:04  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:45:04  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:45:04  INFO      TradingGraph: Fusion: L=-0.155(csns=1.00), M=-0.702(csns=1.00), S=0.008(csns=0.80), align_str=0.000
+2026-03-30 19:46:02  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:46:02  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:46:02  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:46:02  INFO      TradingGraph: Fusion: L=-0.545(csns=1.00), M=-0.491(csns=1.00), S=-0.019(csns=0.17), align_str=0.172
+2026-03-30 19:46:03  INFO      TradingGraph: Running agents for GBPUSD
+2026-03-30 19:46:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:46:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:46:03  INFO      TradingGraph: Fusion: L=-0.576(csns=1.00), M=-0.545(csns=1.00), S=-0.028(csns=0.17), align_str=0.206
+2026-03-30 19:46:04  INFO      TradingGraph: Running agents for EURCHF
+2026-03-30 19:46:04  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:46:04  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:46:04  INFO      TradingGraph: Fusion: L=-0.197(csns=0.67), M=-0.141(csns=0.67), S=-0.017(csns=0.14), align_str=0.078
+2026-03-30 19:46:04  INFO      TradingGraph: Running agents for CHFJPY
+2026-03-30 19:46:04  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:46:04  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:46:04  INFO      TradingGraph: Fusion: L=0.266(csns=0.67), M=-0.565(csns=1.00), S=-0.160(csns=0.75), align_str=0.000
+2026-03-30 19:46:04  INFO      TradingGraph: Running agents for EURJPY
+2026-03-30 19:46:04  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:46:04  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:46:04  INFO      TradingGraph: Fusion: L=-0.156(csns=1.00), M=-0.705(csns=1.00), S=0.007(csns=0.80), align_str=0.000
+2026-03-30 19:46:08  INFO      TradingRunner: Analysing EURUSD …
+2026-03-30 19:46:08  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:46:08  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:46:08  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:46:08  INFO      TradingGraph: Fusion: L=-0.545(csns=1.00), M=-0.496(csns=1.00), S=-0.020(csns=0.17), align_str=0.177
+2026-03-30 19:46:08  INFO      TradingGraph: Aligned [pullback-entry] (bearish) — proceeding [L=-0.545 M=-0.496 S=-0.020 breadth=0.002]
+2026-03-30 19:46:08  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:46:08  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_PULLBACK_ENTRY_EURUSD
+2026-03-30 19:46:08  INFO      TradingGraph: Correlation guard: 2/2 long_usd positions already open — refusing EURUSD SELL
+2026-03-30 19:46:08  INFO      TradingRunner: Analysing USDJPY …
+2026-03-30 19:46:08  INFO      TradingGraph: Running agents for USDJPY
+2026-03-30 19:46:09  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:46:09  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:46:09  INFO      TradingGraph: Fusion: L=0.368(csns=0.67), M=-0.195(csns=1.00), S=0.005(csns=0.50), align_str=0.000
+2026-03-30 19:46:09  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.368 M=-0.195 S=0.005)
+2026-03-30 19:46:09  INFO      TradingRunner: Analysing USDCHF …
+2026-03-30 19:46:09  INFO      TradingGraph: Running agents for USDCHF
+2026-03-30 19:46:09  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:46:09  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:46:09  INFO      TradingGraph: Fusion: L=0.569(csns=1.00), M=0.319(csns=0.67), S=0.107(csns=0.40), align_str=0.268
+2026-03-30 19:46:09  INFO      TradingGraph: Aligned [full-alignment] (bullish) — proceeding [L=0.569 M=0.319 S=0.107 breadth=0.002]
+2026-03-30 19:46:09  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:46:09  INFO      TradingGraph: Generated recipe: BALANCED_LONG_FULL_ALIGNMENT_USDCHF
+2026-03-30 19:46:09  INFO      TradingGraph: Correlation guard: 2/2 long_usd positions already open — refusing USDCHF BUY
+2026-03-30 19:46:09  INFO      TradingRunner: Analysing AUDUSD …
+2026-03-30 19:46:09  INFO      TradingGraph: Running agents for AUDUSD
+2026-03-30 19:46:09  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:46:09  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:46:09  INFO      TradingGraph: Fusion: L=-0.068(csns=1.00), M=-0.089(csns=0.67), S=0.023(csns=0.80), align_str=0.000
+2026-03-30 19:46:09  INFO      TradingGraph: Timeframes not aligned — stopping (L=-0.068 M=-0.089 S=0.023)
+2026-03-30 19:46:09  INFO      TradingRunner: Analysing USDCAD …
+2026-03-30 19:46:09  INFO      TradingGraph: Running agents for USDCAD
+2026-03-30 19:46:09  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:46:09  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:46:09  INFO      TradingGraph: Fusion: L=0.589(csns=1.00), M=0.161(csns=0.75), S=0.077(csns=0.33), align_str=0.194
+2026-03-30 19:46:09  INFO      TradingGraph: Aligned [pullback-entry] (bullish) — proceeding [L=0.589 M=0.161 S=0.077 breadth=0.002]
+2026-03-30 19:46:09  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:46:09  INFO      TradingGraph: Generated recipe: BALANCED_LONG_PULLBACK_ENTRY_USDCAD
+2026-03-30 19:46:09  INFO      TradingGraph: Correlation guard: 2/2 long_usd positions already open — refusing USDCAD BUY
+2026-03-30 19:46:09  INFO      TradingRunner: Analysing NZDUSD …
+2026-03-30 19:46:09  INFO      TradingGraph: Running agents for NZDUSD
+2026-03-30 19:46:09  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:46:09  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:46:09  INFO      TradingGraph: Fusion: L=-0.619(csns=1.00), M=-0.305(csns=0.67), S=-0.041(csns=0.33), align_str=0.197
+2026-03-30 19:46:09  INFO      TradingGraph: Aligned [pullback-entry] (bearish) — proceeding [L=-0.619 M=-0.305 S=-0.041 breadth=0.002]
+2026-03-30 19:46:09  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:46:09  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_PULLBACK_ENTRY_NZDUSD
+2026-03-30 19:46:09  INFO      TradingGraph: Correlation guard: 2/2 long_usd positions already open — refusing NZDUSD SELL
+2026-03-30 19:46:09  INFO      TradingRunner: Analysing US30 …
+2026-03-30 19:46:09  INFO      TradingGraph: Running agents for US30
+2026-03-30 19:46:09  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:46:09  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:46:09  INFO      TradingGraph: Fusion: L=-0.270(csns=0.67), M=-0.161(csns=1.00), S=-0.086(csns=0.80), align_str=0.156
+2026-03-30 19:46:09  INFO      TradingGraph: Aligned [full-alignment] (bearish) — proceeding [L=-0.270 M=-0.161 S=-0.086 breadth=0.002]
+2026-03-30 19:46:09  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:46:09  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_FULL_ALIGNMENT_US30
+2026-03-30 19:46:09  INFO      TradingGraph: Risk check passed
+2026-03-30 19:46:09  INFO      TradingGraph: Creating trade plan
+2026-03-30 19:46:09  INFO      TradingGraph: VIX risk scaling: vix_fear=0.59 → risk ×0.84 (0.11)
+2026-03-30 19:46:09  INFO      TradingGraph: Structure SL/TP [US30] entry=45339.70000 sl=46642.19005 (3.77×ATR) tp=44395.40000 (R:R=0.72)
+2026-03-30 19:46:09  INFO      TradingGraph: Created trade plan: entry=45339.7000, sl=46642.1900, tp=44037.2100
+2026-03-30 19:46:09  INFO      TradingGraph: Executing trade for US30
+2026-03-30 19:46:09  WARNING   MT5Executor: US30: trading disabled on this symbol (trade_mode=0 — may be outside market hours or broker restriction). Skipping.
+2026-03-30 19:46:09  INFO      TradingGraph: Order not placed for US30 (executor returned None — see executor log for reason)
+2026-03-30 19:46:09  INFO      TradingRunner: Analysing US500 …
+2026-03-30 19:46:09  INFO      TradingGraph: Running agents for US500
+2026-03-30 19:46:09  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:46:09  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:46:09  INFO      TradingGraph: Fusion: L=-0.443(csns=1.00), M=-0.356(csns=1.00), S=-0.344(csns=0.83), align_str=0.379
+2026-03-30 19:46:09  INFO      TradingGraph: Aligned [full-alignment] (bearish) — proceeding [L=-0.443 M=-0.356 S=-0.344 breadth=0.002]
+2026-03-30 19:46:09  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:46:09  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_FULL_ALIGNMENT_US500
+2026-03-30 19:46:09  INFO      TradingGraph: Risk check passed
+2026-03-30 19:46:09  INFO      TradingGraph: Creating trade plan
+2026-03-30 19:46:09  INFO      TradingGraph: VIX risk scaling: vix_fear=0.59 → risk ×0.84 (0.11)
+2026-03-30 19:46:09  INFO      TradingGraph: SL cap [US500]: 5.89×ATR → 5.0×ATR
+2026-03-30 19:46:09  INFO      TradingGraph: Structure SL/TP [US500] entry=6362.70000 sl=6605.70946 (5.00×ATR) tp=6148.49233 (R:R=0.88)
+2026-03-30 19:46:09  INFO      TradingGraph: Created trade plan: entry=6362.7000, sl=6605.7100, tp=6119.6900
+2026-03-30 19:46:09  INFO      TradingGraph: Executing trade for US500
+2026-03-30 19:46:09  WARNING   MT5Executor: US500: trading disabled on this symbol (trade_mode=0 — may be outside market hours or broker restriction). Skipping.
+2026-03-30 19:46:09  INFO      TradingGraph: Order not placed for US500 (executor returned None — see executor log for reason)
+2026-03-30 19:46:09  INFO      TradingRunner: Analysing USTEC …
+2026-03-30 19:46:09  INFO      TradingGraph: Running agents for USTEC
+2026-03-30 19:46:09  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:46:09  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:46:09  INFO      TradingGraph: Fusion: L=-0.451(csns=1.00), M=-0.421(csns=1.00), S=-0.371(csns=1.00), align_str=0.413
+2026-03-30 19:46:09  INFO      TradingGraph: Aligned [full-alignment] (bearish) — proceeding [L=-0.451 M=-0.421 S=-0.371 breadth=0.002]
+2026-03-30 19:46:09  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:46:09  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_FULL_ALIGNMENT_USTEC
+2026-03-30 19:46:09  INFO      TradingGraph: Risk check passed
+2026-03-30 19:46:09  INFO      TradingGraph: Creating trade plan
+2026-03-30 19:46:09  INFO      TradingGraph: VIX risk scaling: vix_fear=0.55 → risk ×0.87 (0.12)
+2026-03-30 19:46:09  INFO      TradingGraph: SL cap [USTEC]: 6.59×ATR → 5.0×ATR
+2026-03-30 19:46:09  INFO      TradingGraph: Structure SL/TP [USTEC] entry=23040.10000 sl=24061.32575 (5.00×ATR) tp=22288.90860 (R:R=0.74)
+2026-03-30 19:46:09  INFO      TradingGraph: Created trade plan: entry=23040.1000, sl=24061.3300, tp=22018.8700
+2026-03-30 19:46:09  INFO      TradingGraph: Executing trade for USTEC
+2026-03-30 19:46:09  WARNING   MT5Executor: USTEC: trading disabled on this symbol (trade_mode=0 — may be outside market hours or broker restriction). Skipping.
+2026-03-30 19:46:09  INFO      TradingGraph: Order not placed for USTEC (executor returned None — see executor log for reason)
+2026-03-30 19:46:09  INFO      TradingRunner: Analysing DAX …
+2026-03-30 19:46:09  INFO      TradingGraph: Running agents for DAX
+2026-03-30 19:46:10  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:46:10  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:46:10  INFO      TradingGraph: Fusion: L=-0.160(csns=1.00), M=-0.094(csns=1.00), S=0.078(csns=0.83), align_str=0.000
+2026-03-30 19:46:10  INFO      TradingGraph: Aligned [pullback-entry] (bearish) — proceeding [L=-0.160 M=-0.094 S=0.078 breadth=0.002]
+2026-03-30 19:46:10  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:46:10  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_PULLBACK_ENTRY_DAX
+2026-03-30 19:46:10  INFO      TradingGraph: Win probability too low: 0.449 < 0.46
+2026-03-30 19:46:10  INFO      TradingRunner: Analysing UK100 …
+2026-03-30 19:46:10  INFO      TradingGraph: Running agents for UK100
+2026-03-30 19:46:10  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:46:10  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:46:10  INFO      TradingGraph: Fusion: L=0.133(csns=0.67), M=0.318(csns=1.00), S=0.007(csns=0.17), align_str=0.066
+2026-03-30 19:46:10  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.133 M=0.318 S=0.007)
+2026-03-30 19:46:10  INFO      TradingRunner: Analysing GBPJPY …
+2026-03-30 19:46:10  INFO      TradingGraph: Running agents for GBPJPY
+2026-03-30 19:46:10  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:46:10  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:46:10  INFO      TradingGraph: Fusion: L=0.040(csns=0.33), M=-0.748(csns=1.00), S=0.000(csns=0.50), align_str=0.000
+2026-03-30 19:46:10  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.040 M=-0.748 S=0.000)
+2026-03-30 19:46:10  INFO      TradingRunner: Analysing AUDJPY …
+2026-03-30 19:46:10  INFO      TradingGraph: Running agents for AUDJPY
+2026-03-30 19:46:10  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:46:10  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:46:10  INFO      TradingGraph: Fusion: L=0.294(csns=0.50), M=-0.331(csns=1.00), S=-0.067(csns=0.40), align_str=0.000
+2026-03-30 19:46:10  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.294 M=-0.331 S=-0.067)
+2026-03-30 19:46:10  INFO      TradingRunner: Analysing EURGBP …
+2026-03-30 19:46:10  INFO      TradingGraph: Running agents for EURGBP
+2026-03-30 19:46:10  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:46:10  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:46:10  INFO      TradingGraph: Fusion: L=0.016(csns=0.33), M=0.391(csns=1.00), S=0.178(csns=0.71), align_str=0.104
+2026-03-30 19:46:10  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.016 M=0.391 S=0.178)
+2026-03-30 19:46:10  INFO      TradingRunner: Analysing XAGUSD …
+2026-03-30 19:46:10  INFO      TradingGraph: Running agents for XAGUSD
+2026-03-30 19:46:10  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:46:10  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:46:10  INFO      TradingGraph: Fusion: L=-0.183(csns=0.50), M=0.155(csns=1.00), S=-0.183(csns=0.83), align_str=0.000
+2026-03-30 19:46:10  INFO      TradingGraph: Timeframes not aligned — stopping (L=-0.183 M=0.155 S=-0.183)
+2026-03-30 19:46:10  INFO      TradingRunner: PnL — unrealized: -1.26  realized today: +0.00  total: -1.26
+2026-03-30 19:46:10  INFO      TradingRunner: Signal cycle done in 5.7s — sleeping 294s
+2026-03-30 19:47:02  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:47:02  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:47:02  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:47:02  INFO      TradingGraph: Fusion: L=-0.546(csns=1.00), M=-0.528(csns=1.00), S=-0.021(csns=0.17), align_str=0.183
+2026-03-30 19:47:03  INFO      TradingGraph: Running agents for GBPUSD
+2026-03-30 19:47:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:47:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:47:03  INFO      TradingGraph: Fusion: L=-0.577(csns=1.00), M=-0.554(csns=1.00), S=-0.033(csns=0.17), align_str=0.220
+2026-03-30 19:47:03  INFO      TradingGraph: Running agents for EURCHF
+2026-03-30 19:47:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:47:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:47:03  INFO      TradingGraph: Fusion: L=-0.196(csns=0.67), M=-0.139(csns=0.67), S=-0.017(csns=0.14), align_str=0.077
+2026-03-30 19:47:03  INFO      TradingGraph: Running agents for CHFJPY
+2026-03-30 19:47:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:47:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:47:03  INFO      TradingGraph: Fusion: L=0.266(csns=0.67), M=-0.556(csns=1.00), S=-0.133(csns=0.60), align_str=0.000
+2026-03-30 19:47:04  INFO      TradingGraph: Running agents for EURJPY
+2026-03-30 19:47:04  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:47:04  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:47:04  INFO      TradingGraph: Fusion: L=-0.155(csns=1.00), M=-0.699(csns=1.00), S=0.008(csns=0.80), align_str=0.000
+2026-03-30 19:48:02  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:48:02  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:48:02  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:48:02  INFO      TradingGraph: Fusion: L=-0.545(csns=1.00), M=-0.495(csns=1.00), S=-0.021(csns=0.17), align_str=0.177
+2026-03-30 19:48:03  INFO      TradingGraph: Running agents for GBPUSD
+2026-03-30 19:48:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:48:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:48:03  INFO      TradingGraph: Fusion: L=-0.576(csns=1.00), M=-0.546(csns=1.00), S=-0.029(csns=0.17), align_str=0.209
+2026-03-30 19:48:03  INFO      TradingGraph: Running agents for EURCHF
+2026-03-30 19:48:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:48:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:48:03  INFO      TradingGraph: Fusion: L=-0.197(csns=0.67), M=-0.143(csns=0.67), S=-0.017(csns=0.14), align_str=0.079
+2026-03-30 19:48:04  INFO      TradingGraph: Running agents for CHFJPY
+2026-03-30 19:48:04  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:48:04  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:48:04  INFO      TradingGraph: Fusion: L=0.266(csns=0.67), M=-0.557(csns=1.00), S=-0.158(csns=0.75), align_str=0.000
+2026-03-30 19:48:04  INFO      TradingGraph: Running agents for EURJPY
+2026-03-30 19:48:04  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:48:04  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:48:04  INFO      TradingGraph: Fusion: L=-0.155(csns=1.00), M=-0.700(csns=1.00), S=0.008(csns=0.80), align_str=0.000
+2026-03-30 19:48:04  INFO      TradingRunner: [WATCHDOG] alive | equity=135.71 | cycle=3 | profile=balanced
+2026-03-30 19:49:03  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:49:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:49:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:49:03  INFO      TradingGraph: Fusion: L=-0.549(csns=1.00), M=-0.567(csns=1.00), S=-0.023(csns=0.17), align_str=0.194
+2026-03-30 19:49:03  INFO      TradingGraph: Running agents for GBPUSD
+2026-03-30 19:49:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:49:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:49:03  INFO      TradingGraph: Fusion: L=-0.578(csns=1.00), M=-0.568(csns=1.00), S=-0.050(csns=0.17), align_str=0.255
+2026-03-30 19:49:03  INFO      TradingGraph: Running agents for EURCHF
+2026-03-30 19:49:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:49:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:49:03  INFO      TradingGraph: Fusion: L=-0.200(csns=0.67), M=-0.170(csns=0.67), S=-0.018(csns=0.14), align_str=0.085
+2026-03-30 19:49:04  INFO      TradingGraph: Running agents for CHFJPY
+2026-03-30 19:49:04  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:49:04  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:49:04  INFO      TradingGraph: Fusion: L=0.266(csns=0.67), M=-0.559(csns=1.00), S=-0.159(csns=0.75), align_str=0.000
+2026-03-30 19:49:04  INFO      TradingGraph: Running agents for EURJPY
+2026-03-30 19:49:04  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:49:04  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:49:04  INFO      TradingGraph: Fusion: L=-0.156(csns=1.00), M=-0.712(csns=1.00), S=0.004(csns=0.75), align_str=0.000
+2026-03-30 19:50:02  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:50:02  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:50:02  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:50:02  INFO      TradingGraph: Fusion: L=-0.548(csns=1.00), M=-0.548(csns=1.00), S=-0.023(csns=0.17), align_str=0.191
+2026-03-30 19:50:03  INFO      TradingGraph: Running agents for GBPUSD
+2026-03-30 19:50:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:50:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:50:03  INFO      TradingGraph: Fusion: L=-0.578(csns=1.00), M=-0.577(csns=1.00), S=-0.049(csns=0.17), align_str=0.254
+2026-03-30 19:50:03  INFO      TradingGraph: Running agents for EURCHF
+2026-03-30 19:50:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:50:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:50:03  INFO      TradingGraph: Fusion: L=-0.200(csns=0.67), M=-0.170(csns=0.67), S=-0.017(csns=0.14), align_str=0.084
+2026-03-30 19:50:04  INFO      TradingGraph: Running agents for CHFJPY
+2026-03-30 19:50:04  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:50:04  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:50:04  INFO      TradingGraph: Fusion: L=0.265(csns=0.67), M=-0.546(csns=1.00), S=-0.116(csns=0.50), align_str=0.000
+2026-03-30 19:50:04  INFO      TradingGraph: Running agents for EURJPY
+2026-03-30 19:50:04  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:50:04  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:50:04  INFO      TradingGraph: Fusion: L=-0.156(csns=1.00), M=-0.707(csns=1.00), S=0.006(csns=0.75), align_str=0.000
+2026-03-30 19:51:02  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:51:02  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:51:02  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:51:02  INFO      TradingGraph: Fusion: L=-0.549(csns=1.00), M=-0.569(csns=1.00), S=-0.023(csns=0.17), align_str=0.193
+2026-03-30 19:51:02  INFO      TradingGraph: Running agents for GBPUSD
+2026-03-30 19:51:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:51:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:51:03  INFO      TradingGraph: Fusion: L=-0.579(csns=1.00), M=-0.570(csns=1.00), S=-0.052(csns=0.20), align_str=0.258
+2026-03-30 19:51:03  INFO      TradingGraph: Running agents for EURCHF
+2026-03-30 19:51:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:51:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:51:03  INFO      TradingGraph: Fusion: L=-0.200(csns=0.67), M=-0.170(csns=0.67), S=-0.017(csns=0.14), align_str=0.084
+2026-03-30 19:51:04  INFO      TradingGraph: Running agents for CHFJPY
+2026-03-30 19:51:04  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:51:04  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:51:04  INFO      TradingGraph: Fusion: L=0.265(csns=0.67), M=-0.550(csns=1.00), S=-0.117(csns=0.50), align_str=0.000
+2026-03-30 19:51:04  INFO      TradingGraph: Running agents for EURJPY
+2026-03-30 19:51:04  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:51:04  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:51:04  INFO      TradingGraph: Fusion: L=-0.156(csns=1.00), M=-0.708(csns=1.00), S=0.005(csns=0.75), align_str=0.000
+2026-03-30 19:51:08  INFO      TradingRunner: Analysing EURUSD …
+2026-03-30 19:51:08  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:51:08  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:51:08  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:51:08  INFO      TradingGraph: Fusion: L=-0.549(csns=1.00), M=-0.568(csns=1.00), S=-0.023(csns=0.17), align_str=0.193
+2026-03-30 19:51:08  INFO      TradingGraph: Aligned [pullback-entry] (bearish) — proceeding [L=-0.549 M=-0.568 S=-0.023 breadth=0.002]
+2026-03-30 19:51:08  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:51:09  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_PULLBACK_ENTRY_EURUSD
+2026-03-30 19:51:09  INFO      TradingGraph: Correlation guard: 2/2 long_usd positions already open — refusing EURUSD SELL
+2026-03-30 19:51:09  INFO      TradingRunner: Analysing USDJPY …
+2026-03-30 19:51:09  INFO      TradingGraph: Running agents for USDJPY
+2026-03-30 19:51:09  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:51:09  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:51:09  INFO      TradingGraph: Fusion: L=0.368(csns=0.67), M=-0.159(csns=1.00), S=0.025(csns=0.75), align_str=0.000
+2026-03-30 19:51:09  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.368 M=-0.159 S=0.025)
+2026-03-30 19:51:09  INFO      TradingRunner: Analysing USDCHF …
+2026-03-30 19:51:09  INFO      TradingGraph: Running agents for USDCHF
+2026-03-30 19:51:09  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:51:09  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:51:09  INFO      TradingGraph: Fusion: L=0.570(csns=1.00), M=0.326(csns=0.67), S=0.209(csns=1.00), align_str=0.339
+2026-03-30 19:51:09  INFO      TradingGraph: Aligned [full-alignment] (bullish) — proceeding [L=0.570 M=0.326 S=0.209 breadth=0.002]
+2026-03-30 19:51:09  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:51:09  INFO      TradingGraph: Generated recipe: BALANCED_LONG_FULL_ALIGNMENT_USDCHF
+2026-03-30 19:51:09  INFO      TradingGraph: Correlation guard: 2/2 long_usd positions already open — refusing USDCHF BUY
+2026-03-30 19:51:09  INFO      TradingRunner: Analysing AUDUSD …
+2026-03-30 19:51:09  INFO      TradingGraph: Running agents for AUDUSD
+2026-03-30 19:51:09  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:51:09  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:51:09  INFO      TradingGraph: Fusion: L=-0.068(csns=1.00), M=-0.106(csns=0.67), S=0.028(csns=0.80), align_str=0.000
+2026-03-30 19:51:09  INFO      TradingGraph: Timeframes not aligned — stopping (L=-0.068 M=-0.106 S=0.028)
+2026-03-30 19:51:09  INFO      TradingRunner: Analysing USDCAD …
+2026-03-30 19:51:09  INFO      TradingGraph: Running agents for USDCAD
+2026-03-30 19:51:09  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:51:09  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:51:09  INFO      TradingGraph: Fusion: L=0.591(csns=1.00), M=0.292(csns=0.75), S=0.078(csns=0.33), align_str=0.238
+2026-03-30 19:51:09  INFO      TradingGraph: Aligned [pullback-entry] (bullish) — proceeding [L=0.591 M=0.292 S=0.078 breadth=0.002]
+2026-03-30 19:51:09  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:51:09  INFO      TradingGraph: Generated recipe: BALANCED_LONG_PULLBACK_ENTRY_USDCAD
+2026-03-30 19:51:09  INFO      TradingGraph: Correlation guard: 2/2 long_usd positions already open — refusing USDCAD BUY
+2026-03-30 19:51:09  INFO      TradingRunner: Analysing NZDUSD …
+2026-03-30 19:51:09  INFO      TradingGraph: Running agents for NZDUSD
+2026-03-30 19:51:09  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:51:09  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:51:09  INFO      TradingGraph: Fusion: L=-0.622(csns=1.00), M=-0.328(csns=0.75), S=-0.037(csns=0.33), align_str=0.196
+2026-03-30 19:51:09  INFO      TradingGraph: Aligned [pullback-entry] (bearish) — proceeding [L=-0.622 M=-0.328 S=-0.037 breadth=0.002]
+2026-03-30 19:51:09  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:51:09  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_PULLBACK_ENTRY_NZDUSD
+2026-03-30 19:51:09  INFO      TradingGraph: Correlation guard: 2/2 long_usd positions already open — refusing NZDUSD SELL
+2026-03-30 19:51:09  INFO      TradingRunner: Analysing US30 …
+2026-03-30 19:51:09  INFO      TradingGraph: Running agents for US30
+2026-03-30 19:51:09  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:51:09  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:51:09  INFO      TradingGraph: Fusion: L=-0.274(csns=0.67), M=-0.184(csns=1.00), S=-0.103(csns=1.00), align_str=0.173
+2026-03-30 19:51:09  INFO      TradingGraph: Aligned [full-alignment] (bearish) — proceeding [L=-0.274 M=-0.184 S=-0.103 breadth=0.002]
+2026-03-30 19:51:09  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:51:09  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_FULL_ALIGNMENT_US30
+2026-03-30 19:51:09  INFO      TradingGraph: Risk check passed
+2026-03-30 19:51:09  INFO      TradingGraph: Creating trade plan
+2026-03-30 19:51:09  INFO      TradingGraph: VIX risk scaling: vix_fear=0.60 → risk ×0.83 (0.11)
+2026-03-30 19:51:09  INFO      TradingGraph: Structure SL/TP [US30] entry=45303.00000 sl=46642.19005 (3.88×ATR) tp=44395.40000 (R:R=0.68)
+2026-03-30 19:51:09  INFO      TradingGraph: Created trade plan: entry=45303.0000, sl=46642.1900, tp=43963.8100
+2026-03-30 19:51:09  INFO      TradingGraph: Executing trade for US30
+2026-03-30 19:51:09  WARNING   MT5Executor: US30: trading disabled on this symbol (trade_mode=0 — may be outside market hours or broker restriction). Skipping.
+2026-03-30 19:51:09  INFO      TradingGraph: Order not placed for US30 (executor returned None — see executor log for reason)
+2026-03-30 19:51:09  INFO      TradingRunner: Analysing US500 …
+2026-03-30 19:51:09  INFO      TradingGraph: Running agents for US500
+2026-03-30 19:51:09  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:51:09  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:51:09  INFO      TradingGraph: Fusion: L=-0.446(csns=1.00), M=-0.402(csns=1.00), S=-0.361(csns=0.83), align_str=0.402
+2026-03-30 19:51:09  INFO      TradingGraph: Aligned [full-alignment] (bearish) — proceeding [L=-0.446 M=-0.402 S=-0.361 breadth=0.002]
+2026-03-30 19:51:09  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:51:09  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_FULL_ALIGNMENT_US500
+2026-03-30 19:51:09  INFO      TradingGraph: Risk check passed
+2026-03-30 19:51:09  INFO      TradingGraph: Creating trade plan
+2026-03-30 19:51:09  INFO      TradingGraph: VIX risk scaling: vix_fear=0.60 → risk ×0.83 (0.11)
+2026-03-30 19:51:09  INFO      TradingGraph: SL cap [US500]: 5.98×ATR → 5.0×ATR
+2026-03-30 19:51:09  INFO      TradingGraph: Structure SL/TP [US500] entry=6358.40000 sl=6601.40946 (5.00×ATR) tp=6150.95426 (R:R=0.85)
+2026-03-30 19:51:09  INFO      TradingGraph: Created trade plan: entry=6358.4000, sl=6601.4100, tp=6115.3900
+2026-03-30 19:51:09  INFO      TradingGraph: Executing trade for US500
+2026-03-30 19:51:09  WARNING   MT5Executor: US500: trading disabled on this symbol (trade_mode=0 — may be outside market hours or broker restriction). Skipping.
+2026-03-30 19:51:09  INFO      TradingGraph: Order not placed for US500 (executor returned None — see executor log for reason)
+2026-03-30 19:51:09  INFO      TradingRunner: Analysing USTEC …
+2026-03-30 19:51:09  INFO      TradingGraph: Running agents for USTEC
+2026-03-30 19:51:10  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:51:10  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:51:10  INFO      TradingGraph: Fusion: L=-0.453(csns=1.00), M=-0.402(csns=1.00), S=-0.340(csns=0.83), align_str=0.395
+2026-03-30 19:51:10  INFO      TradingGraph: Aligned [full-alignment] (bearish) — proceeding [L=-0.453 M=-0.402 S=-0.340 breadth=0.002]
+2026-03-30 19:51:10  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:51:10  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_FULL_ALIGNMENT_USTEC
+2026-03-30 19:51:10  INFO      TradingGraph: Risk check passed
+2026-03-30 19:51:10  INFO      TradingGraph: Creating trade plan
+2026-03-30 19:51:10  INFO      TradingGraph: VIX risk scaling: vix_fear=0.56 → risk ×0.86 (0.12)
+2026-03-30 19:51:10  INFO      TradingGraph: SL cap [USTEC]: 6.66×ATR → 5.0×ATR
+2026-03-30 19:51:10  INFO      TradingGraph: Structure SL/TP [USTEC] entry=23026.10000 sl=24047.32575 (5.00×ATR) tp=22293.15325 (R:R=0.72)
+2026-03-30 19:51:10  INFO      TradingGraph: Created trade plan: entry=23026.1000, sl=24047.3300, tp=22004.8700
+2026-03-30 19:51:10  INFO      TradingGraph: Executing trade for USTEC
+2026-03-30 19:51:10  WARNING   MT5Executor: USTEC: trading disabled on this symbol (trade_mode=0 — may be outside market hours or broker restriction). Skipping.
+2026-03-30 19:51:10  INFO      TradingGraph: Order not placed for USTEC (executor returned None — see executor log for reason)
+2026-03-30 19:51:10  INFO      TradingRunner: Analysing DAX …
+2026-03-30 19:51:10  INFO      TradingGraph: Running agents for DAX
+2026-03-30 19:51:10  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:51:10  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:51:10  INFO      TradingGraph: Fusion: L=-0.160(csns=1.00), M=-0.094(csns=1.00), S=0.078(csns=0.83), align_str=0.000
+2026-03-30 19:51:10  INFO      TradingGraph: Aligned [pullback-entry] (bearish) — proceeding [L=-0.160 M=-0.094 S=0.078 breadth=0.002]
+2026-03-30 19:51:10  INFO      TradingGraph: Generating trading recipe
+2026-03-30 19:51:10  INFO      TradingGraph: Generated recipe: BALANCED_SHORT_PULLBACK_ENTRY_DAX
+2026-03-30 19:51:10  INFO      TradingGraph: Win probability too low: 0.449 < 0.46
+2026-03-30 19:51:10  INFO      TradingRunner: Analysing UK100 …
+2026-03-30 19:51:10  INFO      TradingGraph: Running agents for UK100
+2026-03-30 19:51:10  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:51:10  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:51:10  INFO      TradingGraph: Fusion: L=0.131(csns=0.67), M=0.286(csns=1.00), S=-0.007(csns=0.83), align_str=0.000
+2026-03-30 19:51:10  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.131 M=0.286 S=-0.007)
+2026-03-30 19:51:10  INFO      TradingRunner: Analysing GBPJPY …
+2026-03-30 19:51:10  INFO      TradingGraph: Running agents for GBPJPY
+2026-03-30 19:51:10  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:51:10  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:51:10  INFO      TradingGraph: Fusion: L=0.040(csns=0.33), M=-0.751(csns=1.00), S=-0.004(csns=0.50), align_str=0.000
+2026-03-30 19:51:10  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.040 M=-0.751 S=-0.004)
+2026-03-30 19:51:10  INFO      TradingRunner: Analysing AUDJPY …
+2026-03-30 19:51:10  INFO      TradingGraph: Running agents for AUDJPY
+2026-03-30 19:51:10  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:51:10  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:51:10  INFO      TradingGraph: Fusion: L=0.293(csns=0.50), M=-0.339(csns=1.00), S=-0.062(csns=0.40), align_str=0.000
+2026-03-30 19:51:10  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.293 M=-0.339 S=-0.062)
+2026-03-30 19:51:10  INFO      TradingRunner: Analysing EURGBP …
+2026-03-30 19:51:10  INFO      TradingGraph: Running agents for EURGBP
+2026-03-30 19:51:10  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:51:10  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:51:10  INFO      TradingGraph: Fusion: L=0.016(csns=0.33), M=0.389(csns=1.00), S=0.177(csns=0.71), align_str=0.104
+2026-03-30 19:51:10  INFO      TradingGraph: Timeframes not aligned — stopping (L=0.016 M=0.389 S=0.177)
+2026-03-30 19:51:10  INFO      TradingRunner: Analysing XAGUSD …
+2026-03-30 19:51:10  INFO      TradingGraph: Running agents for XAGUSD
+2026-03-30 19:51:10  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:51:10  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:51:10  INFO      TradingGraph: Fusion: L=-0.183(csns=0.50), M=0.139(csns=1.00), S=-0.192(csns=0.83), align_str=0.000
+2026-03-30 19:51:10  INFO      TradingGraph: Timeframes not aligned — stopping (L=-0.183 M=0.139 S=-0.192)
+2026-03-30 19:51:10  INFO      TradingRunner: PnL — unrealized: -0.66  realized today: +0.00  total: -0.66
+2026-03-30 19:51:10  INFO      TradingRunner: Signal cycle done in 5.7s — sleeping 294s
+2026-03-30 19:52:02  INFO      TradingGraph: Running agents for EURUSD
+2026-03-30 19:52:02  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:52:02  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:52:02  INFO      TradingGraph: Fusion: L=-0.548(csns=1.00), M=-0.542(csns=1.00), S=-0.021(csns=0.17), align_str=0.185
+2026-03-30 19:52:03  INFO      TradingGraph: Running agents for GBPUSD
+2026-03-30 19:52:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:52:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:52:03  INFO      TradingGraph: Fusion: L=-0.578(csns=1.00), M=-0.575(csns=1.00), S=-0.046(csns=0.17), align_str=0.249
+2026-03-30 19:52:03  INFO      TradingGraph: Running agents for EURCHF
+2026-03-30 19:52:03  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:52:03  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:52:03  INFO      TradingGraph: Fusion: L=-0.201(csns=0.67), M=-0.181(csns=0.67), S=-0.018(csns=0.14), align_str=0.087
+2026-03-30 19:52:03  INFO      TradingGraph: Running agents for CHFJPY
+2026-03-30 19:52:04  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:52:04  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:52:04  INFO      TradingGraph: Fusion: L=0.264(csns=0.67), M=-0.536(csns=1.00), S=-0.102(csns=0.50), align_str=0.000
+2026-03-30 19:52:04  INFO      TradingGraph: Running agents for EURJPY
+2026-03-30 19:52:04  INFO      TradingGraph: Completed 15 agents
+2026-03-30 19:52:04  INFO      TradingGraph: Fusing timeframe signals
+2026-03-30 19:52:04  INFO      TradingGraph: Fusion: L=-0.156(csns=1.00), M=-0.704(csns=1.00), S=0.007(csns=0.80), align_str=0.000

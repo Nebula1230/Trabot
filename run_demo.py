@@ -165,7 +165,9 @@ def _print_startup_banner(config, simulation: bool):
     print("  Press Ctrl+C to stop gracefully.\n")
 
 
-async def _main(config_path: str, once: bool, simulation: bool, profile: str):
+async def _main(config_path: str, once: bool, simulation: bool, profile: str,
+                signal_interval: int = None, surveillance_interval: int = None,
+                watchdog_interval: int = None):
     from tradingagents_v2.config.yaml_config import load_config_from_yaml
     from tradingagents_v2.runner import TradingRunner
 
@@ -203,7 +205,11 @@ async def _main(config_path: str, once: bool, simulation: bool, profile: str):
         runner.journal.print_cycle_banner(1, results, equity)
         return
 
-    await runner.run_forever()
+    await runner.run_forever(
+        interval_seconds=signal_interval,
+        surveillance_interval=surveillance_interval,
+        watchdog_interval=watchdog_interval,
+    )
 
 
 def main():
@@ -233,6 +239,18 @@ def main():
         choices=["safe", "balanced", "risky", "scalp", "hft"],
         help="Risk profile preset: safe | balanced (default) | risky | scalp | hft",
     )
+    parser.add_argument(
+        "--signal-interval", type=int, default=None, dest="signal_interval",
+        help="Signal loop interval in seconds (default: from config, typically 300)",
+    )
+    parser.add_argument(
+        "--surveillance-interval", type=int, default=None, dest="surveillance_interval",
+        help="Surveillance loop interval in seconds (default: from config, typically 60)",
+    )
+    parser.add_argument(
+        "--watchdog-interval", type=int, default=None, dest="watchdog_interval",
+        help="Watchdog loop interval in seconds (default: 90)",
+    )
     args = parser.parse_args()
 
     config_path = Path(args.config)
@@ -248,7 +266,10 @@ def main():
 
     try:
         asyncio.run(_main(str(config_path), once=args.once,
-                          simulation=simulation, profile=args.profile))
+                          simulation=simulation, profile=args.profile,
+                          signal_interval=args.signal_interval,
+                          surveillance_interval=args.surveillance_interval,
+                          watchdog_interval=args.watchdog_interval))
     except KeyboardInterrupt:
         print("\n\nBot stopped by user.")
 

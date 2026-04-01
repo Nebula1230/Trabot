@@ -79,6 +79,7 @@ interval_seconds: 300
 # Also handles Friday weekend gap protection (weekend_close_enabled).
 realtime:
   surveillance_interval_seconds: 60   # check open positions every 60s
+  watchdog_interval_seconds:     90   # MT5 health check every 90s
   weekend_close_enabled:     true
   weekend_close_utc_hour:    20        # 20:00 UTC = after London session, before Asian open
 
@@ -247,6 +248,10 @@ trailing:
   partial_tp2_fraction: 0.40  # close 40% of remaining at +2R
   windfall_exit_enabled: true
   windfall_r_mult:      3.5   # close ALL when profit reaches +3.5R
+  # Breakeven buffer: cushion for all BE SL moves (stage 0, stage 1, partial_tp1).
+  # SL moves to entry ± be_buffer_r × 1R instead of exact entry.
+  # Covers spread cost and normal noise without giving up meaningful risk.
+  be_buffer_r:          0.10  # 10% of 1R cushion (default)
 
 # ── Regime-conditional agent weighting ───────────────────────────
 # In trending regimes (ADX > ~28, trendiness > trend_threshold), amplify

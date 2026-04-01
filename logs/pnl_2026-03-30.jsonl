@@ -26,3 +26,11 @@
 {"ts": "2026-03-30T19:10:47", "cycle": 1, "open_positions": 1, "unrealized_pnl": -0.04, "realized_today": 0, "total_today": -0.04}
 {"ts": "2026-03-30T19:13:40", "cycle": 1, "open_positions": 1, "unrealized_pnl": 0.28, "realized_today": 0, "total_today": 0.28}
 {"ts": "2026-03-30T19:16:26", "cycle": 1, "open_positions": 4, "unrealized_pnl": 0.11, "realized_today": 0, "total_today": 0.11}
+{"ts": "2026-03-30T19:21:22", "cycle": 2, "open_positions": 5, "unrealized_pnl": -0.23, "realized_today": 0, "total_today": -0.23}
+{"ts": "2026-03-30T19:26:21", "cycle": 3, "open_positions": 5, "unrealized_pnl": -1.43, "realized_today": 0, "total_today": -1.43}
+{"ts": "2026-03-30T19:27:46", "cycle": 1, "open_positions": 5, "unrealized_pnl": -1.41, "realized_today": 0, "total_today": -1.41}
+{"ts": "2026-03-30T19:32:34", "cycle": 2, "open_positions": 5, "unrealized_pnl": -0.84, "realized_today": 0, "total_today": -0.84}
+{"ts": "2026-03-30T19:36:14", "cycle": 1, "open_positions": 5, "unrealized_pnl": -0.66, "realized_today": 0, "total_today": -0.66}
+{"ts": "2026-03-30T19:41:11", "cycle": 2, "open_positions": 5, "unrealized_pnl": -0.61, "realized_today": 0, "total_today": -0.61}
+{"ts": "2026-03-30T19:46:10", "cycle": 3, "open_positions": 5, "unrealized_pnl": -1.26, "realized_today": 0, "total_today": -1.26}
+{"ts": "2026-03-30T19:51:10", "cycle": 4, "open_positions": 5, "unrealized_pnl": -0.66, "realized_today": 0, "total_today": -0.66}

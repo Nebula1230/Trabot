@@ -140,19 +140,21 @@ def generate_json_report(
         for t in r.trades:
             open_dt  = t.open_dt.isoformat()  if t.open_dt  else None
             close_dt = t.close_dt.isoformat() if t.close_dt else None
+            _dur_sec = int((t.close_dt - t.open_dt).total_seconds()) if t.open_dt and t.close_dt else None
             trades_list.append({
-                "entry_time":  open_dt,
-                "exit_time":   close_dt,
-                "direction":   t.direction,
-                "entry_price": round(t.entry_price, 6),
-                "exit_price":  round(t.exit_price,  6),
-                "stop_loss":   round(t.stop_loss,   6),
-                "take_profit": round(t.take_profit, 6),
-                "quantity":    round(t.quantity, 4),
-                "pnl":         round(t.pnl,  4),
-                "pnl_r":       round(t.pnl_r, 4),
-                "exit_reason": t.exit_reason,
-                "confidence":  round(t.confidence, 4),
+                "entry_time":    open_dt,
+                "exit_time":     close_dt,
+                "duration_sec":  _dur_sec,
+                "direction":     t.direction,
+                "entry_price":   round(t.entry_price, 6),
+                "exit_price":    round(t.exit_price,  6),
+                "stop_loss":     round(t.stop_loss,   6),
+                "take_profit":   round(t.take_profit, 6),
+                "quantity":      round(t.quantity, 4),
+                "pnl":           round(t.pnl,  4),
+                "pnl_r":         round(t.pnl_r, 4),
+                "exit_reason":   t.exit_reason,
+                "confidence":    round(t.confidence, 4),
             })
         symbols_data.append({
             "symbol":           r.symbol,
@@ -348,6 +350,19 @@ def _section_trades(results: List[BacktestResult]) -> str:
     rows = ""
     for t in trades:
         clr = "color:#4CAF50" if t.pnl >= 0 else "color:#f44336"
+        # Compute human-readable duration
+        if t.open_dt and t.close_dt:
+            _dur_sec = int((t.close_dt - t.open_dt).total_seconds())
+            if _dur_sec < 3600:
+                _dur_str = f"{_dur_sec // 60}m"
+            elif _dur_sec < 86400:
+                _h, _m = divmod(_dur_sec, 3600)
+                _dur_str = f"{_h}h{(_m // 60):02d}m"
+            else:
+                _d, _rem = divmod(_dur_sec, 86400)
+                _dur_str = f"{_d}d {_rem // 3600}h"
+        else:
+            _dur_str = f"{t.close_bar - t.open_bar} bars"
         rows += (
             f"<tr>"
             f"<td>{t.symbol}</td>"
@@ -359,6 +374,7 @@ def _section_trades(results: List[BacktestResult]) -> str:
             f"<td style='{clr}'>{t.pnl:+.2f}</td>"
             f"<td style='{clr}'>{t.pnl_r:+.2f}R</td>"
             f"<td>{t.exit_reason.upper()}</td>"
+            f"<td>{_dur_str}</td>"
             f"<td>{t.win_probability:.0%}</td>"
             f"<td>{t.confidence:.2f}</td>"
             f"</tr>"
@@ -368,7 +384,7 @@ def _section_trades(results: List[BacktestResult]) -> str:
         "<table><thead><tr>"
         "<th>Symbol</th><th>Dir</th><th>Entry</th><th>Exit</th>"
         "<th>SL</th><th>TP</th><th>P&amp;L</th><th>R</th>"
-        "<th>Reason</th><th>Win%</th><th>Conf</th>"
+        "<th>Reason</th><th>Duration</th><th>Win%</th><th>Conf</th>"
         f"</tr></thead><tbody>{rows}</tbody></table>"
     )
 

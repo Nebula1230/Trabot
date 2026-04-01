@@ -360,6 +360,9 @@ class TradingRunner:
             windfall_exit_enabled=bool(trailing_cfg.get("windfall_exit_enabled", False)),
             windfall_r_mult=float(trailing_cfg.get("windfall_r_mult", 3.0)),
             early_be_r=float(trailing_cfg.get("early_be_r", 0.0)),
+            be_buffer_r=float(trailing_cfg.get("be_buffer_r", 0.0)),
+            stale_sl_hours=float(trailing_cfg.get("stale_sl_hours", 0.0)),
+            stale_sl_r_mult=float(trailing_cfg.get("stale_sl_r_mult", 0.75)),
             profile=self.config.profile,
         )
 
@@ -427,40 +430,57 @@ class TradingRunner:
     # Public entry points
     # ------------------------------------------------------------------
 
-    async def run_forever(self, interval_seconds: int = None):
+    async def run_forever(self, interval_seconds: int = None,
+                          surveillance_interval: int = None,
+                          watchdog_interval: int = None):
         """
         Run two concurrent loops:
 
-        Fast loop  (surveillance_interval_seconds, default 60s):
+        Fast loop  (surveillance_interval, default from config or 60s):
           — Checks every open position for SL lock-in and agent-based exit signals.
           — Uses only live bid/ask price to evaluate SL staging (no bar loading).
           — Agent exit check still uses bars, but is lightweight (exit_check_only).
 
-        Slow loop  (interval_seconds, default 300s):
+        Slow loop  (interval_seconds, default from config or 300s):
           — Full multi-timeframe agent analysis for every symbol.
           — Places new entry orders when alignment conditions are met.
 
-        A watchdog task runs every 90s and reconnects MT5 if the connection
-        drops (network blip, container restart, etc.).
+        Watchdog   (watchdog_interval, default 90s):
+          — Reconnects MT5 if the connection drops.
         """
         if interval_seconds is None:
             interval_seconds = self.config.interval_seconds
         rt_cfg = self.config.model_dump().get("realtime", {})
-        surveillance_interval = int(rt_cfg.get("surveillance_interval_seconds", 60))
+        if surveillance_interval is None:
+            _explicit = rt_cfg.get("surveillance_interval_seconds")
+            if _explicit is not None:
+                surveillance_interval = int(_explicit)
+            else:
+                # Auto-derive from mid timeframe: faster mid TF → faster surveillance
+                _tf_cfg = self.config.timeframes
+                _mid_tf = _tf_cfg.mid[0] if _tf_cfg.mid else "1H"
+                _surv_by_tf = {
+                    "1m": 10, "5m": 15, "15m": 30, "30m": 45,
+                    "1H": 60, "4H": 90, "1D": 120,
+                }
+                surveillance_interval = _surv_by_tf.get(_mid_tf, 60)
+        if watchdog_interval is None:
+            watchdog_interval = int(rt_cfg.get("watchdog_interval_seconds", 90))
 
         self._running = True
         self._cycle_num = 0
         self.logger.info(
             f"TradingRunner started — symbols: {self.config.symbols} | "
             f"profile: {self.config.profile} | "
-            f"signal: {interval_seconds}s | surveillance: {surveillance_interval}s"
+            f"signal: {interval_seconds}s | surveillance: {surveillance_interval}s | "
+            f"watchdog: {watchdog_interval}s"
         )
         # Run all three loops concurrently; if any crashes fatally it raises
         # and asyncio.gather re-raises, letting the outer try/except log it.
         await asyncio.gather(
             self._surveillance_loop(surveillance_interval),
             self._signal_loop(interval_seconds),
-            self._watchdog_loop(check_interval=90),
+            self._watchdog_loop(check_interval=watchdog_interval),
         )
 
     # ------------------------------------------------------------------
@@ -1016,15 +1036,18 @@ class TradingRunner:
                             and atr > 0
                             and pos_profit > 0
                             and fade_threshold < abs(dir_long) < tighten_threshold):
+                        # BE buffer: use current SL distance as 1R proxy
+                        _one_r_t = abs(pos_entry - pos_sl) if pos_sl > 0 else atr
+                        _be_buf  = self.trailing_stop_mgr.be_buffer_r * _one_r_t
                         if trade_type == "BUY":
-                            tight_sl = max(pos_sl, pos_entry)            # at least BE
+                            tight_sl = max(pos_sl, pos_entry - _be_buf)   # at least BE w/ buffer
                             tight_tp = price_now + tighten_tp_mult * atr  # nearby TP
                             # Only apply if TP would meaningfully tighten
                             # (must be at least 0.2×ATR more conservative than current)
                             tp_improves = (pos_tp <= 0 or tight_tp < pos_tp - 0.2 * atr)
                             sl_improves = (tight_sl > pos_sl)
                         else:                                              # SELL
-                            tight_sl = min(pos_sl, pos_entry) if pos_sl > 0 else pos_entry
+                            tight_sl = min(pos_sl, pos_entry + _be_buf) if pos_sl > 0 else pos_entry + _be_buf
                             tight_tp = price_now - tighten_tp_mult * atr
                             tp_improves = (pos_tp <= 0 or tight_tp > pos_tp + 0.2 * atr)
                             sl_improves = (pos_sl <= 0 or tight_sl < pos_sl)
@@ -1216,6 +1239,11 @@ class TradingRunner:
                     self._streak_block_dir.pop(symbol, None)
                     self._streak_block_until.pop(symbol, None)
 
+                # ── Recent P&L signs for streak-momentum sizing ───────────
+                _sym_hist = self._streak_history.get(symbol, [])
+                _recent_pnl_r = [1.0 if t[1] > 0 else -1.0
+                                 for t in _sym_hist[-6:]]
+
                 state = await self.graph.run(
                     symbol=symbol,
                     features=features,
@@ -1224,6 +1252,7 @@ class TradingRunner:
                     features_by_tf=features_by_tf,
                     streak_blocked_dir=_streak_blk,
                     executor_lock=self._executor_lock,
+                    recent_pnl_r=_recent_pnl_r,
                 )
 
                 results[symbol] = {

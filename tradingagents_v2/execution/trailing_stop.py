@@ -46,6 +46,9 @@ class TrailingStopManager:
                  windfall_exit_enabled: bool = False,
                  windfall_r_mult: float = 3.0,
                  early_be_r: float = 0.0,
+                 be_buffer_r: float = 0.0,
+                 stale_sl_hours: float = 0.0,
+                 stale_sl_r_mult: float = 0.75,
                  profile: str = ""):
         self.executor = executor
         self.profile = profile
@@ -56,6 +59,13 @@ class TrailingStopManager:
         # Fires BEFORE stage 1 (+1R). Protects trades that briefly run +0.3–0.9R
         # then reverse to full -1R SL hit.  0 = disabled.
         self.early_be_r = early_be_r
+        # ── Breakeven buffer: room beyond exact entry for BE SL moves ─────
+        # Covers spread cost and noise; avoids ~0R stops that waste partial gains.
+        self.be_buffer_r = be_buffer_r
+        # ── Stale SL: tighten SL after N hours if trade still in loss ──────
+        # Caps max loss at -stale_sl_r_mult × 1R to reduce late SL hits.
+        self.stale_sl_hours  = stale_sl_hours
+        self.stale_sl_r_mult = stale_sl_r_mult
         # ── Partial TP1: close a fraction at +1R (break-even stage) ──────────
         # Guard: SL still below entry — restart-safe, no state file needed.
         self.partial_tp_enabled  = partial_tp_enabled
@@ -68,10 +78,14 @@ class TrailingStopManager:
         self.partial_tp2_fraction = partial_tp2_fraction
         # ── Windfall exit: close ALL when profit hits an exceptional multiple ─
         # Captures spike moves before a reversal can give them back.
-        # In-memory guard (ticket set) prevents double-fires within one session.
+        # Restart-safe: no in-memory guard — position gone from MT5 after close.
         self.windfall_exit_enabled = windfall_exit_enabled
         self.windfall_r_mult       = windfall_r_mult
-        self._windfall_closed_tickets: set = set()
+        # Entry ATR snapshot per ticket — for ATR-adaptive stale_sl.
+        # On restart, first tick captures current ATR (close enough proxy).
+        self._entry_atr: dict[int, float] = {}
+        # Peak profit (R) per ticket — for stale winner protection.
+        self._peak_profit_r: dict[int, float] = {}
         self.logger = logging.getLogger("TrailingStopManager")
 
     def update_trails(self, data_loader: "DataLoader"):
@@ -210,9 +224,115 @@ class TrailingStopManager:
         features = data_loader.get_features(symbol)
         atr = features.atr_14 if features else one_r  # fallback
 
+        # Snapshot entry ATR (first time we see this ticket)
+        if ticket not in self._entry_atr:
+            self._entry_atr[ticket] = atr
+
+        _be_buf = self.be_buffer_r * one_r
+
+        # ── Progressive stale-SL tightening: trade open > N hours while losing →
+        # SL tightens from -stale_r × 1R and progressively squeezes to
+        # 0.60 × stale_r × 1R over the next 2× stale_sl_hours.
+        if self.stale_sl_hours > 0:
+            open_time = pos.get("open_time", 0)
+            if open_time > 0:
+                import time as _time
+                _hours_held = (_time.time() - open_time) / 3600.0
+            else:
+                _hours_held = 0.0
+            _profit_raw = price - entry if pos_type == "BUY" else entry - price
+            if _hours_held >= self.stale_sl_hours and _profit_raw < 0:
+                # Progressive factor: 1.0 at threshold → 0.60 at threshold + 2×stale_sl_hours
+                _overtime_frac = min(1.0, (_hours_held - self.stale_sl_hours)
+                                          / (2.0 * self.stale_sl_hours))
+                # ATR-adaptive: tighten proportionally when vol compresses
+                _e_atr = self._entry_atr.get(ticket, atr)
+                _atr_ratio = min(1.0, atr / _e_atr) if _e_atr > 1e-9 else 1.0
+                _prog_r = self.stale_sl_r_mult * _atr_ratio * (1.0 - 0.40 * _overtime_frac)
+                if pos_type == "BUY":
+                    _tight_sl = entry - _prog_r * one_r
+                    if current_sl < _tight_sl - 1e-9:
+                        self.logger.info(
+                            f"[STALE-SL] BUY {symbol} #{ticket}: "
+                            f"SL {current_sl:.5f}→{_tight_sl:.5f} "
+                            f"(held {_hours_held:.1f}h, cap={_prog_r:.2f}R, "
+                            f"progress={_overtime_frac:.0%})"
+                        )
+                        self.executor.modify_stop_loss(ticket, _tight_sl)
+                        current_sl = _tight_sl
+                    # Market-close when squeeze is maxed and still losing
+                    if _overtime_frac >= 1.0:
+                        ok = self.executor.close_position(ticket)
+                        if ok:
+                            self.logger.info(
+                                f"[STALE-CLOSE] BUY {symbol} #{ticket}: "
+                                f"squeeze maxed ({_hours_held:.1f}h) — market close"
+                            )
+                        return
+                else:
+                    _tight_sl = entry + _prog_r * one_r
+                    if current_sl > _tight_sl + 1e-9:
+                        self.logger.info(
+                            f"[STALE-SL] SELL {symbol} #{ticket}: "
+                            f"SL {current_sl:.5f}→{_tight_sl:.5f} "
+                            f"(held {_hours_held:.1f}h, cap={_prog_r:.2f}R, "
+                            f"progress={_overtime_frac:.0%})"
+                        )
+                        self.executor.modify_stop_loss(ticket, _tight_sl)
+                        current_sl = _tight_sl
+                    # Market-close when squeeze is maxed and still losing
+                    if _overtime_frac >= 1.0:
+                        ok = self.executor.close_position(ticket)
+                        if ok:
+                            self.logger.info(
+                                f"[STALE-CLOSE] SELL {symbol} #{ticket}: "
+                                f"squeeze maxed ({_hours_held:.1f}h) — market close"
+                            )
+                        return
+
+        # ── Track peak profit and protect stalling winners ─────────────────
+        _profit_raw_all = price - entry if pos_type == "BUY" else entry - price
+        _profit_r_all = _profit_raw_all / one_r
+        _prev_peak = self._peak_profit_r.get(ticket, 0.0)
+        if _profit_r_all > _prev_peak:
+            self._peak_profit_r[ticket] = _profit_r_all
+            _prev_peak = _profit_r_all
+
+        if (self.stale_sl_hours > 0
+                and _profit_r_all > 0 and _profit_r_all < 1.0
+                and _prev_peak - _profit_r_all >= 0.3):
+            open_time = pos.get("open_time", 0)
+            if open_time > 0:
+                import time as _time
+                _hours_sw = (_time.time() - open_time) / 3600.0
+            else:
+                _hours_sw = 0.0
+            if _hours_sw >= self.stale_sl_hours:
+                if pos_type == "BUY":
+                    _be_floor = entry - _be_buf
+                    if current_sl < _be_floor - 1e-9:
+                        self.executor.modify_stop_loss(ticket, _be_floor)
+                        self.logger.info(
+                            f"[STALE-WIN] BUY {symbol} #{ticket}: "
+                            f"profit stalling (now {_profit_r_all:+.2f}R, "
+                            f"peak {_prev_peak:+.2f}R) — SL→BE {current_sl:.5f}→{_be_floor:.5f}"
+                        )
+                        current_sl = _be_floor
+                else:
+                    _be_floor = entry + _be_buf
+                    if current_sl == 0.0 or current_sl > _be_floor + 1e-9:
+                        self.executor.modify_stop_loss(ticket, _be_floor)
+                        self.logger.info(
+                            f"[STALE-WIN] SELL {symbol} #{ticket}: "
+                            f"profit stalling (now {_profit_r_all:+.2f}R, "
+                            f"peak {_prev_peak:+.2f}R) — SL→BE {current_sl:.5f}→{_be_floor:.5f}"
+                        )
+                        current_sl = _be_floor
+
         if pos_type == "BUY":
             profit = price - entry          # positive = in profit
             new_sl = current_sl             # default: no change
+            _be_sl = entry - _be_buf        # BE SL with buffer (below entry for BUY)
 
             if profit >= 2.0 * one_r:
                 # Stage 3: ATR trail — keeps running
@@ -224,12 +344,12 @@ class TrailingStopManager:
                 new_sl = max(current_sl, entry + 0.5 * one_r)
                 stage = 2
             elif profit >= 1.0 * one_r:
-                # Stage 1: break-even
-                new_sl = max(current_sl, entry)
+                # Stage 1: break-even (with buffer)
+                new_sl = max(current_sl, _be_sl)
                 stage = 1
             elif self.early_be_r > 0 and profit >= self.early_be_r * one_r:
-                # Stage 0: early break-even — move SL to entry sooner
-                new_sl = max(current_sl, entry)
+                # Stage 0: early break-even (with buffer)
+                new_sl = max(current_sl, _be_sl)
                 stage = 0
             else:
                 return  # still inside early_be threshold — don't touch
@@ -238,11 +358,10 @@ class TrailingStopManager:
 
             # ── Windfall exit: close ALL at exceptional R multiple ────────────
             # Captures spike moves before a reversal gives them back.
-            # In-memory ticket guard prevents double-fires within one session.
+            # Restart-safe: no in-memory guard needed — close_position is
+            # idempotent and the position disappears from MT5 after close.
             if (self.windfall_exit_enabled
-                    and profit >= self.windfall_r_mult * one_r
-                    and ticket not in self._windfall_closed_tickets):
-                self._windfall_closed_tickets.add(ticket)
+                    and profit >= self.windfall_r_mult * one_r):
                 ok = self.executor.close_position(ticket)
                 if ok:
                     self.logger.info(
@@ -261,11 +380,23 @@ class TrailingStopManager:
                     ticket, self.partial_tp_fraction
                 )
                 if ok:
-                    self.logger.info(
-                        f"{_pfx}PARTIAL TP BUY {symbol} #{ticket}: "
-                        f"{self.partial_tp_fraction:.0%} locked in at +1R "
-                        f"(entry={entry:.5f} price={price:.5f})"
-                    )
+                    # Move SL to BE + buffer (parity with engine.py partial_tp1)
+                    _be_new = entry - _be_buf
+                    if _be_new > current_sl + 1e-9:
+                        self.executor.modify_stop_loss(ticket, _be_new)
+                        self.logger.info(
+                            f"{_pfx}PARTIAL TP BUY {symbol} #{ticket}: "
+                            f"{self.partial_tp_fraction:.0%} locked in at +1R "
+                            f"SL→{_be_new:.5f} (BE+buf) "
+                            f"(entry={entry:.5f} price={price:.5f})"
+                        )
+                        current_sl = _be_new
+                    else:
+                        self.logger.info(
+                            f"{_pfx}PARTIAL TP BUY {symbol} #{ticket}: "
+                            f"{self.partial_tp_fraction:.0%} locked in at +1R "
+                            f"(entry={entry:.5f} price={price:.5f})"
+                        )
 
             # ── Partial TP2: fire once at +2R while SL still at stage-2 level ─
             # Guard: SL at/near entry+0.5R (set in stage 2, not yet moved by ATR).
@@ -309,6 +440,7 @@ class TrailingStopManager:
         elif pos_type == "SELL":
             profit = entry - price          # positive = in profit
             new_sl = current_sl
+            _be_sl = entry + _be_buf        # BE SL with buffer (above entry for SELL)
 
             if profit >= 2.0 * one_r:
                 # Stage 3: ATR trail
@@ -320,12 +452,12 @@ class TrailingStopManager:
                 new_sl = min(current_sl, entry - 0.5 * one_r)
                 stage = 2
             elif profit >= 1.0 * one_r:
-                # Stage 1: break-even
-                new_sl = min(current_sl, entry)
+                # Stage 1: break-even (with buffer)
+                new_sl = min(current_sl, _be_sl)
                 stage = 1
             elif self.early_be_r > 0 and profit >= self.early_be_r * one_r:
-                # Stage 0: early break-even — move SL to entry sooner
-                new_sl = min(current_sl, entry)
+                # Stage 0: early break-even (with buffer)
+                new_sl = min(current_sl, _be_sl)
                 stage = 0
             else:
                 return
@@ -333,10 +465,9 @@ class TrailingStopManager:
             _pfx = f"[{self.profile.upper()}] " if self.profile else ""
 
             # ── Windfall exit: close ALL at exceptional R multiple ────────────
+            # Restart-safe: no in-memory guard needed (position gone after close).
             if (self.windfall_exit_enabled
-                    and profit >= self.windfall_r_mult * one_r
-                    and ticket not in self._windfall_closed_tickets):
-                self._windfall_closed_tickets.add(ticket)
+                    and profit >= self.windfall_r_mult * one_r):
                 ok = self.executor.close_position(ticket)
                 if ok:
                     self.logger.info(
@@ -355,11 +486,23 @@ class TrailingStopManager:
                     ticket, self.partial_tp_fraction
                 )
                 if ok:
-                    self.logger.info(
-                        f"{_pfx}PARTIAL TP SELL {symbol} #{ticket}: "
-                        f"{self.partial_tp_fraction:.0%} locked in at +1R "
-                        f"(entry={entry:.5f} price={price:.5f})"
-                    )
+                    # Move SL to BE + buffer (parity with engine.py partial_tp1)
+                    _be_new = entry + _be_buf
+                    if current_sl == 0.0 or _be_new < current_sl - 1e-9:
+                        self.executor.modify_stop_loss(ticket, _be_new)
+                        self.logger.info(
+                            f"{_pfx}PARTIAL TP SELL {symbol} #{ticket}: "
+                            f"{self.partial_tp_fraction:.0%} locked in at +1R "
+                            f"SL→{_be_new:.5f} (BE+buf) "
+                            f"(entry={entry:.5f} price={price:.5f})"
+                        )
+                        current_sl = _be_new
+                    else:
+                        self.logger.info(
+                            f"{_pfx}PARTIAL TP SELL {symbol} #{ticket}: "
+                            f"{self.partial_tp_fraction:.0%} locked in at +1R "
+                            f"(entry={entry:.5f} price={price:.5f})"
+                        )
 
             # ── Partial TP2: fire once at +2R while SL still at stage-2 level ─
             # Guard: SL at/near entry-0.5R (set in stage 2, not yet moved by ATR).

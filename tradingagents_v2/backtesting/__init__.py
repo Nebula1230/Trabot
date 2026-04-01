@@ -105,6 +105,25 @@ def main() -> None:
     parser.add_argument("--debug", action="store_true",
                         help="Enable debug tracing: prints a structured decision trace "
                              "and SL/TP sizing detail at the end of the run.")
+    parser.add_argument("--signal-interval", type=int, default=None,
+                        dest="signal_interval",
+                        help="Signal loop interval in seconds (overrides config interval_seconds). "
+                             "Controls how often agents run in the backtest.")
+    parser.add_argument("--surveillance-interval", type=int, default=None,
+                        dest="surveillance_interval",
+                        help="Surveillance loop interval in seconds (overrides config "
+                             "realtime.surveillance_interval_seconds). "
+                             "Controls exit-check frequency in the backtest.")
+    parser.add_argument("--data-dir", default=None,
+                        dest="data_dir",
+                        help="Directory of CSV/Parquet OHLCV files. "
+                             "Files should be named {SYMBOL}_{TF}.csv (e.g. EURUSD_1m.csv). "
+                             "Bypasses MT5 and yfinance — enables 1m backtests with "
+                             "unlimited history from Dukascopy, HistData, etc.")
+    parser.add_argument("--independent", action="store_true",
+                        help="Run each symbol independently with its own equity "
+                             "(no cross-symbol DD/position sharing). "
+                             "Default: portfolio mode (shared equity, shared DD).")
 
     # Handle --list-agents before argparse enforces required fields
     if "--list-agents" in sys.argv:
@@ -185,6 +204,15 @@ def main() -> None:
     if args.mid_tf:
         cfg.timeframes.mid = [args.mid_tf]
 
+    # Apply interval overrides to config so the backtest engine picks them up
+    if args.signal_interval is not None:
+        cfg.interval_seconds = args.signal_interval
+    if args.surveillance_interval is not None:
+        # Inject into the realtime block so engine._run_from_bars reads it
+        _rt = cfg.model_dump().get("realtime", {})
+        _rt["surveillance_interval_seconds"] = args.surveillance_interval
+        cfg = cfg.model_copy(update={"realtime": _rt})
+
     # Apply agent selection
     if args.agents:
         unknown = [a for a in args.agents if a not in _ALL_AGENTS]
@@ -205,11 +233,24 @@ def main() -> None:
 
     symbols = args.symbols or args.symbol or getattr(cfg, "symbols", None) or ["EURUSD"]
     engine  = BacktestEngine(cfg)
+    if args.data_dir:
+        engine.set_data_dir(args.data_dir)
 
+    _mode = "independent" if args.independent else "portfolio"
     _mid_tf_display = cfg.timeframes.mid[0] if cfg.timeframes.mid else "1H"
+    _n_syms = len(symbols)
+    _max_conc = cfg.risk.max_concurrent_trades
+    _conc_scale = min(1.0, _max_conc / _n_syms) if _n_syms > 1 else 1.0
+    _risk_per_trade = args.equity * cfg.risk.base_risk_pct / 100 * _conc_scale
     print(f"Backtesting {symbols}  {args.start}→{args.end}  "
-          f"profile={args.profile}  granularity={_mid_tf_display}")
-    results = engine.run_multi(symbols, args.start, args.end, args.equity)
+          f"profile={args.profile}  granularity={_mid_tf_display}  mode={_mode}")
+    print(f"  equity=${args.equity:,.0f}  risk/trade=${_risk_per_trade:.2f}  "
+          f"({_n_syms} symbol{'s' if _n_syms > 1 else ''}, "
+          f"concentration×{_conc_scale:.2f})")
+    if args.independent:
+        results = engine._run_multi_independent(symbols, args.start, args.end, args.equity)
+    else:
+        results = engine.run_multi(symbols, args.start, args.end, args.equity)
 
     for r in results:
         m = compute_metrics(r)

@@ -1283,6 +1283,33 @@ class TradingGraph:
 
             risk_amount   = equity * limits.base_risk_pct / 100 * risk_fraction
 
+            # ── Concentration-aware risk scaling ──────────────────────────────
+            # In live mode every symbol sizes off the full account equity, but
+            # max_concurrent_trades limits total open positions GLOBALLY (shared
+            # across all symbols).  In backtest, symbols run independently so
+            # that global cap can't be enforced directly.  Instead we scale
+            # per-trade risk so that if ALL symbols were maximally loaded at the
+            # same time, the aggregate dollar-at-risk matches what the live
+            # global cap would allow.
+            #
+            # Formula:  concentration_scale = max_concurrent / n_symbols
+            #           (capped at 1.0 — never increase risk above base)
+            #
+            # Examples:
+            #   1 symbol,  max_concurrent=8 → scale=1.0  (full risk, like live)
+            #   4 symbols, max_concurrent=8 → scale=1.0  (plenty of slots)
+            #   19 symbols, max_concurrent=8 → scale=0.42 (each symbol gets its
+            #       fair share of the risk budget)
+            _n_syms = getattr(portfolio, "n_portfolio_symbols", 1) if portfolio else 1
+            if _n_syms > 1:
+                _conc_scale = min(1.0, limits.max_concurrent_trades / _n_syms)
+                risk_amount *= _conc_scale
+                self.logger.info(
+                    f"Concentration scaling: {_n_syms} symbols, "
+                    f"max_concurrent={limits.max_concurrent_trades} → "
+                    f"risk ×{_conc_scale:.3f} (${risk_amount:.2f})"
+                )
+
             # ── Per-symbol risk multiplier ────────────────────────────────────
             # Applied BEFORE VIX/Kelly so that volatile/hard-to-predict assets
             # (e.g. XAUUSD) are capped at a fraction of the profile's base risk
@@ -1345,6 +1372,63 @@ class TradingGraph:
                     self.logger.info(
                         f"Kelly sizing [{state['symbol']}]: ×{kelly_mult:.2f} "
                         f"→ risk={risk_amount:.2f}"
+                    )
+
+            # ── Confidence-scaled sizing ──────────────────────────────────────
+            # Agents produce a confidence score (0–1) per timeframe tier.
+            # Map it to a risk multiplier: low confidence → less risk, high → more.
+            # Linear mapping: [min_conf, 1.0] → [conf_floor, conf_ceil]
+            # Below min_conf: clamped to conf_floor (trade was already gated).
+            _conf_sizing = self.config.get("confidence_sizing", {})
+            if _conf_sizing.get("enabled", True):
+                fusion = state.get("timeframe_fusion")
+                if fusion:
+                    _is_scalp = bool(self.config.get("tight_sl_tp", {}).get("enabled", False))
+                    _raw_conf = fusion.conf_short if _is_scalp else fusion.conf_long
+                    _conf_floor = float(_conf_sizing.get("floor", 0.70))
+                    _conf_ceil  = float(_conf_sizing.get("ceil", 1.30))
+                    _conf_base  = float(_conf_sizing.get("base_conf", 0.45))
+                    # Linear interpolation: base_conf → 1.0 maps to floor → ceil
+                    _conf_frac = min(1.0, max(0.0,
+                        (_raw_conf - _conf_base) / max(1.0 - _conf_base, 1e-9)))
+                    _conf_mult = _conf_floor + _conf_frac * (_conf_ceil - _conf_floor)
+                    risk_amount *= _conf_mult
+                    if abs(_conf_mult - 1.0) > 0.02:
+                        self.logger.info(
+                            f"Confidence sizing [{state['symbol']}]: "
+                            f"conf={_raw_conf:.3f} → ×{_conf_mult:.2f} "
+                            f"(risk=${risk_amount:.2f})"
+                        )
+
+            # ── Streak momentum sizing ────────────────────────────────────────
+            # Recent P&L history (passed from engine/runner as list of R-values)
+            # modulates risk: winning streaks → size up, losing → size down.
+            # Uses last N completed trades (excluding partials).
+            _recent_pnl_r = state.get("recent_pnl_r", [])
+            _streak_cfg = self.config.get("streak_sizing", {})
+            if _streak_cfg.get("enabled", True) and len(_recent_pnl_r) >= 2:
+                _win_boost  = float(_streak_cfg.get("win_boost", 1.15))
+                _loss_cut   = float(_streak_cfg.get("loss_cut", 0.80))
+                # Count consecutive wins or losses from most recent
+                _last = _recent_pnl_r[-1]
+                _streak_len = 1
+                for _prev_r in reversed(_recent_pnl_r[:-1]):
+                    if (_prev_r > 0) == (_last > 0):
+                        _streak_len += 1
+                    else:
+                        break
+                if _streak_len >= 2:
+                    if _last > 0:
+                        # Winning streak: modest boost (capped at win_boost)
+                        _streak_mult = min(_win_boost, 1.0 + 0.05 * _streak_len)
+                    else:
+                        # Losing streak: cut size (floored at loss_cut)
+                        _streak_mult = max(_loss_cut, 1.0 - 0.10 * _streak_len)
+                    risk_amount *= _streak_mult
+                    self.logger.info(
+                        f"Streak sizing [{state['symbol']}]: "
+                        f"{'win' if _last > 0 else 'loss'} streak={_streak_len} "
+                        f"→ ×{_streak_mult:.2f} (risk=${risk_amount:.2f})"
                     )
 
             # For SL/TP sizing: use 1H ATR as the PRIMARY anchor.
@@ -1838,6 +1922,7 @@ class TradingGraph:
                   features_by_tf: Dict[str, TechnicalFeatures] = None,
                   exit_check_only: bool = False,
                   streak_blocked_dir: str = None,
+                  recent_pnl_r: list = None,
                   executor_lock: "asyncio.Lock" = None) -> TradingState:
         """Run the complete trading decision process."""
 
@@ -1862,6 +1947,8 @@ class TradingGraph:
             "risk_limits": risk_limits,
             # Streak guard: direction currently blocked by the losing-streak cooldown.
             "streak_blocked_dir": streak_blocked_dir,
+            # Recent trade P&L in R-multiples (for streak-momentum sizing).
+            "recent_pnl_r": recent_pnl_r or [],
         }
 
         if exit_check_only:

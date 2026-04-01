@@ -206,6 +206,11 @@ class PortfolioState(BaseModel):
     open_positions_map: Dict[str, List[Dict]] = Field(default_factory=dict)
     max_daily_drawdown: float
     leverage_used: float
+    # Number of symbols in the portfolio universe (used for concentration-aware
+    # risk scaling).  1 = single-symbol backtest, N = multi-symbol.
+    # When set, graph.py caps per-symbol risk so that the theoretical max
+    # portfolio exposure matches what a live multi-symbol run would produce.
+    n_portfolio_symbols: int = 1
 
 
 class RiskLimits(BaseModel):
