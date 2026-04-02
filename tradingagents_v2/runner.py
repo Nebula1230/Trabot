@@ -991,10 +991,11 @@ class TradingRunner:
                             self._streak_history.setdefault(symbol, []).append(
                                 (_dir, _pnl, time.time())
                             )
+                            # Direction-agnostic: any 2 consecutive losses block
+                            # the symbol (CT trades can't bypass the guard)
                             _sh = self._streak_history[symbol]
                             if (len(_sh) >= 2
-                                    and _sh[-1][1] < 0 and _sh[-2][1] < 0
-                                    and _sh[-1][0] == _sh[-2][0]):
+                                    and _sh[-1][1] < 0 and _sh[-2][1] < 0):
                                 _prev_cnt = self._streak_block_count.get(symbol, 0)
                                 self._streak_block_count[symbol] = _prev_cnt + 1
                                 # Escalating cooldown: 4h → 8h → 16h → 24h
@@ -1002,19 +1003,18 @@ class TradingRunner:
                                     4 * 3600 * (2 ** _prev_cnt),
                                     24 * 3600,
                                 )
-                                self._streak_block_dir[symbol] = _sh[-1][0]
+                                self._streak_block_dir[symbol] = "both"
                                 self._streak_block_until[symbol] = time.time() + _cd_secs
                                 self.logger.warning(
-                                    f"STREAK [{symbol}]: 2 consecutive {_sh[-1][0]} losses "
-                                    f"— blocking {_sh[-1][0]} for {_cd_secs/3600:.0f}h "
+                                    f"STREAK [{symbol}]: 2 consecutive losses "
+                                    f"— blocking ALL directions for {_cd_secs/3600:.0f}h "
                                     f"(streak #{_prev_cnt + 1})"
                                 )
                         elif _pnl >= 0:
-                            # Win or break-even resets the direction-flip counter
-                            _dir = "long" if trade_type == "BUY" else "short"
-                            _blk = self._streak_block_dir.get(symbol)
-                            if _blk and _blk != _dir:
-                                self._streak_block_count.pop(symbol, None)
+                            # Win or break-even resets the streak guard
+                            self._streak_block_count.pop(symbol, None)
+                            self._streak_block_dir.pop(symbol, None)
+                            self._streak_block_until.pop(symbol, None)
                     else:
                         self.logger.warning(f"Failed to close {symbol} #{pos['ticket']}")
                 else:
@@ -1166,11 +1166,15 @@ class TradingRunner:
             if isinstance(ft, BaseException):
                 self.logger.error(f"Data fetch failed for {sym}: {ft}")
 
-        # Phase 2: Process each symbol sequentially — graph analysis and order
-        # execution must remain serial to avoid race conditions in order_manager.
+        # Phase 2: Process each symbol — graph analysis and order execution.
+        # When rank_signals is enabled, we run dry (analysis only) then sort
+        # candidates by expected value and execute from best to worst.
         _risk_cfg = self.config.model_dump().get("risk", {})
         _max_daily = int(_risk_cfg.get("max_daily_trades", 0))
         _cooldown_secs = float(_risk_cfg.get("entry_cooldown_minutes", 0)) * 60.0
+        _rank_signals = bool(getattr(self.config, "rank_signals", False))
+        _pending_candidates: list = []   # used only when _rank_signals is True
+
         for symbol in symbols:
             # Daily trade cap: stop analysing further symbols once limit reached
             if _max_daily > 0 and self._daily_trade_count >= _max_daily:
@@ -1253,6 +1257,7 @@ class TradingRunner:
                     streak_blocked_dir=_streak_blk,
                     executor_lock=self._executor_lock,
                     recent_pnl_r=_recent_pnl_r,
+                    dry_run=_rank_signals,
                 )
 
                 results[symbol] = {
@@ -1262,6 +1267,22 @@ class TradingRunner:
                     "errors":       state.get("errors", []),
                     "block_reason": state.get("metadata", {}).get("block_reason", ""),
                 }
+
+                if _rank_signals:
+                    # Collect candidate for deferred ranking; skip symbols
+                    # whose pipeline didn't produce a trade plan.
+                    tp = state.get("trade_plan")
+                    if tp and state.get("decision") != "rejected":
+                        _pending_candidates.append({
+                            "symbol": symbol,
+                            "state":  state,
+                            "ev":     tp.recipe.expected_value,
+                        })
+                    # Journal even if not executed yet
+                    self.journal.record_cycle(symbol, results[symbol])
+                    continue   # defer execution to ranked fill phase below
+
+                # ── Original FCFS mode: immediate post-execution bookkeeping ──
 
                 # Journal: record this cycle
                 self.journal.record_cycle(symbol, results[symbol])
@@ -1309,6 +1330,70 @@ class TradingRunner:
                 self.logger.error(f"Error processing {symbol}: {e}")
                 results[symbol] = {"decision": "stop", "executed": False,
                                    "order_ticket": None, "errors": [str(e)]}
+
+        # ── Ranked signal fill: sort candidates by EV, execute best first ──
+        if _rank_signals and _pending_candidates:
+            _pending_candidates.sort(key=lambda c: c["ev"], reverse=True)
+            self.logger.info(
+                f"[RANK] {len(_pending_candidates)} candidate(s) — "
+                + ", ".join(f"{c['symbol']}(EV={c['ev']:.3f})" for c in _pending_candidates)
+            )
+            for _cand in _pending_candidates:
+                _csym = _cand["symbol"]
+                # Re-check daily cap (a prior candidate may have consumed a slot)
+                if _max_daily > 0 and self._daily_trade_count >= _max_daily:
+                    self.logger.info(f"[RANK] {_csym}: skipped — daily cap reached")
+                    break
+                # Re-check cooldown (another candidate for same symbol may have filled)
+                if _cooldown_secs > 0 and _csym in self._entry_cooldown:
+                    _el = time.time() - self._entry_cooldown[_csym]
+                    if _el < _cooldown_secs:
+                        self.logger.debug(f"[RANK] {_csym}: skipped — cooldown active")
+                        continue
+                # Execute the deferred trade plan
+                _cstate = _cand["state"]
+                _cstate = await self.graph.execute_deferred(
+                    _cstate, executor_lock=self._executor_lock
+                )
+                # Post-execution bookkeeping (same as FCFS path)
+                results[_csym] = {
+                    "decision":     _cstate.get("decision", "stop"),
+                    "executed":     _cstate.get("metadata", {}).get("executed", False),
+                    "order_ticket": _cstate.get("metadata", {}).get("order_ticket"),
+                    "errors":       _cstate.get("errors", []),
+                    "block_reason": _cstate.get("metadata", {}).get("block_reason", ""),
+                }
+                self.journal.record_cycle(_csym, results[_csym])
+                if _cstate.get("trade_plan") and _cstate.get("metadata", {}).get("executed"):
+                    mt5_ticket = _cstate["metadata"].get("order_ticket")
+                    self.order_manager.create_order(_cstate["trade_plan"], mt5_ticket=mt5_ticket)
+                    self.journal.record_trade(
+                        _csym, _cstate["trade_plan"], {"order_ticket": mt5_ticket}
+                    )
+                    if mt5_ticket and _cstate.get("metadata", {}).get("entry_type") == "counter-trend-scalp":
+                        self._ct_tickets.add(mt5_ticket)
+                    if mt5_ticket and _cstate.get("agent_outputs"):
+                        direction = str(_cstate["trade_plan"].recipe.direction)
+                        self.agent_tracker.record_trade_votes(
+                            _csym, mt5_ticket, direction, _cstate["agent_outputs"]
+                        )
+                    self._entry_cooldown[_csym] = time.time()
+                    self._daily_trade_count += 1
+                    self.logger.info(
+                        f"[RANK] {_csym}: trade executed (EV={_cand['ev']:.3f}) — "
+                        f"daily count {self._daily_trade_count}/{_max_daily or '∞'}"
+                    )
+                    self._persist_daily_state()
+                    # Refresh portfolio for next candidate
+                    async with self._executor_lock:
+                        _refreshed = _portfolio_state_from_executor(self.executor, self.order_manager)
+                    if _refreshed is not None:
+                        if self._start_of_day_balance > 0:
+                            real_dd = (_refreshed.equity - self._start_of_day_balance) / self._start_of_day_balance
+                            _refreshed = _refreshed.model_copy(
+                                update={"daily_drawdown": real_dd, "max_daily_drawdown": real_dd}
+                            )
+                        portfolio = _refreshed
 
         # Update trailing stops for all open positions — now owned by surveillance loop
         # (kept here as fallback when run_once is called directly in tests)

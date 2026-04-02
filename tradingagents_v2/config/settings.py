@@ -42,6 +42,7 @@ class RiskConfig(BaseModel):
     # them to runner.py.  If missing, Pydantic drops them silently and guards are
     # disabled (root cause of 1556 scalp trades / −$3858 in one session).
     max_daily_trades: int = Field(default=0, ge=0, description="Hard daily cap on total orders placed (0 = disabled)")
+    max_daily_sl_per_symbol: int = Field(default=0, ge=0, description="Stop trading a symbol after N stop-loss exits in one day (0 = disabled)")
     entry_cooldown_minutes: float = Field(default=0.0, ge=0.0, description="Minimum minutes between successive entries on the same symbol (0 = disabled)")
 
 
@@ -286,6 +287,11 @@ class TradingConfig(BaseSettings):
     enable_monitoring: bool = Field(default=True, description="Enable performance monitoring")
     monitoring_interval_seconds: int = Field(default=60, ge=10, le=3600, description="Monitoring interval")
     
+    # Signal ranking: when enabled in portfolio mode, all symbols' signals are
+    # collected first, then ranked by expected value (EV) before filling slots.
+    # This ensures the best setups get priority regardless of symbol list order.
+    rank_signals: bool = Field(default=False, description="Rank competing signals by EV in portfolio mode")
+
     # Backtesting
     enable_backtesting: bool = Field(default=True, description="Enable backtesting capabilities")
     backtest_start_date: Optional[str] = Field(default=None, description="Backtest start date (YYYY-MM-DD)")

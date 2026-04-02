@@ -517,10 +517,15 @@ class TradingGraph:
             dead_zone_end   = int(self.config.get("alignment", {}).get("dead_zone_end_utc",    6))
             dead_zone_factor = float(self.config.get("alignment", {}).get("dead_zone_factor",  1.4))
 
-            in_dead_zone = (
-                (dead_zone_start > dead_zone_end and (utc_hour >= dead_zone_start or utc_hour < dead_zone_end))
-                or (dead_zone_start < dead_zone_end and dead_zone_start <= utc_hour < dead_zone_end)
-            )
+            # Stocks trade fixed market hours — the FX dead zone doesn't apply.
+            from tradingagents_v2.backtesting.engine import BacktestEngine as _BE
+            _sym_is_stock = _BE._is_stock(state.get("symbol", ""))
+            in_dead_zone = False
+            if not _sym_is_stock:
+                in_dead_zone = (
+                    (dead_zone_start > dead_zone_end and (utc_hour >= dead_zone_start or utc_hour < dead_zone_end))
+                    or (dead_zone_start < dead_zone_end and dead_zone_start <= utc_hour < dead_zone_end)
+                )
             if in_dead_zone:
                 long_min  *= dead_zone_factor
                 mid_min   *= dead_zone_factor
@@ -1192,14 +1197,14 @@ class TradingGraph:
 
             # (Consensus gate already enforced in _check_alignment — not duplicated here.)
 
-            # ── Same-direction losing streak guard ────────────────────────────
+            # ── Losing streak guard (direction-agnostic) ─────────────────────
             # Runner passes the currently blocked direction (if any) via state.
-            # Block the trade if it matches the streak-blocked direction.
+            # "both" = block all directions after consecutive losses (any dir).
             _streak_blocked = state.get("streak_blocked_dir")
-            if _streak_blocked and recipe.direction == _streak_blocked:
+            if _streak_blocked and (_streak_blocked == "both" or recipe.direction == _streak_blocked):
                 self.logger.info(
                     f"Streak guard [{state['symbol']}]: "
-                    f"{recipe.direction} blocked after consecutive losses"
+                    f"{recipe.direction} blocked (streak_blocked={_streak_blocked})"
                 )
                 state["decision"] = "rejected"
                 state.setdefault("metadata", {})["block_reason"] = f"streak:{recipe.direction}"
@@ -1854,6 +1859,10 @@ class TradingGraph:
 
     async def _execute_trade(self, state: TradingState) -> TradingState:
         """Execute the trade via MT5Executor (under executor_lock if available)."""
+        # In dry-run mode, skip actual execution but keep the trade plan
+        # in the state so the caller can rank and execute selectively.
+        if state.get("_dry_run"):
+            return state
         try:
             trade_plan = state.get("trade_plan")
             if not trade_plan:
@@ -1915,7 +1924,19 @@ class TradingGraph:
         _get_tracer().commit_bar()
 
         return state
-    
+
+    async def execute_deferred(self, state: TradingState,
+                               executor_lock: "asyncio.Lock" = None) -> TradingState:
+        """Execute a trade plan that was produced by a dry-run.
+
+        Call this after ranking candidates to actually place the order on
+        the winning signal.  Re-uses ``_execute_trade`` with ``_dry_run``
+        cleared so the real executor fires.
+        """
+        state["_dry_run"] = False
+        self._executor_lock = executor_lock
+        return await self._execute_trade(state)
+
     async def run(self, symbol: str, features: TechnicalFeatures,
                   portfolio_state: PortfolioState = None,
                   risk_limits: RiskLimits = None,
@@ -1923,8 +1944,15 @@ class TradingGraph:
                   exit_check_only: bool = False,
                   streak_blocked_dir: str = None,
                   recent_pnl_r: list = None,
-                  executor_lock: "asyncio.Lock" = None) -> TradingState:
-        """Run the complete trading decision process."""
+                  executor_lock: "asyncio.Lock" = None,
+                  dry_run: bool = False) -> TradingState:
+        """Run the complete trading decision process.
+
+        When *dry_run* is True the full pipeline runs (agents, fusion,
+        alignment, recipe, risk, plan) but ``_execute_trade`` is skipped.
+        The caller can inspect ``state["trade_plan"]`` to rank competing
+        signals across symbols and then execute selectively.
+        """
 
         # Store executor lock for _execute_trade to use
         self._executor_lock = executor_lock
@@ -1949,6 +1977,8 @@ class TradingGraph:
             "streak_blocked_dir": streak_blocked_dir,
             # Recent trade P&L in R-multiples (for streak-momentum sizing).
             "recent_pnl_r": recent_pnl_r or [],
+            # Dry-run flag: when True, _execute_trade is a no-op.
+            "_dry_run": dry_run,
         }
 
         if exit_check_only:

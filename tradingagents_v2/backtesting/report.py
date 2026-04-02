@@ -63,7 +63,16 @@ def generate_report(
     all_metrics = [compute_metrics(r) for r in results]
 
     # Aggregate equity across symbols
-    if len(results) > 1:
+    # Portfolio backtests store the shared portfolio equity curve on each
+    # result — use it directly instead of summing per-symbol curves (which
+    # would inflate initial equity by N× the number of symbols).
+    _pf_curve = getattr(results[0], 'portfolio_equity_curve', None)
+    if _pf_curve and len(results) > 1:
+        combined_equity = _pf_curve
+        agg_dates = results[0].bar_dates[:len(combined_equity)]
+        total_initial = results[0].initial_equity
+    elif len(results) > 1:
+        # Independent mode: each symbol has its own equity starting at initial_equity
         min_len = min(len(r.equity_curve) for r in results)
         combined_equity = [
             sum(r.equity_curve[i] for r in results)
@@ -122,8 +131,12 @@ def generate_json_report(
     """
     all_metrics = [compute_metrics(r) for r in results]
 
-    # Aggregate equity
-    if len(results) > 1:
+    # Aggregate equity — use portfolio curve when available
+    _pf_curve = getattr(results[0], 'portfolio_equity_curve', None)
+    if _pf_curve and len(results) > 1:
+        combined_equity = _pf_curve
+        total_initial = results[0].initial_equity
+    elif len(results) > 1:
         min_len = min(len(r.equity_curve) for r in results)
         combined_equity = [sum(r.equity_curve[i] for r in results) for i in range(min_len)]
         total_initial = sum(r.initial_equity for r in results)
@@ -363,10 +376,14 @@ def _section_trades(results: List[BacktestResult]) -> str:
                 _dur_str = f"{_d}d {_rem // 3600}h"
         else:
             _dur_str = f"{t.close_bar - t.open_bar} bars"
+        _open_str  = t.open_dt.strftime("%Y-%m-%d %H:%M")  if t.open_dt  else "—"
+        _close_str = t.close_dt.strftime("%Y-%m-%d %H:%M") if t.close_dt else "—"
         rows += (
             f"<tr>"
             f"<td>{t.symbol}</td>"
             f"<td>{'SHORT' if 'short' in str(t.direction).lower() else 'LONG'}</td>"
+            f"<td>{_open_str}</td>"
+            f"<td>{_close_str}</td>"
             f"<td>{t.entry_price:.5f}</td>"
             f"<td>{t.exit_price:.5f}</td>"
             f"<td>{t.stop_loss:.5f}</td>"
@@ -382,7 +399,8 @@ def _section_trades(results: List[BacktestResult]) -> str:
     return (
         "<h2>Trade Log (last 200)</h2>"
         "<table><thead><tr>"
-        "<th>Symbol</th><th>Dir</th><th>Entry</th><th>Exit</th>"
+        "<th>Symbol</th><th>Dir</th><th>Open Date</th><th>Close Date</th>"
+        "<th>Entry</th><th>Exit</th>"
         "<th>SL</th><th>TP</th><th>P&amp;L</th><th>R</th>"
         "<th>Reason</th><th>Duration</th><th>Win%</th><th>Conf</th>"
         f"</tr></thead><tbody>{rows}</tbody></table>"

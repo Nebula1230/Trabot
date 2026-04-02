@@ -283,6 +283,7 @@ _PROFILES = {
             "max_correlated_positions": 3,
             "entry_cooldown_minutes":  25,    # v5: 30→25min — slightly faster re-entry
             "max_daily_trades":        14,    # v5: 12→14 — allow more high-quality entries
+            "max_daily_sl_per_symbol": 3,     # halt symbol after 3 SL hits/day — prevents cluster blowups
             "max_weekly_drawdown_pct": 10.00, # keep weekly ceiling tight
         },
         # ── Signal quality gates ───────────────────────────────────────────────
@@ -325,7 +326,7 @@ _PROFILES = {
         #   3 entries on EURUSD: 0.20% + 0.10% + 0.10% = 0.40%  (was 0.50%)
         "scale_in": {
             "enabled":                  True,
-            "max_positions_per_symbol": 3,     # 3 entries max — pyramid into runners
+            "max_positions_per_symbol": 2,     # v7: 3→2 — reduce concentrated loss from cluster reversals
             "require_profit":           True,  # only scale into winners
             "min_profit_r":             0.25,  # scale in after +0.25R confirmed move
             "require_full_alignment":   False,

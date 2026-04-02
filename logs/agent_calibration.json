@@ -1212,133 +1212,111 @@
         "CorrelationAgent": -0.01184724464998409
       },
       "ts": 1775038248.4687862
-    },
-    "56040849241": {
-      "symbol": "USDJPY",
-      "direction": "Direction.SHORT",
-      "votes": {
-        "RegimeAgent": -0.3183784761084921,
-        "TrendAgent": 0.7238227107729782,
-        "MomentumAgent": -0.7050126643788062,
-        "MeanReversionAgent": 0.037351757941173756,
-        "VolatilityAgent": -0.2574204884944621,
-        "BreadthAgent": -0.12437066547941941,
-        "PatternAgent": -0.40249999999999997,
-        "IntermarketAgent": 0.0,
-        "SessionBreakoutAgent": -0.09109611586569841,
-        "DivergenceAgent": 0.0,
-        "ScalpingAgent": 0.04168309671396935,
-        "VwapScalpAgent": 0.0,
-        "SqueezeBreakoutAgent": 0.0,
-        "OrderFlowAgent": 0.0001606582775998608,
-        "CorrelationAgent": -0.03793961798382563
-      },
-      "ts": 1775038536.9144251
     }
   },
   "agent_stats": {
     "RegimeAgent": {
-      "n": 17,
-      "correct": 7,
+      "n": 18,
+      "correct": 8,
       "abstain": 2,
-      "total_contribution": 2.511848946358831,
-      "last_updated": "2026-04-01 12:11"
+      "total_contribution": 2.830227422467323,
+      "last_updated": "2026-04-01 14:54"
     },
     "TrendAgent": {
-      "n": 19,
+      "n": 20,
       "correct": 11,
       "abstain": 0,
       "total_contribution": 8.821501453458763,
-      "last_updated": "2026-04-01 12:11"
+      "last_updated": "2026-04-01 14:54"
     },
     "MomentumAgent": {
-      "n": 18,
-      "correct": 9,
+      "n": 19,
+      "correct": 10,
       "abstain": 1,
-      "total_contribution": 3.1515008614808657,
-      "last_updated": "2026-04-01 12:11"
+      "total_contribution": 3.856513525859672,
+      "last_updated": "2026-04-01 14:54"
     },
     "MeanReversionAgent": {
       "n": 17,
       "correct": 9,
-      "abstain": 2,
+      "abstain": 3,
       "total_contribution": 2.575972011975278,
       "last_updated": "2026-04-01 12:11"
     },
     "VolatilityAgent": {
-      "n": 18,
-      "correct": 7,
+      "n": 19,
+      "correct": 8,
       "abstain": 1,
-      "total_contribution": 2.2169227179851294,
-      "last_updated": "2026-04-01 12:11"
+      "total_contribution": 2.4743432064795914,
+      "last_updated": "2026-04-01 14:54"
     },
     "BreadthAgent": {
-      "n": 18,
-      "correct": 10,
+      "n": 19,
+      "correct": 11,
       "abstain": 1,
-      "total_contribution": 1.0587243343626578,
-      "last_updated": "2026-04-01 12:11"
+      "total_contribution": 1.1830949998420772,
+      "last_updated": "2026-04-01 14:54"
     },
     "PatternAgent": {
-      "n": 16,
-      "correct": 6,
+      "n": 17,
+      "correct": 7,
       "abstain": 3,
-      "total_contribution": 2.0093750000000004,
-      "last_updated": "2026-04-01 12:11"
+      "total_contribution": 2.411875,
+      "last_updated": "2026-04-01 14:54"
     },
     "IntermarketAgent": {
       "n": 3,
       "correct": 0,
-      "abstain": 16,
+      "abstain": 17,
       "total_contribution": 0.0,
       "last_updated": "2026-03-27 10:24"
     },
     "SessionBreakoutAgent": {
-      "n": 6,
-      "correct": 1,
+      "n": 7,
+      "correct": 2,
       "abstain": 13,
-      "total_contribution": 1.0,
-      "last_updated": "2026-04-01 12:11"
+      "total_contribution": 1.0910961158656984,
+      "last_updated": "2026-04-01 14:54"
     },
     "DivergenceAgent": {
       "n": 4,
       "correct": 3,
-      "abstain": 15,
+      "abstain": 16,
       "total_contribution": 0.5271506058508552,
       "last_updated": "2026-03-31 17:17"
     },
     "ScalpingAgent": {
       "n": 19,
       "correct": 6,
-      "abstain": 0,
+      "abstain": 1,
       "total_contribution": 1.916847524048189,
       "last_updated": "2026-04-01 12:11"
     },
     "VwapScalpAgent": {
       "n": 17,
       "correct": 5,
-      "abstain": 2,
+      "abstain": 3,
       "total_contribution": 2.4575779435101786,
       "last_updated": "2026-04-01 12:11"
     },
     "SqueezeBreakoutAgent": {
       "n": 16,
       "correct": 5,
-      "abstain": 3,
+      "abstain": 4,
       "total_contribution": 1.6270433580248893,
       "last_updated": "2026-04-01 12:11"
     },
     "OrderFlowAgent": {
       "n": 18,
       "correct": 7,
-      "abstain": 1,
+      "abstain": 2,
       "total_contribution": 2.4324095666526673,
       "last_updated": "2026-04-01 12:11"
     },
     "CorrelationAgent": {
       "n": 3,
       "correct": 2,
-      "abstain": 5,
+      "abstain": 6,
       "total_contribution": 0.136808404948003,
       "last_updated": "2026-04-01 09:44"
     }

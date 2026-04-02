@@ -542,3 +542,4 @@
 {"ts": "2026-04-01T12:11:30", "symbol": "GBPUSD", "decision": "closed", "executed": true, "order_ticket": 56040773093, "errors": []}
 {"ts": "2026-04-01T12:11:30", "symbol": "USDCHF", "decision": "closed", "executed": true, "order_ticket": 56040773440, "errors": []}
 {"ts": "2026-04-01T12:15:36", "symbol": "USDJPY", "decision": "approved", "executed": true, "order_ticket": 56040849241, "errors": []}
+{"ts": "2026-04-01T14:54:24", "symbol": "USDJPY", "decision": "closed", "executed": true, "order_ticket": 56040849241, "errors": []}

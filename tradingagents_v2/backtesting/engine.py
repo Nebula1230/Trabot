@@ -122,6 +122,10 @@ class BacktestResult:
     bar_dates: List[datetime]
     initial_equity: float
     config: Dict[str, Any]
+    # Portfolio-level equity curve (set only on portfolio backtests).
+    # When set, the report uses this directly instead of summing per-symbol
+    # curves — prevents the N× equity inflation bug.
+    portfolio_equity_curve: Optional[List[float]] = None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -176,6 +180,12 @@ class _BacktestExecutor:
             _digits     = 2
             _point      = 1.0
             _tick_value = BacktestEngine._TICK_VALUE.get(sym.rstrip("Mm"), 1.0)
+        elif BacktestEngine._is_stock(symbol):
+            # Stock: pip = $0.01, P&L = Δprice × shares
+            _tick_size  = 0.01
+            _digits     = 2
+            _point      = 0.01
+            _tick_value = 1.0
         else:
             # Default: USD-quote pair (EURUSD, GBPUSD, AUDUSD, etc.)
             _tick_size  = 0.0001
@@ -183,16 +193,17 @@ class _BacktestExecutor:
             _point      = 0.0001
             _tick_value = BacktestEngine._TICK_VALUE.get(sym.rstrip("Mm"), 10.0)
 
+        _is_equity = BacktestEngine._is_stock(symbol)
         class _SI:
             spread               = 3
             point                = _point
             digits               = _digits
             trade_tick_size      = _tick_size
             trade_tick_value     = _tick_value
-            volume_min           = 0.01
-            volume_max           = 1000.0
-            volume_step          = 0.01
-            trade_contract_size  = 100_000
+            volume_min           = 1.0 if _is_equity else 0.01
+            volume_max           = 100_000.0 if _is_equity else 1000.0
+            volume_step          = 1.0 if _is_equity else 0.01
+            trade_contract_size  = 1 if _is_equity else 100_000
             trade_stops_level    = 0
             trade_mode           = 4
             filling_mode         = 1
@@ -409,6 +420,43 @@ class BacktestEngine:
         result = engine.run("EURUSD", "2025-01-01", "2026-01-01")
     """
 
+    # ── Instrument classification ──────────────────────────────────────────
+    # Stocks can be passed as plain tickers (AAPL, MSFT) or with exchange
+    # prefix (NASDAQ:AAPL).  The helper normalises both forms.
+    _KNOWN_INDICES = {"DAX", "UK100", "US30", "US500", "USTEC"}
+    _INDEX_KEYWORDS = ("DAX", "UK100", "US30", "US500", "USTEC")
+
+    @staticmethod
+    def _normalise_stock(symbol: str) -> str:
+        """Strip exchange prefix:  NASDAQ:AAPL → AAPL, NYSE:BA → BA."""
+        s = symbol.strip().upper()
+        if ":" in s:
+            s = s.split(":", 1)[1]
+        return s
+
+    @staticmethod
+    def _is_stock(symbol: str) -> bool:
+        """Return True if *symbol* looks like a stock ticker.
+
+        Heuristic: not a known forex pair, index, or metal.
+        Forex pairs always contain a second currency code (exactly 6 alpha
+        chars like EURUSD, or end with JPY/CHF/etc.).  Stock tickers are
+        typically 1-5 uppercase letters without a currency suffix.
+        """
+        sym = BacktestEngine._normalise_stock(symbol)
+        # Explicit index / metal check
+        if sym in BacktestEngine._KNOWN_INDICES:
+            return False
+        if any(x in sym for x in ("XAU", "XAG", "GOLD", "SILVER")):
+            return False
+        # Forex: 6 alpha chars with known quote currencies
+        _fx_quotes = ("USD", "EUR", "GBP", "JPY", "CHF", "CAD", "AUD", "NZD")
+        if len(sym) == 6 and sym[:3].isalpha() and sym[3:].isalpha():
+            if sym[:3] in _fx_quotes or sym[3:] in _fx_quotes:
+                return False
+        # Everything else is treated as a stock
+        return True
+
     # ── Spread model ──────────────────────────────────────────────────────
     # Base spread: typical "good conditions" spread for each symbol (price units).
     # Dynamic widening is applied per-bar based on volatility relative to the
@@ -435,6 +483,7 @@ class BacktestEngine:
     }
 
     # USD account P&L per pip per standard lot (10 = $10/pip for most majors)
+    # For stocks: tick_value = 1.0 (P&L = Δprice × shares, pip_size = 0.01)
     _TICK_VALUE: Dict[str, float] = {
         "EURUSD": 10.0, "GBPUSD": 10.0, "AUDUSD": 10.0, "NZDUSD": 10.0,
         "USDCHF": 10.0, "USDCAD": 10.0, "USDJPY":  9.1, "EURJPY":  9.1,
@@ -446,6 +495,8 @@ class BacktestEngine:
     # ── Swap rates: (long, short) in USD per lot per night ─────────────────
     # Negative = trader pays, positive = trader receives.
     # Based on typical ECN broker rates.  Unknown symbols default to (-3.0, -1.0).
+    # Stocks default to (0, 0) — no overnight swap; margin interest is negligible
+    # for backtesting purposes.
     _SWAP_RATE: Dict[str, tuple] = {
         "EURUSD": (-5.0, +0.8),  "GBPUSD": (-4.5, +0.5),
         "USDJPY": (+2.0, -5.5),  "USDCHF": (+1.5, -4.8),
@@ -457,18 +508,32 @@ class BacktestEngine:
         "US30":   (-2.0, -0.5),  "US500":  (-1.5, -0.3),
         "USTEC":  (-2.0, -0.5),
     }
+    _STOCK_SWAP_DEFAULT: tuple = (0.0, 0.0)
 
     # ── Volume constraints (mirrors MT5 symbol_info) ──────────────────────
     _VOL_MIN:  float = 0.01
     _VOL_MAX:  float = 100.0
     _VOL_STEP: float = 0.01
 
+    # Stock volume constraints (whole shares)
+    _STOCK_VOL_MIN:  float = 1.0
+    _STOCK_VOL_MAX:  float = 100_000.0
+    _STOCK_VOL_STEP: float = 1.0
+
+    def _vol_params(self, symbol: str) -> tuple:
+        """Return (vol_min, vol_max, vol_step) for the given symbol."""
+        if self._is_stock(symbol):
+            return (self._STOCK_VOL_MIN, self._STOCK_VOL_MAX, self._STOCK_VOL_STEP)
+        return (self._VOL_MIN, self._VOL_MAX, self._VOL_STEP)
+
     # ── Execution realism ─────────────────────────────────────────────────
     _SLIPPAGE_PIPS: float = 0.3     # random ±slippage on every fill
     _MAX_SPREAD_FRAC: float = 0.20  # reject entry when spread > 20% of stop dist
 
     # ── yfinance backfill constants ────────────────────────────────────────
-    # Broker symbol → yfinance ticker translation
+    # Broker symbol → yfinance ticker translation.
+    # Stocks are passed through as-is (AAPL → AAPL).  The lookup falls
+    # back to the normalised ticker for any symbol not in this map.
     _YF_SYMBOL: Dict[str, str] = {
         "EURUSD": "EURUSD=X", "GBPUSD": "GBPUSD=X", "USDJPY": "USDJPY=X",
         "USDCHF": "USDCHF=X", "AUDUSD": "AUDUSD=X", "USDCAD": "USDCAD=X",
@@ -867,12 +932,17 @@ class BacktestEngine:
         _cooldown_scale = {"1m": 0.25, "5m": 0.50, "15m": 0.75, "30m": 0.85}.get(mid_tf, 1.0)
         _cooldown_min  = max(5.0, _cooldown_base * _cooldown_scale)
         _max_daily     = int(getattr(self.config.risk, "max_daily_trades", 0))
+        _max_daily_sl  = int(getattr(self.config.risk, "max_daily_sl_per_symbol", 0))
 
         _streak_base_bars = max(1, int(4 * 3600 / _bar_seconds))
         _streak_max_bars  = max(1, int(24 * 3600 / _bar_seconds))
 
         _news_atr_mult = float(_cfg_raw.get("execution", {}).get("news_spike_atr_mult", 3.0))
         _news_blackout_enabled = bool(_cfg_raw.get("execution", {}).get("news_blackout_minutes", 0) > 0)
+
+        # Signal ranking: collect all symbols' signals first, rank by EV,
+        # then fill slots from best to worst.  Off by default for backward compat.
+        _rank_signals = bool(getattr(self.config, "rank_signals", False))
 
         # ── Shared state ──────────────────────────────────────────────────
         equity = initial_equity
@@ -951,6 +1021,8 @@ class BacktestEngine:
                 _day_open_equity = equity
                 _day_halted = False
                 _day_trade_count = 0
+                for _sc in sym_ctx.values():
+                    _sc["day_sl_count"] = 0
             if not _day_halted and _dd_pct > 0:
                 day_dd = (equity - _day_open_equity) / max(_day_open_equity, 1e-9) * 100
                 if day_dd <= -_dd_pct:
@@ -1036,6 +1108,7 @@ class BacktestEngine:
                     _weekend_blocked = False
 
             # ── Process each symbol that has a bar at this timestamp ──────
+            _pending_candidates: list = []   # used by rank_signals mode
             for sym in symbols:
                 idx = sym_ts_to_idx[sym].get(bar_ts)
                 if idx is None:
@@ -1080,14 +1153,15 @@ class BacktestEngine:
 
                 # ── Fill pending entries at bar open ──────────────────────
                 _fill_rejects = []
+                _vmin, _vmax, _vstep = self._vol_params(sym)
                 for pos in open_positions:
                     if pos.pending and pos.symbol == sym:
                         _stop_dist = abs(pos.entry_price - pos.stop_loss)
                         if _stop_dist > 1e-9 and spread / _stop_dist > self._MAX_SPREAD_FRAC:
                             _fill_rejects.append(pos)
                             continue
-                        pos.quantity = round(round(pos.quantity / self._VOL_STEP) * self._VOL_STEP, 8)
-                        pos.quantity = max(self._VOL_MIN, min(self._VOL_MAX, pos.quantity))
+                        pos.quantity = round(round(pos.quantity / _vstep) * _vstep, 8)
+                        pos.quantity = max(_vmin, min(_vmax, pos.quantity))
                         _slip = _sym_rng[sym].uniform(-self._SLIPPAGE_PIPS, self._SLIPPAGE_PIPS) * pip_sz
                         if pos.direction == "long":
                             pos.entry_price = bar_open + spread / 2 + _slip
@@ -1425,13 +1499,13 @@ class BacktestEngine:
                         open_positions.remove(pos)
                         continue
 
-                # ── Signal pipeline: run agents and enter ─────────────────
+                # ── Signal pipeline: run agents and collect/enter ────────
                 executor.placed_orders.clear()
                 _run_agents = (step % _agent_interval == 0) or (ctx["last_agent_state"] is None)
                 if not _run_agents or _day_halted or _wk_halted or _weekend_blocked:
                     continue
 
-                # Pre-graph entry guards (shared position count)
+                # Per-symbol entry guards (cooldown, news blackout, margin)
                 _skip_entry = False
                 if _cooldown_min > 0:
                     _pre_last_t = ctx["last_order_attempt"].get(sym) or ctx["last_entry"].get(sym)
@@ -1441,8 +1515,10 @@ class BacktestEngine:
                             _skip_entry = True
                 if not _skip_entry and _max_daily > 0 and _day_trade_count >= _max_daily:
                     _skip_entry = True
-                # Shared max_concurrent across ALL symbols
-                if not _skip_entry:
+                # When NOT ranking, enforce max_concurrent immediately (original
+                # first-come-first-served behaviour).  When ranking, defer the
+                # slot check to the ranked-fill phase so the best EV wins.
+                if not _rank_signals and not _skip_entry:
                     _pre_mc = risk_limits.max_concurrent_trades
                     if _pre_mc > 0 and len([p for p in open_positions if not p.pending]) >= _pre_mc:
                         _skip_entry = True
@@ -1489,73 +1565,158 @@ class BacktestEngine:
                     )
                     ctx["last_agent_state"] = state
 
-                    for order in executor.placed_orders:
-                        # Shared max_concurrent guard
-                        _max_conc = risk_limits.max_concurrent_trades
-                        if _max_conc > 0 and len([p for p in open_positions if not p.pending]) >= _max_conc:
-                            break
-
-                        if _cooldown_min > 0:
-                            last_t = ctx["last_entry"].get(sym)
-                            if last_t is not None:
-                                elapsed = (bar_date - last_t).total_seconds() / 60.0
-                                if elapsed < _cooldown_min:
-                                    continue
-
-                        if _max_daily > 0 and _day_trade_count >= _max_daily:
-                            break
-
-                        tp = order["trade_plan"]
-                        _dir = getattr(tp.recipe.direction, "value", str(tp.recipe.direction))
-                        if "." in _dir:
-                            _dir = _dir.split(".")[-1].lower()
-
-                        # Streak guard
-                        _blk_dir = ctx.get("streak_block_dir")
-                        _blk_until = ctx.get("streak_block_until", 0)
-                        if _blk_dir == _dir and step < _blk_until:
-                            continue
-                        elif _blk_dir and (step >= _blk_until or _dir != _blk_dir):
-                            if _dir != _blk_dir:
+                    if _rank_signals:
+                        # ── Ranked mode: collect candidates, defer entry ──
+                        for order in executor.placed_orders:
+                            tp = order["trade_plan"]
+                            _dir = getattr(tp.recipe.direction, "value", str(tp.recipe.direction))
+                            if "." in _dir:
+                                _dir = _dir.split(".")[-1].lower()
+                            _sl_dist = abs((order["entry_price"] or 0) - (order["stop_loss"] or 0))
+                            if _sl_dist < 1e-7:
+                                continue
+                            # Per-symbol daily SL cap
+                            if _max_daily_sl > 0 and ctx.get("day_sl_count", 0) >= _max_daily_sl:
+                                continue
+                            # Streak guard
+                            _blk_dir = ctx.get("streak_block_dir")
+                            _blk_until = ctx.get("streak_block_until", 0)
+                            if _blk_dir and step < _blk_until:
+                                continue
+                            elif _blk_dir and step >= _blk_until:
                                 ctx["streak_block_count"] = 0
-                            ctx["streak_block_dir"] = None
-                            ctx["streak_block_until"] = 0
+                                ctx["streak_block_dir"] = None
+                                ctx["streak_block_until"] = 0
+                            _pending_candidates.append({
+                                "sym": sym, "order": order, "state": state,
+                                "dir": _dir, "idx": idx, "step": step,
+                                "ev": tp.recipe.expected_value,
+                                "confidence": tp.confidence,
+                            })
+                        if executor.placed_orders:
+                            ctx["last_order_attempt"][sym] = bar_date
+                    else:
+                        # ── Original mode: immediate entry (FCFS) ─────────
+                        for order in executor.placed_orders:
+                            # Shared max_concurrent guard
+                            _max_conc = risk_limits.max_concurrent_trades
+                            if _max_conc > 0 and len([p for p in open_positions if not p.pending]) >= _max_conc:
+                                break
 
-                        _sl_dist = abs((order["entry_price"] or 0) - (order["stop_loss"] or 0))
-                        if _sl_dist < 1e-7:
-                            continue
+                            if _cooldown_min > 0:
+                                last_t = ctx["last_entry"].get(sym)
+                                if last_t is not None:
+                                    elapsed = (bar_date - last_t).total_seconds() / 60.0
+                                    if elapsed < _cooldown_min:
+                                        continue
 
-                        pos = SimPosition(
-                            symbol=sym,
-                            direction=_dir,
-                            entry_price=order["entry_price"],
-                            stop_loss=order["stop_loss"],
-                            take_profit=order["take_profit"],
-                            quantity=tp.quantity,
-                            risk_amount=tp.risk_amount,
-                            open_bar=idx,  # symbol-local bar index (for hours_held calc)
-                            ticket=order["order_ticket"],
-                            open_global_step=global_step,
-                            confidence=tp.confidence,
-                            win_probability=tp.recipe.win_probability,
-                            agent_votes={
-                                name: float(out.dir_score)
-                                for name, out in state.get("agent_outputs", {}).items()
-                                if hasattr(out, "dir_score")
-                            },
-                            pending=True,
-                            entry_sl=order["stop_loss"],
-                            entry_type=state.get("metadata", {}).get("entry_type", "full-alignment"),
-                        )
-                        open_positions.append(pos)
-                        ctx["last_entry"][sym] = bar_date
-                        _day_trade_count += 1
+                            if _max_daily > 0 and _day_trade_count >= _max_daily:
+                                break
 
-                    if executor.placed_orders:
-                        ctx["last_order_attempt"][sym] = bar_date
+                            tp = order["trade_plan"]
+                            _dir = getattr(tp.recipe.direction, "value", str(tp.recipe.direction))
+                            if "." in _dir:
+                                _dir = _dir.split(".")[-1].lower()
+
+                            # Per-symbol daily SL cap
+                            if _max_daily_sl > 0 and ctx.get("day_sl_count", 0) >= _max_daily_sl:
+                                continue
+
+                            # Streak guard (direction-agnostic)
+                            _blk_dir = ctx.get("streak_block_dir")
+                            _blk_until = ctx.get("streak_block_until", 0)
+                            if _blk_dir and step < _blk_until:
+                                continue
+                            elif _blk_dir and step >= _blk_until:
+                                ctx["streak_block_count"] = 0
+                                ctx["streak_block_dir"] = None
+                                ctx["streak_block_until"] = 0
+
+                            _sl_dist = abs((order["entry_price"] or 0) - (order["stop_loss"] or 0))
+                            if _sl_dist < 1e-7:
+                                continue
+
+                            pos = SimPosition(
+                                symbol=sym,
+                                direction=_dir,
+                                entry_price=order["entry_price"],
+                                stop_loss=order["stop_loss"],
+                                take_profit=order["take_profit"],
+                                quantity=tp.quantity,
+                                risk_amount=tp.risk_amount,
+                                open_bar=idx,
+                                ticket=order["order_ticket"],
+                                open_global_step=global_step,
+                                confidence=tp.confidence,
+                                win_probability=tp.recipe.win_probability,
+                                agent_votes={
+                                    name: float(out.dir_score)
+                                    for name, out in state.get("agent_outputs", {}).items()
+                                    if hasattr(out, "dir_score")
+                                },
+                                pending=True,
+                                entry_sl=order["stop_loss"],
+                                entry_type=state.get("metadata", {}).get("entry_type", "full-alignment"),
+                            )
+                            open_positions.append(pos)
+                            ctx["last_entry"][sym] = bar_date
+                            _day_trade_count += 1
+
+                        if executor.placed_orders:
+                            ctx["last_order_attempt"][sym] = bar_date
 
                 except Exception as exc:
                     self.logger.debug(f"Portfolio step {global_step} {sym}: {exc}")
+
+            # ── Ranked signal fill: sort candidates by EV, fill best first ─
+            if _rank_signals and _pending_candidates:
+                _pending_candidates.sort(key=lambda c: c["ev"], reverse=True)
+                for _cand in _pending_candidates:
+                    _max_conc = risk_limits.max_concurrent_trades
+                    if _max_conc > 0 and len([p for p in open_positions if not p.pending]) >= _max_conc:
+                        break
+                    if _max_daily > 0 and _day_trade_count >= _max_daily:
+                        break
+                    _csym = _cand["sym"]
+                    _cctx = sym_ctx[_csym]
+                    # Re-check cooldown (another candidate for the same symbol
+                    # may already have been filled this bar).
+                    if _cooldown_min > 0:
+                        _last_e = _cctx["last_entry"].get(_csym)
+                        if _last_e is not None:
+                            _elapsed_c = (bar_date - _last_e).total_seconds() / 60.0
+                            if _elapsed_c < _cooldown_min:
+                                continue
+                    _cord = _cand["order"]
+                    _ctp = _cord["trade_plan"]
+                    _cstate = _cand["state"]
+                    pos = SimPosition(
+                        symbol=_csym,
+                        direction=_cand["dir"],
+                        entry_price=_cord["entry_price"],
+                        stop_loss=_cord["stop_loss"],
+                        take_profit=_cord["take_profit"],
+                        quantity=_ctp.quantity,
+                        risk_amount=_ctp.risk_amount,
+                        open_bar=_cand["idx"],
+                        ticket=_cord["order_ticket"],
+                        open_global_step=global_step,
+                        confidence=_ctp.confidence,
+                        win_probability=_ctp.recipe.win_probability,
+                        agent_votes={
+                            name: float(out.dir_score)
+                            for name, out in _cstate.get("agent_outputs", {}).items()
+                            if hasattr(out, "dir_score")
+                        },
+                        pending=True,
+                        entry_sl=_cord["stop_loss"],
+                        entry_type=_cstate.get("metadata", {}).get("entry_type", "full-alignment"),
+                    )
+                    open_positions.append(pos)
+                    _cctx["last_entry"][_csym] = bar_date
+                    _cctx["last_order_attempt"][_csym] = bar_date
+                    _day_trade_count += 1
+                _pending_candidates.clear()
 
             # ── Update shared equity from ALL positions ───────────────────
             unrealized = 0.0
@@ -1589,15 +1750,20 @@ class BacktestEngine:
 
             # Record streak history for closed trades
             for _ct in closed_trades[getattr(self, "_prev_closed_count_pf", 0):]:
+                # Per-symbol daily SL counter
+                if _ct.exit_reason == "sl":
+                    _ctx = sym_ctx[_ct.symbol]
+                    _ctx["day_sl_count"] = _ctx.get("day_sl_count", 0) + 1
                 if _ct.exit_reason not in ("partial_tp1", "partial_tp2"):
                     sh = sym_ctx[_ct.symbol].get("streak_history", [])
                     sh.append((_ct.direction, _ct.pnl, global_step))
                     sym_ctx[_ct.symbol]["streak_history"] = sh
-                    if len(sh) >= 2 and sh[-1][1] < 0 and sh[-2][1] < 0 and sh[-1][0] == sh[-2][0]:
+                    # Direction-agnostic: any 2 consecutive losses block the symbol
+                    if len(sh) >= 2 and sh[-1][1] < 0 and sh[-2][1] < 0:
                         _prev_count = sym_ctx[_ct.symbol].get("streak_block_count", 0)
                         sym_ctx[_ct.symbol]["streak_block_count"] = _prev_count + 1
                         _cooldown_bars = min(_streak_base_bars * (2 ** _prev_count), _streak_max_bars)
-                        sym_ctx[_ct.symbol]["streak_block_dir"] = sh[-1][0]
+                        sym_ctx[_ct.symbol]["streak_block_dir"] = "both"
                         sym_ctx[_ct.symbol]["streak_block_until"] = _sym_step[_ct.symbol] + _cooldown_bars
             self._prev_closed_count_pf = len(closed_trades)
 
@@ -1673,6 +1839,7 @@ class BacktestEngine:
                 bar_dates=equity_dates,
                 initial_equity=initial_equity,
                 config=self.config.model_dump(),
+                portfolio_equity_curve=equity_curve,
             ))
 
         return results
@@ -1899,6 +2066,9 @@ class BacktestEngine:
         # Daily trade cap
         _max_daily       = int(getattr(self.config.risk, "max_daily_trades", 0))
         _day_trade_count = 0
+        # Per-symbol daily SL cap (halt symbol after N SL hits in one day)
+        _max_daily_sl    = int(getattr(self.config.risk, "max_daily_sl_per_symbol", 0))
+        _day_sl_count: Dict[str, int] = {}   # symbol → SL count today
         # Weekend block
         _weekend_blocked = False
 
@@ -1984,6 +2154,7 @@ class BacktestEngine:
                 _day_open_equity = equity
                 _day_halted = False
                 _day_trade_count = 0
+                _day_sl_count.clear()
             if not _day_halted and _dd_pct > 0:
                 day_dd = (equity - _day_open_equity) / max(_day_open_equity, 1e-9) * 100
                 if day_dd <= -_dd_pct:
@@ -2089,8 +2260,9 @@ class BacktestEngine:
                         continue
                     # ── Lot rounding (mirrors MT5 vol_step) ──
                     _raw_qty = pos.quantity
-                    pos.quantity = round(round(_raw_qty / self._VOL_STEP) * self._VOL_STEP, 8)
-                    pos.quantity = max(self._VOL_MIN, min(self._VOL_MAX, pos.quantity))
+                    _vmin, _vmax, _vstep = self._vol_params(symbol)
+                    pos.quantity = round(round(_raw_qty / _vstep) * _vstep, 8)
+                    pos.quantity = max(_vmin, min(_vmax, pos.quantity))
                     # ── Slippage: random ±0.3 pip micro-noise ──
                     _slip = random.uniform(-self._SLIPPAGE_PIPS, self._SLIPPAGE_PIPS) * pip_sz
                     _planned_entry = pos.entry_price
@@ -2732,15 +2904,20 @@ class BacktestEngine:
             _n_closed_now = len(closed_trades)
             if _n_closed_now > getattr(self, "_prev_closed_count", 0):
                 for _ct in closed_trades[getattr(self, "_prev_closed_count", 0):]:
+                    # ── Per-symbol daily SL counter ────────────────────────
+                    if _ct.exit_reason == "sl":
+                        _day_sl_count[_ct.symbol] = _day_sl_count.get(_ct.symbol, 0) + 1
                     if _ct.exit_reason not in ("partial_tp1", "partial_tp2"):
                         _streak_history.setdefault(_ct.symbol, []).append(
                             (_ct.direction, _ct.pnl, step)
                         )
-                        # Check if we just completed a 2-loss streak
+                        # Check if we just completed a 2-loss streak.
+                        # Direction-agnostic: a CT short loss between two long
+                        # losses still triggers the guard (any 2 consecutive
+                        # losses on the same symbol, regardless of direction).
                         _sh = _streak_history[_ct.symbol]
                         if (len(_sh) >= 2
-                                and _sh[-1][1] < 0 and _sh[-2][1] < 0
-                                and _sh[-1][0] == _sh[-2][0]):
+                                and _sh[-1][1] < 0 and _sh[-2][1] < 0):
                             # Escalating cooldown: double each re-trigger, cap at 24h
                             _prev_count = _streak_block_count.get(_ct.symbol, 0)
                             _streak_block_count[_ct.symbol] = _prev_count + 1
@@ -2748,7 +2925,8 @@ class BacktestEngine:
                                 _streak_base_bars * (2 ** _prev_count),
                                 _streak_max_bars,
                             )
-                            _streak_block_dir[_ct.symbol] = _sh[-1][0]
+                            # Block BOTH directions (full symbol cooldown)
+                            _streak_block_dir[_ct.symbol] = "both"
                             _streak_block_until[_ct.symbol] = step + _cooldown_bars
             self._prev_closed_count = _n_closed_now
 
@@ -2888,23 +3066,29 @@ class BacktestEngine:
                     if "." in _dir:          # fallback: "Direction.SHORT" → "short"
                         _dir = _dir.split(".")[-1].lower()
 
-                    # ── Same-direction losing streak guard ─────────────────
-                    # Block re-entry in a direction that lost 2+ times in a row.
-                    # Escalating cooldown doubles each re-trigger (4h→8h→16h→24h).
+                    # ── Per-symbol daily SL cap ────────────────────────────
+                    if _max_daily_sl > 0 and _day_sl_count.get(symbol, 0) >= _max_daily_sl:
+                        logger.debug(
+                            f"[SL-CAP] bar={step} {bar_date:%H:%M} {symbol} "
+                            f"SL_today={_day_sl_count[symbol]} >= max={_max_daily_sl}"
+                        )
+                        continue
+
+                    # ── Losing streak guard (direction-agnostic) ───────────
+                    # Block re-entry after 2+ consecutive losses on this symbol.
+                    # "both" means all directions are blocked (CT can't bypass).
                     _blk_dir   = _streak_block_dir.get(symbol)
                     _blk_until = _streak_block_until.get(symbol, 0)
-                    if _blk_dir == _dir and step < _blk_until:
+                    if _blk_dir and step < _blk_until:
                         logger.debug(
                             f"[STREAK] bar={step} {bar_date:%H:%M} {symbol} "
-                            f"last 2 {_dir} trades lost — blocking until bar {_blk_until} "
+                            f"2 consecutive losses — blocking {_blk_dir} until bar {_blk_until} "
                             f"(streak #{_streak_block_count.get(symbol, 1)})"
                         )
                         continue
-                    elif _blk_dir and (step >= _blk_until or _dir != _blk_dir):
-                        # Cooldown expired or direction changed — clear block
-                        if _dir != _blk_dir:
-                            # Direction flipped — reset escalation counter too
-                            _streak_block_count.pop(symbol, None)
+                    elif _blk_dir and step >= _blk_until:
+                        # Cooldown expired — clear block
+                        _streak_block_count.pop(symbol, None)
                         _streak_block_dir.pop(symbol, None)
                         _streak_block_until.pop(symbol, None)
 
@@ -3117,6 +3301,18 @@ class BacktestEngine:
         "1m": "1min", "5m": "5min", "15m": "15min", "30m": "30min",
         "1H": "1h", "4H": "4h", "1D": "1D",
     }
+
+    # Epoch-second conversion: works regardless of pandas datetime resolution
+    # (ns on older pandas, us on newer).  Using total_seconds() avoids the
+    # .astype(int64)//10**9 pattern that silently breaks on microsecond dtypes.
+    _EPOCH = None  # lazy-init to avoid import-time pandas dep
+
+    @staticmethod
+    def _to_epoch_seconds(idx: "pd.DatetimeIndex") -> np.ndarray:
+        import pandas as pd
+        if BacktestEngine._EPOCH is None:
+            BacktestEngine._EPOCH = pd.Timestamp("1970-01-01", tz="UTC")
+        return (idx - BacktestEngine._EPOCH).total_seconds().values.astype(float)
 
     def _preload_bars_csv(
         self, symbol: str, start_date: str, end_date: str
@@ -3334,7 +3530,7 @@ class BacktestEngine:
             if len(df) < 2:
                 continue
 
-            timestamps = (df.index.astype(np.int64) // 10**9).values.astype(float)
+            timestamps = self._to_epoch_seconds(df.index)
             bars_dict = {
                 "open":   df["open"].values.astype(float),
                 "high":   df["high"].values.astype(float),
@@ -3369,7 +3565,7 @@ class BacktestEngine:
                 & (peer_df_d1.index <= end_dt + timedelta(days=1))
             ]
             if len(peer_df_d1) >= 2:
-                pts = (peer_df_d1.index.astype(np.int64) // 10**9).values.astype(float)
+                pts = self._to_epoch_seconds(peer_df_d1.index)
                 all_bars[f"{peer}_1D"] = {
                     "open":   peer_df_d1["open"].values.astype(float),
                     "high":   peer_df_d1["high"].values.astype(float),
@@ -3426,9 +3622,12 @@ class BacktestEngine:
         short_tf = tf_cfg.short[0] if tf_cfg.short else "15m"
 
         # Map broker symbol → yfinance ticker
+        # Stocks fall back to the normalised ticker itself (AAPL → AAPL)
+        _norm = self._normalise_stock(symbol)
+        _fallback = _norm if self._is_stock(symbol) else (symbol.upper() + "=X")
         yf_ticker = self._YF_SYMBOL.get(
-            symbol.upper().rstrip("Mm"),
-            symbol.upper() + "=X",   # fallback: "NOKUSD" → "NOKUSD=X"
+            _norm,
+            _fallback,
         )
 
         raw_start_dt = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
@@ -3540,7 +3739,7 @@ class BacktestEngine:
                 df.index = df.index.tz_localize("UTC")
             else:
                 df.index = df.index.tz_convert("UTC")
-            timestamps = (df.index.astype(np.int64) // 10 ** 9).values.astype(float)
+            timestamps = self._to_epoch_seconds(df.index)
 
             bars_dict: Dict[str, np.ndarray] = {
                 "open":   df["open"].values.astype(float),
@@ -3605,7 +3804,7 @@ class BacktestEngine:
                             peer_df.index = peer_df.index.tz_localize("UTC")
                         else:
                             peer_df.index = peer_df.index.tz_convert("UTC")
-                        pts = (peer_df.index.astype(np.int64) // 10 ** 9).values.astype(float)
+                        pts = self._to_epoch_seconds(peer_df.index)
                         all_bars[f"{peer}_1D"] = {
                             "open":   peer_df["open"].values.astype(float),
                             "high":   peer_df["high"].values.astype(float),
@@ -3922,7 +4121,8 @@ class BacktestEngine:
                     # Calendar correction: 7 swap charges per 5 trading days
                     calendar_days = trading_days * 7.0 / 5.0
                     sym = pos.symbol.upper().rstrip("Mm")
-                    rates = self._SWAP_RATE.get(sym, (-3.0, -1.0))
+                    _default_swap = self._STOCK_SWAP_DEFAULT if self._is_stock(pos.symbol) else (-3.0, -1.0)
+                    rates = self._SWAP_RATE.get(sym, _default_swap)
                     rate = rates[0] if pos.direction == "long" else rates[1]
                     swap = rate * pos.quantity * calendar_days
                     gross += swap
@@ -3946,7 +4146,9 @@ class BacktestEngine:
         return gross
 
     def _pip_size(self, symbol: str) -> float:
-        sym = symbol.upper()
+        sym = self._normalise_stock(symbol)
+        if self._is_stock(symbol):
+            return 0.01          # 1 cent = 1 "pip" for stocks
         if "JPY" in sym:
             return 0.01
         if any(x in sym for x in ("DAX", "UK100", "US30", "US500", "USTEC", "XAU", "GOLD")):
@@ -3955,7 +4157,13 @@ class BacktestEngine:
 
     def _spread(self, symbol: str) -> float:
         """Return the base (calm-market) spread for *symbol*."""
-        return self._BASE_SPREAD.get(symbol.upper().rstrip("Mm"), 0.0001)
+        sym = self._normalise_stock(symbol)
+        base = self._BASE_SPREAD.get(sym, None)
+        if base is not None:
+            return base
+        if self._is_stock(symbol):
+            return 0.02          # $0.02 spread — typical US equity
+        return 0.0001
 
     def _dynamic_spread(
         self, symbol: str, bar_range: float, atr_14: float,
@@ -3982,13 +4190,23 @@ class BacktestEngine:
 
     def _commission(self, symbol: str, quantity: float) -> float:
         """Round-trip commission cost in account currency."""
-        per_lot = self._COMMISSION_PER_LOT.get(
-            symbol.upper().rstrip("Mm"), 7.0
-        )
-        return per_lot * quantity
+        sym = self._normalise_stock(symbol)
+        per_lot = self._COMMISSION_PER_LOT.get(sym, None)
+        if per_lot is not None:
+            return per_lot * quantity
+        if self._is_stock(symbol):
+            # Stock: $0.005/share round-trip (typical IBKR/Alpaca)
+            return 0.005 * quantity
+        return 7.0 * quantity
 
     def _tick_value(self, symbol: str) -> float:
-        return self._TICK_VALUE.get(symbol.upper().rstrip("Mm"), 10.0)
+        sym = self._normalise_stock(symbol)
+        tv = self._TICK_VALUE.get(sym, None)
+        if tv is not None:
+            return tv
+        if self._is_stock(symbol):
+            return 1.0            # $1 move per share per pip (pip=0.01)
+        return 10.0
 
     def _build_positions_map(
         self,

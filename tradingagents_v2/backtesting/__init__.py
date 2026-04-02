@@ -124,6 +124,9 @@ def main() -> None:
                         help="Run each symbol independently with its own equity "
                              "(no cross-symbol DD/position sharing). "
                              "Default: portfolio mode (shared equity, shared DD).")
+    parser.add_argument("--rank-signals", action="store_true",
+                        help="Rank competing signals by expected value and fill "
+                             "the best ones first (portfolio mode only).")
 
     # Handle --list-agents before argparse enforces required fields
     if "--list-agents" in sys.argv:
@@ -232,6 +235,8 @@ def main() -> None:
         print(f"Agent selection: all except {args.disable_agents} → {cfg.agents.enabled_agents}")
 
     symbols = args.symbols or args.symbol or getattr(cfg, "symbols", None) or ["EURUSD"]
+    if args.rank_signals:
+        cfg.rank_signals = True
     engine  = BacktestEngine(cfg)
     if args.data_dir:
         engine.set_data_dir(args.data_dir)
