@@ -187,16 +187,85 @@ def download_symbol(
 
     logger.info(f"Downloading {symbol} ticks {start:%Y-%m-%d} → {end:%Y-%m-%d}")
 
-    # Build list of hours to fetch
-    hours: List[datetime] = []
-    dt = start.replace(minute=0, second=0, microsecond=0)
-    while dt < end:
-        # Skip weekends (Sat/Sun — no forex trading)
-        if dt.weekday() < 5:
-            hours.append(dt)
-        dt += timedelta(hours=1)
+    # ── Incremental mode: detect existing data and skip already-covered hours
+    import pandas as pd
 
-    logger.info(f"  {len(hours)} hours to fetch ({len(hours) // 24} trading days)")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"{symbol}_{tf}.csv"
+    existing_df = None
+
+    # Map tf string → timedelta for bar-level gap detection
+    _TF_DELTA = {
+        "1m": timedelta(minutes=1), "5m": timedelta(minutes=5),
+        "15m": timedelta(minutes=15), "30m": timedelta(minutes=30),
+        "1H": timedelta(hours=1), "4H": timedelta(hours=4),
+        "1D": timedelta(days=1),
+    }
+    bar_delta = _TF_DELTA.get(tf, timedelta(hours=1))
+
+    # Work with naive UTC datetimes for reliable set comparisons
+    _start = start.replace(second=0, microsecond=0, tzinfo=None)
+    _end = end.replace(tzinfo=None)
+
+    # Build the FULL list of expected bar slots from start → end (weekdays only)
+    all_slots: List[datetime] = []
+    dt = _start
+    while dt < _end:
+        if dt.weekday() < 5:  # skip weekends
+            all_slots.append(dt)
+        dt += bar_delta
+
+    # Build the full list of hours (Dukascopy downloads are per-hour)
+    all_hours_set: set = set()
+    h = _start.replace(minute=0)
+    while h < _end:
+        if h.weekday() < 5:
+            all_hours_set.add(h)
+        h += timedelta(hours=1)
+
+    # Determine which bar slots already have data
+    existing_slots: set = set()
+    if out_path.exists():
+        try:
+            existing_df = pd.read_csv(out_path, index_col="time")
+            existing_df.index = pd.to_datetime(existing_df.index, utc=True)
+            if len(existing_df) > 0:
+                for ts in existing_df.index:
+                    # Build a plain naive datetime for reliable set-lookup
+                    existing_slots.add(
+                        datetime(ts.year, ts.month, ts.day, ts.hour, ts.minute, 0)
+                    )
+                logger.info(
+                    f"  {symbol}_{tf}: {len(existing_df):,} existing bars, "
+                    f"{len(existing_slots):,}/{len(all_slots):,} expected slots covered"
+                )
+        except Exception as exc:
+            logger.warning(f"  Could not read existing {out_path} ({exc}) — full re-download")
+            existing_df = None
+
+    # Find missing bar slots, then map them back to the hours we need to fetch
+    missing_slots = [s for s in all_slots if s not in existing_slots]
+
+    if not missing_slots:
+        logger.info(
+            f"  {symbol}_{tf}: all {len(all_slots):,} bar slots already covered "
+            f"({len(existing_df):,} bars) — nothing to download"
+        )
+        return out_path
+
+    # Each missing bar slot requires its enclosing hour to be downloaded
+    needed_hours: set = set()
+    for slot in missing_slots:
+        needed_hours.add(slot.replace(minute=0, second=0, microsecond=0))
+    # Only keep hours that are valid trading hours
+    hours = sorted(h for h in needed_hours if h in all_hours_set)
+
+    logger.info(
+        f"  {len(missing_slots):,} missing {tf} bar slots → "
+        f"{len(hours):,} hours to fetch "
+        f"(out of {len(all_hours_set):,} total hours, "
+        f"{len(all_hours_set) - len(hours):,} already covered)"
+    )
 
     # Parallel download
     all_ticks: List[Tuple] = []
@@ -257,12 +326,25 @@ def download_symbol(
     bars = bars.dropna()
 
     if len(bars) == 0:
+        if existing_df is not None and len(existing_df) > 0:
+            logger.info(f"  No new bars for {symbol} — keeping existing data")
+            return out_path
         logger.error(f"No bars after resampling {symbol} to {tf}")
         return None
 
+    # ── Merge with existing data (incremental) ────────────────────────────
+    if existing_df is not None and len(existing_df) > 0:
+        # Combine: existing bars + new bars — new bars win on overlap
+        combined = pd.concat([existing_df, bars])
+        combined = combined[~combined.index.duplicated(keep="last")]
+        combined = combined.sort_index()
+        bars = combined
+        logger.info(
+            f"  Merged: {len(existing_df):,} existing + {len(bars) - len(existing_df):,} new "
+            f"= {len(bars):,} total bars"
+        )
+
     # Write CSV
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / f"{symbol}_{tf}.csv"
     bars.index.name = "time"
     bars.to_csv(out_path)
 

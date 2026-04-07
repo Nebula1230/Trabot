@@ -23,8 +23,9 @@ from .settings import TradingConfig
 #            loose signal filters (only the ScalpingAgent + Momentum vote matters)
 #
 # Design rules enforced by the presets:
-#   • 'risky' never exceeds 0.30% per trade (3× 'safe')
-#   • Max daily drawdown scales: safe=0.5%, balanced=1.0%, risky=2.5%
+#   • Risk per trade: safe=0.05%, balanced=0.10%, risky=0.85%
+#   • Max daily drawdown: safe=0.5%, balanced=2.0%, risky=5.0%
+#   • Max weekly drawdown: safe=1.5%, balanced=4.0%, risky=10.0%
 #   • Correlation limit: safe=1, balanced=2, risky=3
 #   • All profiles keep VIX risk scaling enabled (floor only varies)
 # ──────────────────────────────────────────────────────────────────────────────
@@ -44,6 +45,7 @@ _PROFILES = {
             # spread erosion from excessive frequency.
             "entry_cooldown_minutes":  20,     # min 20 min between entries on same symbol
             "max_daily_trades":        10,     # hard daily cap across all symbols
+            "max_daily_sl_per_symbol": 2,      # halt symbol after 2 SL hits — prevent cluster blowups
             # Weekly circuit breaker: 5 days × 0.49% (just below daily halt) = 2.45%.
             # Cap the week at 1.5% to stop a slow losing streak before it compounds.
             "max_weekly_drawdown_pct": 1.50,
@@ -116,6 +118,11 @@ _PROFILES = {
             "partial_tp2_fraction": 0.50,   # close 50% of remainder at +2R
             "windfall_exit_enabled": True,
             "windfall_r_mult":      3.0,    # close ALL at +3R (safe: protect early)
+            # Stale-SL tightening: if trade is losing after 4h, begin squeezing.
+            # max_trade_duration is 8h, so this fires at the halfway mark.
+            "stale_sl_hours":  4.0,
+            "stale_sl_r_mult": 0.60,   # tighten to -0.60R (less aggressive than risky 0.50R)
+            "be_buffer_r":     0.10,   # consistent with balanced
         },
         "vix_risk_scaling": {
             "enabled":   True,
@@ -149,13 +156,42 @@ _PROFILES = {
                 "OrderFlowAgent":       0.10,
             },
         },
+        # ── Correlation-aware sizing ───────────────────────────────────────────
+        "correlation_sizing": {
+            "enabled": True,
+            "floor":   0.50,    # reduce to 50% for correlated positions (stricter than balanced)
+        },
+        # ── Dynamic sizing (conservative — no upside boost) ───────────────────
+        "confidence_sizing": {
+            "enabled":    True,
+            "floor":      0.80,    # low-confidence trades → 80% of base risk
+            "ceil":       1.00,    # NO upside boost in safe mode — capital preservation
+            "base_conf":  0.50,
+        },
+        "streak_sizing": {
+            "enabled":    True,
+            "win_boost":  1.00,    # NO boost after wins — capital preservation
+            "loss_cut":   0.70,    # cut to 70% after loss streak
+        },
+        # ── Holiday / thin-liquidity sizing damper ─────────────────────────────
+        "holiday_sizing_damper": {
+            "enabled": True,
+            "damper":  0.40,    # 40% of normal risk during Dec 22–Jan 2 (tighter than risky)
+        },
     },
 
     "balanced": {
         # Overrides on top of config.demo.yaml defaults.
+        # Critical risk params made explicit so balanced doesn't silently
+        # change if someone edits config.demo.yaml.
         "risk": {
-            "entry_cooldown_minutes": 60,   # 15→60: same as risky, max ~1 entry/session/symbol
-            "max_daily_trades":        6,   # 20→6: hard cap; ~2 per symbol per day
+            "base_risk_pct":           0.10,   # explicit (inherited 0.10 from config.demo.yaml)
+            "max_daily_drawdown_pct":  2.00,   # halt at -2% intraday (safe=0.5%, risky=5%)
+            "max_concurrent_trades":   6,      # explicit (inherited 6 from config.demo.yaml)
+            "max_weekly_drawdown_pct": 4.00,   # halt at -4% weekly (2× daily ceiling)
+            "max_daily_sl_per_symbol": 2,      # halt symbol after 2 SLs — prevent cluster blowups
+            "entry_cooldown_minutes":  60,     # 15→60: same as risky, max ~1 entry/session/symbol
+            "max_daily_trades":        6,      # 20→6: hard cap; ~2 per symbol per day
         },
         # Pyramiding: explicitly enabled (inherited from config.demo.yaml).
         # 2 entries max per symbol; 2nd entry at 50% risk; require profit + full alignment.
@@ -241,10 +277,16 @@ _PROFILES = {
             # before closing.  Default uses long_min_score=0.35 which fires too
             # often on intraday D1 score oscillations.
             "d1_flip_threshold":              0.45,
-            # Structural pivot ratchet: on 1m bars, get_structural_levels() returns
-            # micro-structure that changes every bar, collapsing SL to a few pips
-            # from entry → all-SL exits at tiny R.  Must disable on 1m.
-            "skip_structural_sl_tp_ratchet":  True,
+            # Structural pivot ratchet: now uses D1-scale ATR so micro-structure
+            # collapse no longer applies.  Re-enabled to benefit from pivot-aware
+            # SL/TP adjustments on higher timeframes.
+            "skip_structural_sl_tp_ratchet":  False,
+            # ── Adaptive time-stop: scale by volatility + session ──────────
+            "adaptive_time_stop":             True,
+            # ── In-trade signal re-evaluation ─────────────────────────────
+            "signal_reeval_enabled":          True,
+            # Time-stop: explicit (was inherited 10h from config.demo.yaml)
+            "max_trade_duration_hours":       10,
         },
         "trailing": {
             # Balanced uses 1H bars with wider SL — stale_sl needs more room.
@@ -253,6 +295,27 @@ _PROFILES = {
             "stale_sl_hours":  6.0,
             "stale_sl_r_mult": 0.50,
             "be_buffer_r":     0.10,
+        },
+        # ── Correlation-aware sizing ───────────────────────────────────────────
+        "correlation_sizing": {
+            "enabled": True,
+            "floor":   0.40,    # never reduce below 40% of base risk
+        },
+        # ── Limit orders: try limit at nearby structural level ────────────────
+        "execution": {
+            "use_limit_orders":           True,
+            "limit_order_expiry_seconds": 1800,   # 30 min before falling back to market
+        },
+        # ── RL exit policy (heuristic baseline) ───────────────────────────────
+        # Uses a weighted score of signal, time, and profit to decide exits.
+        # Replace model_path with a trained ONNX model when available.
+        "rl_exit_policy": {
+            "enabled":           True,
+            "w_signal":          0.40,
+            "w_time":            0.25,
+            "w_profit":          0.35,
+            "exit_threshold":    0.65,    # conservative: only exit on clear distress
+            "tighten_threshold": 0.45,
         },
         # ── Dynamic sizing: scale volume by confidence + recent streak ─────────
         "confidence_sizing": {
@@ -266,6 +329,17 @@ _PROFILES = {
             "win_boost":  1.15,    # max boost after win streak
             "loss_cut":   0.80,    # min cut after loss streak
         },
+        # ── Holiday / thin-liquidity sizing damper ─────────────────────────────
+        "holiday_sizing_damper": {
+            "enabled": True,
+            "damper":  0.50,    # 50% of normal risk during Dec 22–Jan 2
+        },
+        # ── VIX risk scaling (explicit — inherited from config.demo.yaml) ─────
+        "vix_risk_scaling": {
+            "enabled":   True,
+            "threshold": 0.40,    # start reducing at VIX ~26
+            "floor":     0.50,    # minimum 50% of base risk at peak fear
+        },
     },
 
     "risky": {
@@ -276,7 +350,7 @@ _PROFILES = {
         # ── Position sizing & hard limits ─────────────────────────────────────
         "risk": {
             "base_risk_pct":           0.85,   # v5: 0.75→0.85% — modest bump, NOT the 1.0% that killed Sharpe
-            "max_daily_drawdown_pct":  15.00,  # v6: →15% — wide ceiling, let the bot trade through volatility
+            "max_daily_drawdown_pct":  5.00,   # fixed: was 15% (above weekly=10%, daily cap never triggered)
             "max_concurrent_trades":   10,
             "per_symbol_leverage_cap": 8.0,
             "portfolio_leverage_cap":  15.0,
@@ -285,6 +359,7 @@ _PROFILES = {
             "max_daily_trades":        14,    # v5: 12→14 — allow more high-quality entries
             "max_daily_sl_per_symbol": 3,     # halt symbol after 3 SL hits/day — prevents cluster blowups
             "max_weekly_drawdown_pct": 10.00, # keep weekly ceiling tight
+            "max_lot":                 3.5,   # hard ceiling — prevents outsized positions from compounding multipliers
         },
         # ── Signal quality gates ───────────────────────────────────────────────
         # These are lower than balanced (more trades) but must still guarantee
@@ -364,6 +439,11 @@ _PROFILES = {
             "conviction_fade_threshold":      0.10,
             "tighten_fade_threshold":         0.18,
             "mid_short_opposition_threshold": 0.45,   # raised: less hair-trigger on 1m noise
+            # CT mid-flip: separate threshold for counter-trend trades.
+            # CT trades are BY DEFINITION against mid-TF; a mild mid reversion
+            # toward D1 is expected — only exit on a strong confirmed flip.
+            # 0.60 vs the normal 0.45 prevents the 7/7 loss record on CT exits.
+            "ct_mid_flip_threshold":          0.60,
             # Time-stop: risky uses D1 signals — need time to develop.
             # 12h was cutting winners that needed another session.
             "max_trade_duration_hours":       16,   # D1 signals need time — 16h covers full session
@@ -376,16 +456,36 @@ _PROFILES = {
             # 0.45 ensures the D1 must actually flip convincingly (nearly 2× the
             # entry bar) before we consider the thesis invalidated.
             "d1_flip_threshold":              0.45,
-            # Structural ratchet disabled: on 1m bars the nearest support/resist
-            # is micro-structure that changes every bar, collapsing SL to a few
-            # pips from entry and producing all-SL exits with tiny R-values.
-            "skip_structural_sl_tp_ratchet":  True,
+            # Structural ratchet: now uses D1-scale ATR so micro-structure
+            # collapse no longer applies.  Re-enabled for pivot-aware SL/TP.
+            "skip_structural_sl_tp_ratchet":  False,
+            # ── Adaptive time-stop: scale by volatility + session ──────────
+            "adaptive_time_stop":             True,
+            # ── In-trade signal re-evaluation ─────────────────────────────
+            "signal_reeval_enabled":          True,
         },
-        # Risky cycles every 5 min on 21 symbols; tolerate up to 3 min staleness.
-        # D1-based signals are valid for much longer than their freshness window.
+        # ── Correlation-aware sizing ───────────────────────────────────────────
+        "correlation_sizing": {
+            "enabled": True,
+            "floor":   0.30,    # risky allows down to 30% (more corr positions)
+        },
+        # ── Limit orders + execution config ─────────────────────────────────
+        # Risky uses limit orders for better fills on D1 swing entries,
+        # plus the standard execution settings (signal age, news blackout).
         "execution": {
-            "signal_max_age_seconds": 180,
-            "news_blackout_minutes":  20,   # block entries during high-impact events
+            "use_limit_orders":           True,
+            "limit_order_expiry_seconds": 2400,   # 40 min — D1 signals have longer shelf life
+            "signal_max_age_seconds":     180,
+            "news_blackout_minutes":      20,     # block entries during high-impact events
+        },
+        # ── RL exit policy (heuristic baseline — more aggressive for risky) ──
+        "rl_exit_policy": {
+            "enabled":           True,
+            "w_signal":          0.35,    # slightly less signal-weight (D1 oscillates)
+            "w_time":            0.30,    # more time pressure (16h trades)
+            "w_profit":          0.35,
+            "exit_threshold":    0.60,    # slightly more trigger-happy than balanced
+            "tighten_threshold": 0.40,
         },
         # Weekend gap protection on for risky — wider SLs don’t fully protect
         # against a Monday gap spike when holding over the weekend.
@@ -393,10 +493,13 @@ _PROFILES = {
             "weekend_close_enabled":  True,
             "weekend_close_utc_hour": 20,
         },
-        # Partial TP: risky locks in LESS early (40%) to let more profit run.
+        # Partial TP: bank half at +1R to avoid winner/loser risk asymmetry.
+        # At 0.20 the remaining 80% sat at BE-stop and lost $225/R while partials
+        # only banked $45/R — 5× asymmetry made +20R turn into -$9K.  At 0.50 the
+        # remainder risk matches winners ($~120 each side) so dollar PF ≈ R PF.
         "trailing": {
             "partial_tp_enabled":   True,
-            "partial_tp_fraction":  0.20,   # v5: 25→20% — lock less early, let 80% ride to TP2/time-stop
+            "partial_tp_fraction":  0.50,   # v6: 20→50% — fix $/R asymmetry (was 5× loser-heavy)
             "partial_tp2_enabled":  True,
             "partial_tp2_r_mult":   2.0,    # v5: 2.5→2.0R — capture TP2 earlier (more hits)
             "partial_tp2_fraction": 0.35,   # v5: 40→35% — keep more for the tail runner
@@ -424,14 +527,23 @@ _PROFILES = {
         # ── Dynamic sizing: aggressive confidence scaling for risky ──────────
         "confidence_sizing": {
             "enabled":    True,
-            "floor":      0.60,    # low-confidence → 60% risk
-            "ceil":       1.40,    # high-confidence → 140% risk
+            "floor":      0.80,    # low-confidence → 80% risk  (was 0.60 — too wide, losers sized 1.4x winners)
+            "ceil":       1.20,    # high-confidence → 120% risk (was 1.40 — high conf trades had worst $ PnL)
             "base_conf":  0.45,
+            "short_sizing_penalty": 0.95,  # shorts get 95% of normal size (light haircut — 96% of trades are shorts)
         },
         "streak_sizing": {
             "enabled":    True,
-            "win_boost":  1.20,    # moderate streak boost
-            "loss_cut":   0.75,    # moderate streak cut
+            "win_boost":  1.15,    # was 1.20 — modest boost, don't over-lever after wins
+            "loss_cut":   0.60,    # was 0.75 — aggressive cut: streak=2→0.70, streak=3→0.60 floor
+            "loss_cut_per_streak": 0.15,  # was 0.10 — faster penalty ramp per streak step
+        },
+        # ── Holiday / thin-liquidity sizing damper ─────────────────────
+        # Dec 22–Jan 2: spreads widen, liquidity thins, signals degrade.
+        # Cut risk_amount by 50% to avoid outsized year-end losses.
+        "holiday_sizing_damper": {
+            "enabled": True,
+            "damper":  0.50,   # 50% of normal risk during holiday window
         },
         # ── Macro fear guard ─────────────────────────────────────────────────
         # Start reducing earlier (0.40 vs 0.55) and floor at 40% (vs 60%).
@@ -457,6 +569,180 @@ _PROFILES = {
         "symbol_risk_multipliers": {
             "XAUUSD": 0.30,   # gold: 30% of base on risky
             "XAGUSD": 0.30,   # silver: same
+        },
+        # ── Exclude underperforming symbols ────────────────────────────────
+        # Full-year backtest (Jan 2025 – Jan 2026) showed these forex pairs
+        # have negative expectancy on the risky D1 model:
+        #   EURGBP: PF 0.74, -0.31%, 184 trades, only 4/12 months positive
+        #   EURCHF: PF 0.73, -0.14%, 108 trades, WR 37%
+        #   USDJPY: PF 0.72, -0.09%,  96 trades, WR 35%
+        # Removing them avoids 388 trades of pure churn and recovers ~+0.54%.
+        "exclude_symbols": ["EURGBP", "EURCHF", "USDJPY"],
+        # ── Per-symbol overrides for remaining forex pairs ─────────────────
+        # Full-year analysis: forex SL-hit rate 42% with median SL distance
+        # just 0.125% — inside normal H1 wick range.  Fixes:
+        #   • sl_buffer_atr_mult 0.25→0.50: moves SL beyond the stop-hunt zone
+        #   • min_sl_atr_mult 1.75: raises floor from 1×ATR to 1.75×ATR
+        #   • early_be_r DISABLED: was 0.50 — caused ~77% of trades to exit as
+        #     near-zero scratch SLs, flattening the equity curve.  Let the
+        #     standard +1R partial-TP handle the break-even move instead.
+        #   • be_buffer_r 0.40: wider cushion after BE (was 0.25 — too tight,
+        #     spread + noise kept sniping the trailed SL for micro gains).
+        "symbol_overrides": {
+            **{sym: {
+                "trailing": {"be_buffer_r": 0.40, "early_be_r": 0.0},
+                "confidence_sizing": {"short_sizing_penalty": 0.85},
+                "alignment": {
+                    "min_agent_consensus": 3,
+                    "sl_buffer_atr_mult": 0.50,    # 2× wider wick buffer (was 0.25)
+                    "min_sl_atr_mult":    1.75,    # floor: 1.75×ATR (was 1.50)
+                },
+            } for sym in [
+                "EURUSD", "GBPUSD", "USDCHF", "AUDUSD", "USDCAD", "NZDUSD",
+                "EURJPY", "GBPJPY", "AUDJPY", "CHFJPY",
+            ]},
+            # XAGUSD: 94 SL trades lost $20K (69% of all SL losses).
+            # Silver's high tick_value + wide structural pivots cause outsized
+            # dollar losses.  Cap SL at 2×ATR; early_be disabled (same rationale).
+            "XAGUSD": {
+                "trailing": {"early_be_r": 0.0},
+                "alignment": {"max_sl_atr_mult": 2.0},
+            },
+        },
+    },
+
+    # ── risky_equity ───────────────────────────────────────────────────────
+    # Variant of "risky" optimised for US equities (AMD, NVDA, MSFT, AAPL…).
+    # Equities differ from forex in several critical ways:
+    #   • Only 6.5 hours/day of regular trading (vs 24h)
+    #   • Wider spreads, especially at open/close
+    #   • Overnight gap risk (no continuous price flow)
+    #   • Fewer bars/day → slower signal development
+    #   • Streak cooldown of 4h = most of the trading session
+    #
+    # Key changes vs risky:
+    #   - Looser alignment thresholds (fewer bars → fewer clean setups)
+    #   - Lower min_agent_consensus (1 — agents disagree more on sparse data)
+    #   - Shorter streak cooldown (1h base / 6h max — 4h was locking out symbols)
+    #   - Wider daily SL allowance (5 per symbol instead of 3)
+    #   - Shorter entry cooldown (15 min — 25 min burns 38% of session)
+    #   - Disabled dead-zone penalty (no Asian session for stocks)
+    #   - Adjusted time-stop for equity session length
+    "risky_equity": {
+        "mt5": {
+            "magic_number": 434246,
+        },
+        "risk": {
+            "base_risk_pct":              0.85,
+            "max_daily_drawdown_pct":     15.00,
+            "max_concurrent_trades":      10,
+            "per_symbol_leverage_cap":    8.0,
+            "portfolio_leverage_cap":     15.0,
+            "max_correlated_positions":   3,
+            "entry_cooldown_minutes":     15,     # 25→15: stocks have only ~7 1H bars/day
+            "max_daily_trades":           20,     # 14→20: more room for multi-symbol
+            "max_daily_sl_per_symbol":    5,      # 3→5: 3 SLs in 6.5h locks out the whole day
+            "max_weekly_drawdown_pct":    10.00,
+            "max_lot":                    3.5,
+            "streak_cooldown_base_hours": 1.0,    # 4h→1h: 4h is 60% of a trading session
+            "streak_cooldown_max_hours":  6.0,    # 24h→6h: next-day reset, not multi-day lockout
+        },
+        "alignment": {
+            "long_min_score":    0.12,   # 0.18→0.12: D1 scores on equities are lower (fewer data points)
+            "mid_min_score":     0.08,   # 0.12→0.08: mid TF (1H) often noisy on stocks
+            "short_min_score":   0.04,   # 0.06→0.04: just needs to not strongly oppose
+            "min_win_prob":      0.43,   # 0.46→0.43: fewer samples → lower modeled probabilities
+            "min_ev":            0.08,   # 0.10→0.08: accept thinner edge, compensate with more trades
+            "min_confidence":    0.42,   # 0.48→0.42: agents less confident with sparser equity data
+            "min_agent_consensus": 1,    # 2→1: on equities, often only 1-2 agents produce meaningful scores
+            "require_full_alignment": False,
+            "adx_trend_min":     0.0,
+            "pullback_tolerance": 0.20,  # slightly wider for equity pullbacks
+            "mean_rev_block_threshold": 0.80,
+            "dead_zone_factor":  1.0,    # disabled — no Asian session for equities
+            "counter_trend": {
+                "enabled":          True,
+                "mid_min_score":    0.20,   # 0.25→0.20: easier CT entry on stocks
+                "short_min_score":  0.12,
+                "long_min_score":   0.18,
+                "win_prob_penalty": 0.10,
+                "max_rr":           1.5,
+            },
+        },
+        "scale_in": {
+            "enabled":                  True,
+            "max_positions_per_symbol": 2,
+            "require_profit":           True,
+            "min_profit_r":             0.25,
+            "require_full_alignment":   False,
+            "risk_fraction":            0.60,
+        },
+        "agents": {
+            "agent_weights": {
+                "ScalpingAgent":        0.20,
+                "VwapScalpAgent":       0.20,
+                "SqueezeBreakoutAgent": 0.20,
+                "OrderFlowAgent":       0.20,
+            },
+        },
+        "exit_rules": {
+            "conviction_fade_enabled":        False,
+            "tighten_on_fade_enabled":        False,
+            "conviction_fade_threshold":      0.10,
+            "tighten_fade_threshold":         0.18,
+            "mid_short_opposition_threshold": 0.45,
+            "ct_mid_flip_threshold":          0.60,
+            "max_trade_duration_hours":       8,    # 16→8: equity session is only 6.5h; stale = one session
+            "ct_max_hours":                   3,    # 4→3: CT on equity resolves faster (shorter session)
+            "d1_flip_threshold":              0.45,
+            "skip_structural_sl_tp_ratchet":  True,
+        },
+        "execution": {
+            "signal_max_age_seconds": 180,
+            "news_blackout_minutes":  20,
+        },
+        "realtime": {
+            "weekend_close_enabled":  True,
+            "weekend_close_utc_hour": 20,
+        },
+        "trailing": {
+            "partial_tp_enabled":   True,
+            "partial_tp_fraction":  0.20,
+            "partial_tp2_enabled":  True,
+            "partial_tp2_r_mult":   2.0,
+            "partial_tp2_fraction": 0.35,
+            "windfall_exit_enabled": True,
+            "windfall_r_mult":      4.0,
+            "early_be_r": 0.0,
+            "be_buffer_r": 0.15,
+            "stale_sl_hours":  4.0,    # 6→4: tighten sooner on equities (shorter sessions)
+            "stale_sl_r_mult": 0.50,
+        },
+        "confidence_sizing": {
+            "enabled":    True,
+            "floor":      0.80,
+            "ceil":       1.20,
+            "base_conf":  0.42,    # lowered to match the lower min_confidence
+            "short_sizing_penalty": 0.95,
+        },
+        "streak_sizing": {
+            "enabled":    True,
+            "win_boost":  1.15,
+            "loss_cut":   0.70,    # 0.60→0.70: less aggressive cut (fewer trades to recover with)
+            "loss_cut_per_streak": 0.10,
+        },
+        "holiday_sizing_damper": {
+            "enabled": True,
+            "damper":  0.50,
+        },
+        "vix_risk_scaling": {
+            "enabled":   True,
+            "threshold": 0.35,    # equities respond to VIX more directly
+            "floor":     0.40,
+        },
+        "regime_weighting": {
+            "trend_threshold": 0.55,
+            "range_threshold": 0.40,
         },
     },
 
@@ -842,9 +1128,10 @@ def load_config_from_yaml(
     Load configuration from a YAML file and return a TradingConfig instance.
 
     *profile* can be ``"safe"``, ``"balanced"`` (default), or ``"risky"``.
-    The profile preset is deep-merged on top of the user YAML before
-    TradingConfig is constructed, so individual YAML settings still apply
-    except where the profile explicitly overrides them.
+    The profile preset is deep-merged **on top of** the user YAML so that
+    profile-specific trading parameters (risk, alignment, agents, …) always
+    take effect.  The YAML supplies connection info, symbols, and any keys
+    the profile does not set.
 
     The YAML may contain a ``profile:`` key as well — the CLI argument
     (if provided) takes precedence.
@@ -865,7 +1152,10 @@ def load_config_from_yaml(
         )
     data["profile"] = resolved_profile   # store resolved value in config
 
-    # Apply profile preset (patch on top of user data)
+    # Apply profile preset ON TOP of the user YAML.
+    # Profile-specific keys (risk, alignment, trailing, …) override the YAML;
+    # keys absent from the profile (symbols, mt5, interval_seconds, …) are
+    # inherited from the YAML unchanged.
     preset = _PROFILES[resolved_profile]
     if preset:
         data = _deep_merge(data, preset)
@@ -888,6 +1178,20 @@ def load_config_from_yaml(
             if yaml_key in alignment:
                 data[section][field] = alignment[yaml_key]
         # alignment dict is left in `data` so TradingConfig.alignment gets it.
+
+    # ── Profile-driven symbol exclusion ──────────────────────────────────
+    # Profiles may define 'exclude_symbols' to drop underperforming pairs
+    # from the base YAML symbol list (e.g. risky drops EURGBP/EURCHF/USDJPY).
+    _exclude = set(data.pop("exclude_symbols", []))
+    if _exclude and "symbols" in data:
+        before = len(data["symbols"])
+        data["symbols"] = [s for s in data["symbols"] if s not in _exclude]
+        if len(data["symbols"]) < before:
+            import logging
+            logging.getLogger("yaml_config").info(
+                f"Profile '{resolved_profile}' excluded {_exclude} "
+                f"→ {before}→{len(data['symbols'])} symbols"
+            )
 
     return TradingConfig(**{k: v for k, v in data.items()
                             if not k.startswith("_")})

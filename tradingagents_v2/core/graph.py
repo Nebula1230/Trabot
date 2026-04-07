@@ -121,7 +121,7 @@ class TradingGraph:
                 # Route agent to its timeframe-specific features when available
                 tf_features = features_by_tf.get(agent.timeframe) or primary_features
                 # Pass current_price in context so agents can use it for swing breakout detection
-                ctx: Dict[str, Any] = {}
+                ctx: Dict[str, Any] = {"symbol": state["symbol"]}
                 if self.executor is not None:
                     prices = self.executor.get_current_price(state["symbol"])
                     if prices:
@@ -133,7 +133,14 @@ class TradingGraph:
                 except Exception as e:
                     return agent.name, e
 
-            raw = await asyncio.gather(*[_run_one(a) for a in agents])
+            try:
+                raw = await asyncio.wait_for(
+                    asyncio.gather(*[_run_one(a) for a in agents]),
+                    timeout=60.0,
+                )
+            except asyncio.TimeoutError:
+                self.logger.error("Agent gather timed out after 60s")
+                raw = []
 
             results = {}
             for name, result in raw:
@@ -215,8 +222,8 @@ class TradingGraph:
                 # reflects the intraday regime, which updates faster than D1 ADX.
                 trendiness_raw = outputs["RegimeAgent"].evidence.get("trendiness", 0.50)
 
-            TREND_THRESH  = float(self.config.get("regime_weighting", {}).get("trend_threshold", 0.55))
-            RANGE_THRESH  = float(self.config.get("regime_weighting", {}).get("range_threshold", 0.40))
+            TREND_THRESH  = min(float(self.config.get("regime_weighting", {}).get("trend_threshold", 0.55)), 0.99)
+            RANGE_THRESH  = max(float(self.config.get("regime_weighting", {}).get("range_threshold", 0.40)), 0.01)
             is_trending   = trendiness_raw > TREND_THRESH
             is_ranging    = trendiness_raw < RANGE_THRESH
 
@@ -318,8 +325,10 @@ class TradingGraph:
                     # Only penalise when both agents agree (same sign + both non-trivial)
                     if score_a * score_b > 0 and abs(score_a) > 0.05 and abs(score_b) > 0.05:
                         adj = penalty ** 0.5   # sqrt: moderate, symmetric reduction
-                        _corr_adj[agent_a] = _corr_adj.get(agent_a, 1.0) * adj
-                        _corr_adj[agent_b] = _corr_adj.get(agent_b, 1.0) * adj
+                        # Use min() instead of cumulative multiply to prevent
+                        # agents in many correlated pairs from being over-suppressed.
+                        _corr_adj[agent_a] = min(_corr_adj.get(agent_a, 1.0), adj)
+                        _corr_adj[agent_b] = min(_corr_adj.get(agent_b, 1.0), adj)
 
             if _corr_adj:
                 self.logger.debug(
@@ -632,6 +641,9 @@ class TradingGraph:
             # This prevents a single high-weight agent from dragging the tier
             # score over the bar while all others are neutral or opposed.
             min_consensus = int(al_cfg.get("min_agent_consensus", 0))
+            # Per-symbol override: forex pairs may require more consensus
+            _sym_al_ov = self.config.get("symbol_overrides", {}).get(state["symbol"], {}).get("alignment", {})
+            min_consensus = int(_sym_al_ov.get("min_agent_consensus", min_consensus))
             vote_threshold = float(al_cfg.get("consensus_vote_threshold", 0.05))
             if min_consensus > 0 and (bull_aligned or bear_aligned):
                 # Cap the required consensus to the number of directional agents
@@ -922,7 +934,9 @@ class TradingGraph:
                 rr = 1.0 + mid_strength * 0.5
                 rr = float(np.clip(rr, 1.0, _ct_max_rr))
             elif scalp_mode and tight_cfg.get("sl_atr_mult", 0) > 0:
-                rr = float(tight_cfg["tp_atr_mult"]) / float(tight_cfg["sl_atr_mult"])
+                _tp_m = float(tight_cfg.get("tp_atr_mult", 3.0))
+                _sl_m = float(tight_cfg.get("sl_atr_mult", 2.0))
+                rr = _tp_m / max(_sl_m, 1e-9)
                 rr = float(np.clip(rr, 1.0, 4.0))
             else:
                 long_strength = abs(fusion.dir_long)   # may already be set above
@@ -1047,13 +1061,17 @@ class TradingGraph:
 
             portfolio = state.get("portfolio_state")
             limits = state.get("risk_limits") or RiskLimits()
+            # In ranking / dry-run mode the caller handles slot allocation
+            # via rank_and_select(); skip max_concurrent here so that
+            # candidates are still generated even when at full capacity.
+            _defer_capacity = bool(state.get("_dry_run") or state.get("_rank_mode"))
             if portfolio:
                 if portfolio.daily_drawdown < -limits.max_daily_drawdown_pct / 100:
                     self.logger.info("Daily drawdown limit exceeded")
                     state["decision"] = "rejected"
                     state.setdefault("metadata", {})["block_reason"] = f"daily_drawdown:{portfolio.daily_drawdown*100:.2f}%"
                     return state
-                if len(portfolio.open_positions) >= limits.max_concurrent_trades:
+                if not _defer_capacity and len(portfolio.open_positions) >= limits.max_concurrent_trades:
                     self.logger.info("Max concurrent trades reached")
                     state["decision"] = "rejected"
                     state.setdefault("metadata", {})["block_reason"] = f"max_concurrent:{len(portfolio.open_positions)}/{limits.max_concurrent_trades}"
@@ -1271,6 +1289,11 @@ class TradingGraph:
             limits = state.get("risk_limits") or RiskLimits()
             portfolio = state.get("portfolio_state")
             equity = portfolio.equity if portfolio else 10000.0
+            if equity <= 0:
+                self.logger.warning(f"Equity={equity:.2f} <= 0, skipping sizing")
+                state["decision"] = "rejected"
+                state.setdefault("metadata", {})["block_reason"] = f"equity_invalid:{equity:.2f}"
+                return state
             is_scale_in = state.get("metadata", {}).get("scale_in", False)
 
             # Scale-in uses half the normal risk and a tighter 1×ATR stop
@@ -1297,16 +1320,13 @@ class TradingGraph:
             # same time, the aggregate dollar-at-risk matches what the live
             # global cap would allow.
             #
+            # Skip in ranked mode — ranking already enforces max_concurrent.
+            #
             # Formula:  concentration_scale = max_concurrent / n_symbols
             #           (capped at 1.0 — never increase risk above base)
-            #
-            # Examples:
-            #   1 symbol,  max_concurrent=8 → scale=1.0  (full risk, like live)
-            #   4 symbols, max_concurrent=8 → scale=1.0  (plenty of slots)
-            #   19 symbols, max_concurrent=8 → scale=0.42 (each symbol gets its
-            #       fair share of the risk budget)
             _n_syms = getattr(portfolio, "n_portfolio_symbols", 1) if portfolio else 1
-            if _n_syms > 1:
+            _is_ranked = bool(state.get("_rank_mode"))
+            if _n_syms > 1 and not _is_ranked:
                 _conc_scale = min(1.0, limits.max_concurrent_trades / _n_syms)
                 risk_amount *= _conc_scale
                 self.logger.info(
@@ -1367,6 +1387,73 @@ class TradingGraph:
                     f"risk ×{vix_scale:.2f} ({risk_amount:.2f})"
                 )
 
+            # ── Correlation-aware sizing ──────────────────────────────────────
+            # When multiple positions share correlated exposure (same currency
+            # bucket), reduce size proportionally so the TOTAL correlated risk
+            # stays bounded.  Uses empirical correlation estimates between major
+            # pairs rather than just counting positions.
+            #
+            # Formula: corr_scale = 1 / (1 + sum(pair_correlation_i))
+            #   where the sum is over existing open positions in the same bucket.
+            #   This means the 2nd correlated trade gets ~55% of normal size
+            #   (assuming r=0.85 correlation), the 3rd gets ~37%, etc.
+            _corr_sizing_cfg = self.config.get("correlation_sizing", {})
+            _corr_sizing_enabled = _corr_sizing_cfg.get("enabled", False)
+            if _corr_sizing_enabled and portfolio:
+                # Empirical correlation table (same-direction exposure)
+                # These approximate 1-year rolling Pearson correlations
+                _PAIR_CORR = {
+                    # USD pairs: highly correlated (inverse moves)
+                    ("EURUSD", "GBPUSD"): 0.85,
+                    ("EURUSD", "AUDUSD"): 0.70,
+                    ("EURUSD", "NZDUSD"): 0.65,
+                    ("GBPUSD", "AUDUSD"): 0.60,
+                    ("GBPUSD", "NZDUSD"): 0.55,
+                    ("AUDUSD", "NZDUSD"): 0.90,
+                    ("USDJPY", "USDCHF"): 0.50,
+                    ("USDJPY", "USDCAD"): 0.45,
+                    # Cross-pair correlations
+                    ("EURJPY", "GBPJPY"): 0.88,
+                    ("EURJPY", "AUDJPY"): 0.72,
+                    ("GBPJPY", "AUDJPY"): 0.65,
+                    # Gold/silver
+                    ("XAUUSD", "XAGUSD"): 0.92,
+                    ("XAUUSD", "EURUSD"): 0.40,
+                }
+
+                _sym_upper = state["symbol"].upper()
+                _signal_dir = "SELL" if recipe.direction == "short" else "BUY"
+                _total_corr = 0.0
+
+                for open_sym, positions in portfolio.open_positions_map.items():
+                    if open_sym.upper() == _sym_upper:
+                        continue  # same symbol handled by scale_in, not here
+                    for p in positions:
+                        # Only count positions in the same directional bucket
+                        _key = tuple(sorted([_sym_upper, open_sym.upper()]))
+                        _pair_r = _PAIR_CORR.get(_key, 0.0)
+                        if _pair_r > 0:
+                            # Same direction multiplier: if both long or both short
+                            # on correlated pairs, full correlation factor.
+                            # Opposite directions: correlation reduces risk (hedge).
+                            _same_dir = (_signal_dir == p["type"])
+                            if _same_dir:
+                                _total_corr += _pair_r
+                            else:
+                                _total_corr -= _pair_r * 0.5  # partial hedge credit
+
+                _total_corr = max(0.0, _total_corr)  # no negative adjustment
+                if _total_corr > 0:
+                    _corr_scale = 1.0 / (1.0 + _total_corr)
+                    _corr_floor = float(_corr_sizing_cfg.get("floor", 0.30))
+                    _corr_scale = max(_corr_scale, _corr_floor)
+                    risk_amount *= _corr_scale
+                    self.logger.info(
+                        f"Correlation sizing [{state['symbol']}]: "
+                        f"total_corr={_total_corr:.2f} → risk ×{_corr_scale:.2f} "
+                        f"(${risk_amount:.2f})"
+                    )
+
             # ── Kelly criterion position sizing ──────────────────────────────
             # Scale risk up/down based on per-symbol closed-trade track record.
             # Only active after min_trades history; defaults to 1.0× until then.
@@ -1379,12 +1466,17 @@ class TradingGraph:
                         f"→ risk={risk_amount:.2f}"
                     )
 
+            # ── Per-symbol parameter overrides (from tuning layer) ────────────
+            _sym_overrides = self.config.get("symbol_overrides", {}).get(state["symbol"], {})
+
             # ── Confidence-scaled sizing ──────────────────────────────────────
             # Agents produce a confidence score (0–1) per timeframe tier.
             # Map it to a risk multiplier: low confidence → less risk, high → more.
             # Linear mapping: [min_conf, 1.0] → [conf_floor, conf_ceil]
             # Below min_conf: clamped to conf_floor (trade was already gated).
             _conf_sizing = self.config.get("confidence_sizing", {})
+            if "confidence_sizing" in _sym_overrides:
+                _conf_sizing = {**_conf_sizing, **_sym_overrides["confidence_sizing"]}
             if _conf_sizing.get("enabled", True):
                 fusion = state.get("timeframe_fusion")
                 if fusion:
@@ -1405,12 +1497,26 @@ class TradingGraph:
                             f"(risk=${risk_amount:.2f})"
                         )
 
+            # ── Short-side sizing penalty ──────────────────────────────────────
+            # Short entries historically underperform (lower win-rate, more CT
+            # flips).  Apply a configurable sizing penalty to shorts so that
+            # the same confidence produces a smaller position than a long.
+            _short_penalty = float(_conf_sizing.get("short_sizing_penalty", 1.0))
+            if recipe.direction == "short" and _short_penalty < 1.0:
+                risk_amount *= _short_penalty
+                self.logger.info(
+                    f"Short sizing penalty [{state['symbol']}]: "
+                    f"×{_short_penalty:.2f} → risk=${risk_amount:.2f}"
+                )
+
             # ── Streak momentum sizing ────────────────────────────────────────
             # Recent P&L history (passed from engine/runner as list of R-values)
             # modulates risk: winning streaks → size up, losing → size down.
             # Uses last N completed trades (excluding partials).
             _recent_pnl_r = state.get("recent_pnl_r", [])
             _streak_cfg = self.config.get("streak_sizing", {})
+            if "streak_sizing" in _sym_overrides:
+                _streak_cfg = {**_streak_cfg, **_sym_overrides["streak_sizing"]}
             if _streak_cfg.get("enabled", True) and len(_recent_pnl_r) >= 2:
                 _win_boost  = float(_streak_cfg.get("win_boost", 1.15))
                 _loss_cut   = float(_streak_cfg.get("loss_cut", 0.80))
@@ -1428,12 +1534,36 @@ class TradingGraph:
                         _streak_mult = min(_win_boost, 1.0 + 0.05 * _streak_len)
                     else:
                         # Losing streak: cut size (floored at loss_cut)
-                        _streak_mult = max(_loss_cut, 1.0 - 0.10 * _streak_len)
+                        _loss_per = float(_streak_cfg.get("loss_cut_per_streak", 0.10))
+                        _streak_mult = max(_loss_cut, 1.0 - _loss_per * _streak_len)
                     risk_amount *= _streak_mult
                     self.logger.info(
                         f"Streak sizing [{state['symbol']}]: "
                         f"{'win' if _last > 0 else 'loss'} streak={_streak_len} "
                         f"→ ×{_streak_mult:.2f} (risk=${risk_amount:.2f})"
+                    )
+
+            # ── Holiday / thin-liquidity sizing damper ─────────────────────
+            # Year-end (Dec 22–Jan 2) and similar windows have thinner
+            # liquidity, wider spreads, and unreliable signals.  Scale down
+            # risk_amount to avoid outsized losses from gap/slippage risk.
+            _holiday_cfg = self.config.get("holiday_sizing_damper", {})
+            if _holiday_cfg.get("enabled", False):
+                from datetime import timezone as _tz
+                _bar_ts = getattr(self.data_loader, "_current_bar_ts", None)
+                if _bar_ts is not None:
+                    _bar_dt = datetime.fromtimestamp(int(_bar_ts), tz=_tz.utc)
+                else:
+                    _bar_dt = datetime.now(_tz.utc)
+                _m, _d = _bar_dt.month, _bar_dt.day
+                _in_holiday = (_m == 12 and _d >= 22) or (_m == 1 and _d <= 2)
+                if _in_holiday:
+                    _hol_damper = float(_holiday_cfg.get("damper", 0.50))
+                    risk_amount *= _hol_damper
+                    self.logger.info(
+                        f"Holiday damper [{state['symbol']}]: "
+                        f"{_bar_dt.strftime('%b %d')} → ×{_hol_damper:.2f} "
+                        f"(risk=${risk_amount:.2f})"
                     )
 
             # For SL/TP sizing: use 1H ATR as the PRIMARY anchor.
@@ -1446,7 +1576,7 @@ class TradingGraph:
             # and use mid ATR as a floor to avoid noise stops.
             _plan_features_by_tf = state.get("features_by_tf", {})
             _mid_feats = _plan_features_by_tf.get("mid")
-            _h1_feats  = _plan_features_by_tf.get("1H")   # always loaded by preload
+            _h1_feats  = _plan_features_by_tf.get("1H") or _plan_features_by_tf.get("mid")
             _long_feats = _plan_features_by_tf.get("long")
 
             # Primary: 1H ATR — matches the typical intraday holding period
@@ -1469,6 +1599,15 @@ class TradingGraph:
             if _d1_atr > 0:
                 atr_for_sizing = min(atr_for_sizing, _d1_atr)
 
+            # Safety: reject trade if ATR is zero (dead feed / missing bars)
+            if atr_for_sizing <= 0:
+                self.logger.error(
+                    f"ATR is zero for {state['symbol']} — cannot size safely, rejecting trade"
+                )
+                state["decision"] = "rejected"
+                state.setdefault("metadata", {})["block_reason"] = "atr_zero"
+                return state
+
             stop_distance_raw = atr_for_sizing * sl_atr_mult
 
             live_price = self.executor.get_current_price(state["symbol"])
@@ -1487,8 +1626,20 @@ class TradingGraph:
             #        being a fixed ratio — this makes it market-driven.
             # 5. Minimum SL distance: 1.5×ATR (never expose less than this).
             atr = atr_for_sizing
-            sl_buffer = 0.25 * atr              # wick noise buffer beyond level
-            min_stop  = 1.5 * atr               # absolute floor for SL distance
+            # ── Per-symbol SL tuning ───────────────────────────────────────
+            # Forex structural-pivot SLs land at ~0.12% (median) — inside the
+            # normal H1 wick range, causing 42%+ SL-hit rate.  Per-symbol
+            # overrides let forex widen the buffer (0.50×ATR vs default 0.25)
+            # and raise the min-stop floor (1.5×ATR vs 1.0) without affecting
+            # indices/commodities.
+            _al_cfg  = self.config.get("alignment", {})
+            _sym_al  = self.config.get("symbol_overrides", {}).get(state["symbol"], {}).get("alignment", {})
+            _sl_buf_mult = float(_sym_al.get("sl_buffer_atr_mult", _al_cfg.get("sl_buffer_atr_mult", 0.25)))
+            _min_sl_mult = float(_sym_al.get("min_sl_atr_mult", _al_cfg.get("min_sl_atr_mult", 0.0)))
+            sl_buffer = _sl_buf_mult * atr              # wick noise buffer beyond level
+            # min_stop floor: use per-symbol min_sl_atr_mult if set, else fall back to sl_atr_mult
+            _eff_min_sl = max(sl_atr_mult, _min_sl_mult) if _min_sl_mult > 0 else sl_atr_mult
+            min_stop  = _eff_min_sl * atr       # absolute floor for SL distance
 
             # get_structural_levels() merges weekly formula pivots with D1 swing
             # highs/lows so that SL/TP targets reflect actual price memory.
@@ -1594,7 +1745,7 @@ class TradingGraph:
             #   a) unreachably far TP (after min R:R enforcement multiplies SL dist)
             #   b) tiny R per pip → every time-stop is a micro-R loss that adds up
             # Cap the SL distance so TPs remain realistic for the holding period.
-            _max_sl_mult = float(self.config.get("alignment", {}).get("max_sl_atr_mult", 3.5))
+            _max_sl_mult = float(_sym_al.get("max_sl_atr_mult", _al_cfg.get("max_sl_atr_mult", 3.5)))
             if stop_distance > _max_sl_mult * atr:
                 _old_stop_dist = stop_distance
                 self.logger.info(
@@ -1785,6 +1936,37 @@ class TradingGraph:
                 raw_lots = round(round(raw_lots / vol_step) * vol_step, 8)
             quantity = max(vol_min, raw_lots)
 
+            # ── Max lot hard cap ──────────────────────────────────────────────
+            # Regardless of confidence/sizing math, never exceed this ceiling.
+            # Prevents outsized positions from compounding multipliers.
+            _max_lot = float(self.config.get("risk", {}).get("max_lot", 0.0))
+            if _max_lot > 0 and quantity > _max_lot:
+                self.logger.info(
+                    f"Max lot cap [{state['symbol']}]: "
+                    f"{quantity:.2f} → {_max_lot:.2f}"
+                )
+                quantity = _max_lot
+
+            # ── Per-symbol leverage cap ───────────────────────────────────────
+            # Cap lot size so notional exposure stays within per-symbol leverage
+            # limit: entry_price × quantity × contract_size ≤ cap × equity.
+            _sym_lev_cap = limits.per_symbol_leverage_cap
+            if _sym_lev_cap > 0 and equity > 0 and entry_price > 0:
+                _csize = getattr(symbol_info, "trade_contract_size", 100_000) if symbol_info else 100_000
+                _notional = quantity * entry_price * _csize
+                _max_notional = _sym_lev_cap * equity
+                if _notional > _max_notional:
+                    _capped_qty = _max_notional / (entry_price * _csize)
+                    if vol_step > 0:
+                        _capped_qty = round(round(_capped_qty / vol_step) * vol_step, 8)
+                    _capped_qty = max(vol_min, _capped_qty)
+                    self.logger.info(
+                        f"Per-symbol leverage cap [{state['symbol']}]: "
+                        f"{quantity:.2f} → {_capped_qty:.2f} lots "
+                        f"(notional {_notional:.0f} > {_sym_lev_cap:.1f}× equity {equity:.0f})"
+                    )
+                    quantity = _capped_qty
+
             # Recalculate risk_amount to reflect actual position size after
             # lot-step rounding.  Without this, R-multiples are inconsistent
             # because the planned risk_amount can differ significantly from
@@ -1892,14 +2074,68 @@ class TradingGraph:
 
             self.logger.info(f"Executing trade for {state['symbol']}")
 
-            # Acquire executor lock so watchdog cannot replace the executor and
-            # surveillance cannot modify the same position mid-placement.
-            _lock = self._executor_lock
-            if _lock is not None:
-                async with _lock:
-                    result = self.executor.place_bracket_order(trade_plan)
+            # ── Limit-order logic: try to enter at a better price ──────────────
+            # If the nearest structural support/resistance is within 0.3×ATR of
+            # the current price, use a limit order at that level instead of a
+            # market order. This improves the average fill by 0.1-0.3R per trade.
+            # Falls back to market if the broker rejects pending orders.
+            _use_limit = bool(self.config.get("execution", {}).get("use_limit_orders", False))
+            _limit_result = None
+
+            if _use_limit and self.data_loader is not None and trade_plan:
+                try:
+                    _features = state.get("features")
+                    _atr = _features.atr_14 if _features and _features.atr_14 else 0.0
+                    if _atr > 0:
+                        _sym = state["symbol"]
+                        _entry = trade_plan.entry_price
+                        _pivots = self.data_loader.get_structural_levels(_sym, _entry, _atr)
+                        _max_dist = 0.3 * _atr   # max distance from current price to use limit
+                        _limit_price = None
+
+                        if trade_plan.recipe.direction in ("long", "LONG"):
+                            # For longs: look for support just below current price
+                            _near_sup = _pivots.get("nearest_support", 0)
+                            if _near_sup and 0 < (_entry - _near_sup) <= _max_dist:
+                                _limit_price = _near_sup + 0.05 * _atr  # slightly above support
+                        else:
+                            # For shorts: look for resistance just above current price
+                            _near_res = _pivots.get("nearest_resist", 0)
+                            if _near_res and 0 < (_near_res - _entry) <= _max_dist:
+                                _limit_price = _near_res - 0.05 * _atr  # slightly below resistance
+
+                        if _limit_price is not None:
+                            _exp_secs = int(self.config.get("execution", {}).get(
+                                "limit_order_expiry_seconds", 1800))
+                            self.logger.info(
+                                f"Limit entry [{_sym}]: market={_entry:.5f} → "
+                                f"limit={_limit_price:.5f} (saving {abs(_entry-_limit_price)/_atr:.2f}×ATR)"
+                            )
+                            _lock = self._executor_lock
+                            if _lock is not None:
+                                async with _lock:
+                                    _limit_result = self.executor.place_limit_order(
+                                        trade_plan, _limit_price,
+                                        expiration_seconds=_exp_secs)
+                            else:
+                                _limit_result = self.executor.place_limit_order(
+                                    trade_plan, _limit_price,
+                                    expiration_seconds=_exp_secs)
+                except Exception as _le:
+                    self.logger.debug(f"Limit order attempt failed: {_le}")
+
+            # Fall back to market order if limit wasn't used or failed
+            if _limit_result:
+                result = _limit_result
             else:
-                result = self.executor.place_bracket_order(trade_plan)
+                # Acquire executor lock so watchdog cannot replace the executor and
+                # surveillance cannot modify the same position mid-placement.
+                _lock = self._executor_lock
+                if _lock is not None:
+                    async with _lock:
+                        result = self.executor.place_bracket_order(trade_plan)
+                else:
+                    result = self.executor.place_bracket_order(trade_plan)
             if result:
                 state["metadata"]["executed"] = True
                 state["metadata"]["execution_time"] = datetime.now().isoformat()
@@ -1945,13 +2181,19 @@ class TradingGraph:
                   streak_blocked_dir: str = None,
                   recent_pnl_r: list = None,
                   executor_lock: "asyncio.Lock" = None,
-                  dry_run: bool = False) -> TradingState:
+                  dry_run: bool = False,
+                  rank_mode: bool = False) -> TradingState:
         """Run the complete trading decision process.
 
         When *dry_run* is True the full pipeline runs (agents, fusion,
         alignment, recipe, risk, plan) but ``_execute_trade`` is skipped.
         The caller can inspect ``state["trade_plan"]`` to rank competing
         signals across symbols and then execute selectively.
+
+        When *rank_mode* is True the ``_risk_check`` stage skips the
+        ``max_concurrent_trades`` gate so that candidates are generated
+        even when the portfolio is at full capacity.  The ranking layer
+        (``rank_and_select``) enforces the slot limit instead.
         """
 
         # Store executor lock for _execute_trade to use
@@ -1979,6 +2221,8 @@ class TradingGraph:
             "recent_pnl_r": recent_pnl_r or [],
             # Dry-run flag: when True, _execute_trade is a no-op.
             "_dry_run": dry_run,
+            # Rank-mode flag: when True, _risk_check skips max_concurrent.
+            "_rank_mode": rank_mode,
         }
 
         if exit_check_only:
@@ -1994,8 +2238,102 @@ class TradingGraph:
         # Run the graph
         try:
             final_state = await self.graph.ainvoke(state)
+            # Attach debug snapshot for callers that log decision details
+            final_state.setdefault("metadata", {})["debug_snapshot"] = (
+                self._build_debug_snapshot(final_state)
+            )
             return final_state
         except Exception as e:
             self.logger.error(f"Error running trading graph: {e}")
             state["errors"].append(f"Graph execution: {e}")
             return state
+
+    # ── Debug snapshot builder ────────────────────────────────────────────
+
+    @staticmethod
+    def _build_debug_snapshot(state: "TradingState") -> Dict[str, Any]:
+        """Extract a rich debug record from the completed pipeline state.
+
+        The returned dict is JSON-serialisable and contains everything needed
+        to reconstruct *why* a trade was taken or rejected:
+          - per-agent votes (name, dir_score, conf, timeframe, rationale)
+          - timeframe fusion scores + regime
+          - alignment decision + block reason
+          - recipe (win_prob, EV, R:R)
+          - risk check result + block reason
+          - trade plan (entry, SL, TP, qty, risk$)
+          - execution outcome
+        """
+        snap: Dict[str, Any] = {
+            "symbol": state.get("symbol", ""),
+            "decision": state.get("decision", ""),
+            "errors": state.get("errors", []),
+        }
+
+        # ── Agent votes ──────────────────────────────────────────────
+        agent_outputs = state.get("agent_outputs") or {}
+        votes: Dict[str, Any] = {}
+        for name, out in agent_outputs.items():
+            if hasattr(out, "dir_score"):
+                votes[name] = {
+                    "dir_score": round(float(out.dir_score), 5),
+                    "conf": round(float(out.conf), 4),
+                    "timeframe": getattr(out, "timeframe", ""),
+                    "rationale": getattr(out, "rationale", "")[:200],
+                }
+        snap["agent_votes"] = votes
+
+        # ── Timeframe fusion ─────────────────────────────────────────
+        fusion = state.get("timeframe_fusion")
+        if fusion is not None:
+            snap["fusion"] = {
+                "dir_long": round(float(fusion.dir_long), 5),
+                "dir_mid": round(float(fusion.dir_mid), 5),
+                "dir_short": round(float(fusion.dir_short), 5),
+                "conf_long": round(float(fusion.conf_long), 4),
+                "conf_mid": round(float(fusion.conf_mid), 4),
+                "conf_short": round(float(fusion.conf_short), 4),
+                "regime_trendiness": round(float(fusion.regime_trendiness), 4),
+                "breadth_score": round(float(fusion.breadth_score), 4),
+                "alignment_strength": round(float(fusion.alignment_strength), 4),
+                "consensus_long": round(float(getattr(fusion, "consensus_long", 0)), 4),
+                "consensus_mid": round(float(getattr(fusion, "consensus_mid", 0)), 4),
+                "consensus_short": round(float(getattr(fusion, "consensus_short", 0)), 4),
+            }
+
+        # ── Alignment / entry type ───────────────────────────────────
+        meta = state.get("metadata") or {}
+        snap["alignment"] = {
+            "entry_type": meta.get("entry_type", ""),
+            "direction": meta.get("alignment_direction", ""),
+            "block_reason": meta.get("block_reason", ""),
+        }
+
+        # ── Recipe ───────────────────────────────────────────────────
+        recipe = state.get("trade_recipe")
+        if recipe is not None:
+            snap["recipe"] = {
+                "name": recipe.name,
+                "direction": recipe.direction,
+                "win_probability": round(float(recipe.win_probability), 4),
+                "expected_value": round(float(recipe.expected_value), 4),
+                "risk_reward_ratio": round(float(recipe.risk_reward_ratio), 3),
+            }
+
+        # ── Trade plan (sizing / SL / TP) ────────────────────────────
+        plan = state.get("trade_plan")
+        if plan is not None:
+            snap["plan"] = {
+                "entry_price": round(float(plan.entry_price), 6),
+                "stop_loss": round(float(plan.stop_loss), 6),
+                "take_profit": round(float(plan.take_profit), 6),
+                "quantity": round(float(plan.quantity), 4),
+                "risk_amount": round(float(plan.risk_amount), 2),
+                "confidence": round(float(plan.confidence), 4),
+            }
+
+        # ── Execution ────────────────────────────────────────────────
+        snap["executed"] = bool(meta.get("executed", False))
+        snap["order_ticket"] = meta.get("order_ticket")
+
+        return snap

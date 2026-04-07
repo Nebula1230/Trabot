@@ -44,6 +44,12 @@ class RiskConfig(BaseModel):
     max_daily_trades: int = Field(default=0, ge=0, description="Hard daily cap on total orders placed (0 = disabled)")
     max_daily_sl_per_symbol: int = Field(default=0, ge=0, description="Stop trading a symbol after N stop-loss exits in one day (0 = disabled)")
     entry_cooldown_minutes: float = Field(default=0.0, ge=0.0, description="Minimum minutes between successive entries on the same symbol (0 = disabled)")
+    streak_cooldown_base_hours: float = Field(default=4.0, ge=0.0, description="Base streak cooldown hours after 2 consecutive losses (doubles each re-trigger)")
+    streak_cooldown_max_hours: float = Field(default=24.0, ge=0.0, description="Maximum streak cooldown cap in hours")
+    max_lot: float = Field(default=0.0, ge=0.0, description="Hard ceiling on position size in lots (0 = disabled)")
+    margin_free_pct_threshold: float = Field(default=0.20, ge=0.05, le=0.50, description="Minimum free margin as fraction of equity to allow new entry (0.20 = 20%)")
+    spread_guard_fraction: float = Field(default=0.20, ge=0.05, le=0.50, description="Max spread as fraction of stop distance to allow fill (0.20 = 20%)")
+    slippage_pips: float = Field(default=0.3, ge=0.0, le=5.0, description="Random ±slippage in pips on every backtest fill")
 
 
 class ExecutionConfig(BaseModel):
@@ -184,9 +190,10 @@ class LLMAgentsConfig(BaseModel):
 
 class JournalConfig(BaseModel):
     """Trade journal / logging configuration."""
-    log_dir:       str  = Field(default="logs",  description="Directory for log files")
-    log_decisions: bool = Field(default=True,    description="Log every signal cycle")
-    log_trades:    bool = Field(default=True,    description="Log every executed trade")
+    log_dir:         str  = Field(default="logs",  description="Directory for log files")
+    log_decisions:   bool = Field(default=True,    description="Log every signal cycle")
+    log_trades:      bool = Field(default=True,    description="Log every executed trade")
+    debug_decisions: bool = Field(default=False,   description="Log rich per-decision debug detail (agent votes, fusion, alignment, sizing, etc.)")
 
 
 class TradingConfig(BaseSettings):
@@ -264,6 +271,9 @@ class TradingConfig(BaseSettings):
     # Streak-momentum position sizing
     streak_sizing: Dict[str, Any] = Field(default_factory=dict, description="Streak-momentum position sizing config")
 
+    # Holiday / thin-liquidity sizing damper
+    holiday_sizing_damper: Dict[str, Any] = Field(default_factory=dict, description="Reduce sizing during thin-liquidity windows (Dec 22-Jan 2)")
+
     # Adaptive agent weight learning — uses AgentCalibrationTracker hit-rates
     # to periodically adjust `agent.weight` based on closed-trade accuracy.
     # Keys: enabled, sensitivity, min_trades, max_mult, min_mult, shrink_n,
@@ -271,6 +281,16 @@ class TradingConfig(BaseSettings):
     adaptive_weights: Dict[str, Any] = Field(
         default_factory=dict,
         description="Adaptive agent weight learning from closed-trade hit-rates",
+    )
+
+    # Per-symbol parameter overrides (produced by SymbolTuner).
+    # Keys are symbol names; values are dicts with nested overrides, e.g.:
+    #   {"USDJPY": {"confidence_sizing": {"floor": 0.90, "ceil": 1.10},
+    #               "streak_sizing": {"loss_cut": 0.60},
+    #               "exit_rules": {"ct_mid_flip_threshold": 0.55}}}
+    symbol_overrides: Dict[str, Dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Per-symbol parameter overrides (from tuning layer)",
     )
 
     # Active risk profile (safe / balanced / risky)
@@ -301,6 +321,7 @@ class TradingConfig(BaseSettings):
         env_file = ".env"
         env_file_encoding = "utf-8"
         case_sensitive = False
+        extra = "ignore"
     
     def get_agent_weight(self, agent_name: str) -> float:
         """Get weight for a specific agent."""

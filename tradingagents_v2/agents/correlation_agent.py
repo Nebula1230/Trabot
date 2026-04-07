@@ -62,6 +62,15 @@ class CorrelationAgent(BaseAgent):
 
         # Weighted blend → raw score in [-1, 1] (already clipped by loader)
         raw = d * self._W_DXY + p * self._W_PAIR + r * self._W_RISK
+        # Guard NaN from incomplete correlation data
+        if not np.isfinite(raw):
+            return AgentOutput(
+                timeframe=self.timeframe,
+                dir_score=0.0,
+                conf=0.1,
+                rationale="Correlation data contains NaN — returning neutral",
+                evidence={"dxy_div": d, "pair_div": p, "risk_div": r},
+            )
         # tanh compression keeps score well-bounded
         dir_score = float(np.tanh(raw * 1.8))
 

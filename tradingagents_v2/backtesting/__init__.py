@@ -43,6 +43,7 @@ def main() -> None:
     import argparse
     import sys
     from pathlib import Path
+    from datetime import datetime
 
     _ALL_AGENTS = [
         "RegimeAgent", "TrendAgent", "MomentumAgent", "MeanReversionAgent",
@@ -57,7 +58,7 @@ def main() -> None:
         description="Run a backtest and generate an HTML performance report.",
     )
     parser.add_argument("--profile",  default="balanced",
-                        choices=["safe", "balanced", "risky", "scalp", "hft"],
+                        choices=["safe", "balanced", "risky", "risky_equity", "scalp", "hft"],
                         help="Trading profile to backtest (default: balanced)")
     parser.add_argument("--symbol",   nargs="+", default=None,
                         help="One or more MT5 symbols (default: read from config symbols list)")
@@ -69,8 +70,9 @@ def main() -> None:
                         help="End date   YYYY-MM-DD")
     parser.add_argument("--equity",   type=float, default=100_000.0,
                         help="Initial equity in account currency (default: 100000)")
-    parser.add_argument("--output",   default="backtest_report.html",
-                        help="Output HTML path (default: backtest_report.html)")
+    parser.add_argument("--output",   default=None,
+                        help="Output HTML path. If omitted, auto-generates a name "
+                             "under reports/ using profile, symbols, mid-tf and date.")
     parser.add_argument("--wf",       action="store_true",
                         help="Run walk-forward analysis on the first symbol")
     parser.add_argument("--is-months",  type=int, default=6,
@@ -127,6 +129,42 @@ def main() -> None:
     parser.add_argument("--rank-signals", action="store_true",
                         help="Rank competing signals by expected value and fill "
                              "the best ones first (portfolio mode only).")
+    parser.add_argument("--no-rank-signals", action="store_true",
+                        dest="no_rank_signals",
+                        help="Disable signal ranking even if the config enables it.")
+    parser.add_argument("--max-concurrent", type=int, default=None,
+                        dest="max_concurrent",
+                        help="Override max concurrent open trades (overrides profile). "
+                             "Useful with --rank-signals to cap how many of the "
+                             "ranked signals actually get filled.")
+    parser.add_argument("--compare-live", action="store_true",
+                        dest="compare_live",
+                        help="Auto-detect live trades in the backtest date range "
+                             "and show a side-by-side comparison. "
+                             "Reads from --log-dir/closed_trades.jsonl.")
+    parser.add_argument("--log-dir", default="logs",
+                        dest="log_dir",
+                        help="Directory containing closed_trades.jsonl from the live bot "
+                             "(default: logs). Used with --compare-live.")
+    parser.add_argument("--tune", action="store_true",
+                        help="Run per-symbol parameter tuning (grid search over "
+                             "confidence_sizing, streak_sizing, ct_mid_flip_threshold) "
+                             "before the main backtest. Saves results to <output>.tuned.json "
+                             "and applies the best params automatically.")
+    parser.add_argument("--tune-tf", default=None, dest="tune_tf",
+                        help="Mid-timeframe granularity for tuning (default: 1H). "
+                             "Lower = more accurate but slower. E.g. --tune-tf 15m")
+    parser.add_argument("--tune-workers", default=3, type=int, dest="tune_workers",
+                        help="Number of parallel threads for tuning CT backtests (default: 3). "
+                             "Set to 1 for sequential execution.")
+    parser.add_argument("--tune-file", default=None,
+                        dest="tune_file",
+                        help="Load per-symbol tuned params from a JSON file produced "
+                             "by a previous --tune run (skips re-tuning).")
+    parser.add_argument("--resume", action="store_true",
+                        help="Resume an interrupted backtest from the checkpoint file "
+                             "(derived from --output, e.g. report.html → report.checkpoint.json). "
+                             "If no checkpoint exists the backtest starts from scratch.")
 
     # Handle --list-agents before argparse enforces required fields
     if "--list-agents" in sys.argv:
@@ -198,6 +236,7 @@ def main() -> None:
     # Load config
     try:
         from tradingagents_v2.config.yaml_config import load_config_from_yaml
+        from tradingagents_v2.config.settings import TradingConfig
         cfg = load_config_from_yaml(args.config, profile=args.profile)
     except Exception as e:
         print(f"[ERROR] Could not load config '{args.config}': {e}", file=sys.stderr)
@@ -206,6 +245,10 @@ def main() -> None:
     # Apply mid-timeframe override (e.g. --mid-tf 1H for hourly granularity)
     if args.mid_tf:
         cfg.timeframes.mid = [args.mid_tf]
+
+    # Enable debug decision logging alongside the existing DebugTracer
+    if args.debug:
+        cfg.journal.debug_decisions = True
 
     # Apply interval overrides to config so the backtest engine picks them up
     if args.signal_interval is not None:
@@ -237,15 +280,86 @@ def main() -> None:
     symbols = args.symbols or args.symbol or getattr(cfg, "symbols", None) or ["EURUSD"]
     if args.rank_signals:
         cfg.rank_signals = True
+    if args.no_rank_signals:
+        cfg.rank_signals = False
+    if args.max_concurrent is not None:
+        cfg.risk.max_concurrent_trades = args.max_concurrent
+
+    # ── Auto-generate output path if not explicitly provided ─────────────
+    # Format: reports/{profile}_{SYM1-SYM2}_{mid_tf}_{YYYYMMDD_HHMM}.html
+    if args.output is None:
+        _reports_dir = Path("reports")
+        _reports_dir.mkdir(exist_ok=True)
+        _mid_tf_tag = (cfg.timeframes.mid[0] if cfg.timeframes.mid else "1m").replace(" ", "")
+        _sym_tag = "-".join(symbols[:5])  # cap at 5 to avoid absurd filenames
+        if len(symbols) > 5:
+            _sym_tag += f"-plus{len(symbols) - 5}"
+        _now_tag = datetime.now().strftime("%Y%m%d_%H%M")
+        args.output = str(_reports_dir / f"{args.profile}_{_sym_tag}_{_mid_tf_tag}_{_now_tag}.html")
+        print(f"Report output: {args.output}")
+
+    # ── Per-symbol tuning layer ──────────────────────────────────────────
+    _tuner_cached_bars = None  # set by --tune to reuse data for final backtest
+    if args.tune_file:
+        from .symbol_tuner import SymbolTuner
+        overrides = SymbolTuner.load_overrides(args.tune_file)
+        cfg_dict = cfg.model_dump()
+        cfg_dict["symbol_overrides"] = overrides
+        cfg = TradingConfig(**cfg_dict)
+        print(f"Loaded tuned params for {list(overrides.keys())} from {args.tune_file}")
+
+    if args.tune:
+        from .symbol_tuner import SymbolTuner
+        print(f"\n{'═'*60}")
+        print(f"  Per-symbol tuning: {symbols}")
+        print(f"{'═'*60}")
+        tuner = SymbolTuner(cfg, data_dir=args.data_dir, initial_equity=args.equity,
+                            max_workers=args.tune_workers)
+        if args.tune_tf:
+            tuner.TUNE_MID_TF = args.tune_tf
+            print(f"  Tuning granularity: {args.tune_tf}")
+        tune_results = tuner.tune_symbols(symbols, args.start, args.end)
+        tune_json = str(Path(args.output).with_suffix(".tuned.json"))
+        SymbolTuner.save_results(tune_results, tune_json)
+        print(f"\nTuning results saved to {tune_json}")
+        for sym, r in tune_results.items():
+            print(f"  {sym}: IS Sharpe={r.is_sharpe:.3f}  OOS Sharpe={r.oos_sharpe:.3f}  "
+                  f"trials={r.trials_run}")
+        # Apply tuned params to config
+        overrides = {sym: r.best_params for sym, r in tune_results.items()}
+        cfg_dict = cfg.model_dump()
+        cfg_dict["symbol_overrides"] = overrides
+        cfg = TradingConfig(**cfg_dict)
+        _tuner_cached_bars = tuner.cached_bars  # reuse bars for final backtest
+        print(f"{'═'*60}\n")
+
+    if cfg.symbol_overrides:
+        print(f"[OVERRIDES] symbol_overrides active: {list(cfg.symbol_overrides.keys())}")
+        for _so_sym, _so_params in cfg.symbol_overrides.items():
+            print(f"  {_so_sym}: {_so_params}")
     engine  = BacktestEngine(cfg)
     if args.data_dir:
         engine.set_data_dir(args.data_dir)
+
+    # ── Checkpoint / resume setup ────────────────────────────────────────
+    from .checkpoint import checkpoint_path_for_output, load_checkpoint
+    _ckpt_path = checkpoint_path_for_output(args.output)
+    _resume_ckpt = None
+    if args.resume:
+        _resume_ckpt = load_checkpoint(_ckpt_path)
+        if _resume_ckpt is not None:
+            print(f"Resuming from checkpoint: step {_resume_ckpt['step']} "
+                  f"equity={_resume_ckpt['equity']:.2f} "
+                  f"trades={len(_resume_ckpt.get('closed_trades', []))}")
+        else:
+            print("No checkpoint found — starting from scratch.")
 
     _mode = "independent" if args.independent else "portfolio"
     _mid_tf_display = cfg.timeframes.mid[0] if cfg.timeframes.mid else "1H"
     _n_syms = len(symbols)
     _max_conc = cfg.risk.max_concurrent_trades
-    _conc_scale = min(1.0, _max_conc / _n_syms) if _n_syms > 1 else 1.0
+    _is_ranked = bool(getattr(cfg, "rank_signals", False))
+    _conc_scale = 1.0 if _is_ranked else (min(1.0, _max_conc / _n_syms) if _n_syms > 1 else 1.0)
     _risk_per_trade = args.equity * cfg.risk.base_risk_pct / 100 * _conc_scale
     print(f"Backtesting {symbols}  {args.start}→{args.end}  "
           f"profile={args.profile}  granularity={_mid_tf_display}  mode={_mode}")
@@ -254,8 +368,18 @@ def main() -> None:
           f"concentration×{_conc_scale:.2f})")
     if args.independent:
         results = engine._run_multi_independent(symbols, args.start, args.end, args.equity)
+    elif _tuner_cached_bars and len(symbols) == 1 and symbols[0] in _tuner_cached_bars:
+        # Reuse bars from tuning for data consistency
+        _sym = symbols[0]
+        _bars, _mid_tf, _bar_dates = _tuner_cached_bars[_sym]
+        print(f"  (reusing {len(_bar_dates)} cached bars from tuning)")
+        results = [engine.run_with_bars(
+            _sym, args.start, args.end, _bars, _mid_tf, _bar_dates, args.equity
+        )]
     else:
-        results = engine.run_multi(symbols, args.start, args.end, args.equity)
+        results = engine.run_multi(symbols, args.start, args.end, args.equity,
+                                   checkpoint_path=_ckpt_path,
+                                   resume_checkpoint=_resume_ckpt)
 
     for r in results:
         m = compute_metrics(r)
@@ -280,11 +404,23 @@ def main() -> None:
             f"avg_efficiency={wf_result.avg_efficiency:.2f}"
         )
 
-    output = generate_report(results, args.output, wf_result)
+    # ── Backtest vs Live comparison ──
+    comparison = None
+    if args.compare_live:
+        from .compare import load_live_trades, compare_trades, print_comparison
+        live_trades = load_live_trades(args.log_dir, args.start, args.end)
+        if live_trades:
+            comparison = compare_trades(results, live_trades)
+            print_comparison(comparison)
+        else:
+            print(f"\n[compare-live] No live trades found in {args.log_dir}/closed_trades.jsonl "
+                  f"for {args.start} → {args.end}")
+
+    output = generate_report(results, args.output, wf_result, comparison=comparison)
     print(f"\nReport saved to: {Path(output).resolve()}")
 
     json_path = str(Path(args.output).with_suffix(".json"))
-    output_json = generate_json_report(results, json_path, wf_result)
+    output_json = generate_json_report(results, json_path, wf_result, comparison=comparison)
     print(f"JSON report saved to: {Path(output_json).resolve()}")
 
     # ── Debug trace output ──

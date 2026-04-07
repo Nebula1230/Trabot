@@ -40,7 +40,7 @@ def compute_metrics(result: BacktestResult) -> Dict[str, Any]:
     win_rate      = len(wins) / total if total > 0 else 0.0
     gross_profit  = sum(t.pnl for t in wins)
     gross_loss    = abs(sum(t.pnl for t in losses)) or 1e-9
-    profit_factor = gross_profit / gross_loss
+    profit_factor = min(gross_profit / gross_loss, 999.99)
 
     r_values = [t.pnl_r for t in trades]
     avg_pnl_r  = float(np.mean(r_values))     if r_values else 0.0
@@ -50,6 +50,14 @@ def compute_metrics(result: BacktestResult) -> Dict[str, Any]:
     worst_r    = min(r_values, default=0.0)
 
     avg_bars = float(np.mean([t.close_bar - t.open_bar for t in trades])) if trades else 0.0
+    # In portfolio mode, open_bar is per-symbol and close_bar is global, so
+    # close_bar - open_bar is meaningless.  Use open_dt/close_dt when stamped.
+    if trades and trades[0].open_dt and trades[0].close_dt:
+        _durs_hours = [
+            (t.close_dt - t.open_dt).total_seconds() / 3600.0
+            for t in trades if t.open_dt and t.close_dt
+        ]
+        avg_bars = float(np.mean(_durs_hours)) if _durs_hours else avg_bars
     avg_conf = float(np.mean([t.confidence for t in trades]))              if trades else 0.0
 
     tp_rate = len([t for t in trades if t.exit_reason == "tp"]) / max(total, 1)
@@ -185,10 +193,12 @@ def _sortino(equity: np.ndarray, result: BacktestResult) -> float:
     daily = _daily_returns(equity, result)
     if len(daily) < 2:
         return 0.0
-    neg = daily[daily < 0]
-    if len(neg) == 0 or neg.std() < 1e-10:
+    # Proper downside deviation: sqrt(mean(min(r, 0)^2)) across ALL returns
+    downside_sq = np.minimum(daily, 0.0) ** 2
+    downside_dev = float(np.sqrt(np.mean(downside_sq)))
+    if downside_dev < 1e-10:
         return 10.0   # no losing days — cap at 10
-    return float((daily.mean() / neg.std()) * np.sqrt(252))
+    return float((daily.mean() / downside_dev) * np.sqrt(252))
 
 
 def _calmar(total_return_pct: float, max_dd_pct: float,

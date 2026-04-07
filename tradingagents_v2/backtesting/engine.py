@@ -43,6 +43,7 @@ except ImportError:
     _tqdm = None  # progress bar is optional
 
 from ..core.types import TechnicalFeatures, PortfolioState, RiskLimits
+from ..core.ranking import RankCandidate, RankConfig, rank_and_select
 from .debug_tracer import get_tracer as _get_tracer
 from ..core.graph import TradingGraph
 from ..data.loader import DataLoader, _MIN_BARS, _BARS_PER_YEAR
@@ -194,6 +195,7 @@ class _BacktestExecutor:
             _tick_value = BacktestEngine._TICK_VALUE.get(sym.rstrip("Mm"), 10.0)
 
         _is_equity = BacktestEngine._is_stock(symbol)
+        _is_index  = sym in BacktestEngine._KNOWN_INDICES
         class _SI:
             spread               = 3
             point                = _point
@@ -203,7 +205,7 @@ class _BacktestExecutor:
             volume_min           = 1.0 if _is_equity else 0.01
             volume_max           = 100_000.0 if _is_equity else 1000.0
             volume_step          = 1.0 if _is_equity else 0.01
-            trade_contract_size  = 1 if _is_equity else 100_000
+            trade_contract_size  = 1 if (_is_equity or _is_index) else 100_000
             trade_stops_level    = 0
             trade_mode           = 4
             filling_mode         = 1
@@ -527,19 +529,32 @@ class BacktestEngine:
         return (self._VOL_MIN, self._VOL_MAX, self._VOL_STEP)
 
     # ── Execution realism ─────────────────────────────────────────────────
-    _SLIPPAGE_PIPS: float = 0.3     # random ±slippage on every fill
-    _MAX_SPREAD_FRAC: float = 0.20  # reject entry when spread > 20% of stop dist
+    _SLIPPAGE_PIPS: float = 0.3     # default; overridden by risk_limits.slippage_pips
+    _MAX_SPREAD_FRAC: float = 0.20  # default; overridden by risk_limits.spread_guard_fraction
 
     # ── yfinance backfill constants ────────────────────────────────────────
     # Broker symbol → yfinance ticker translation.
     # Stocks are passed through as-is (AAPL → AAPL).  The lookup falls
     # back to the normalised ticker for any symbol not in this map.
     _YF_SYMBOL: Dict[str, str] = {
+        # ── Forex majors ──
         "EURUSD": "EURUSD=X", "GBPUSD": "GBPUSD=X", "USDJPY": "USDJPY=X",
         "USDCHF": "USDCHF=X", "AUDUSD": "AUDUSD=X", "USDCAD": "USDCAD=X",
-        "NZDUSD": "NZDUSD=X", "EURJPY": "EURJPY=X", "GBPJPY": "GBPJPY=X",
+        "NZDUSD": "NZDUSD=X",
+        # ── JPY crosses ──
+        "EURJPY": "EURJPY=X", "GBPJPY": "GBPJPY=X",
         "AUDJPY": "AUDJPY=X", "CADJPY": "CADJPY=X", "CHFJPY": "CHFJPY=X",
+        "NZDJPY": "NZDJPY=X",
+        # ── EUR crosses ──
         "EURGBP": "EURGBP=X", "EURCHF": "EURCHF=X", "EURCAD": "EURCAD=X",
+        "EURAUD": "EURAUD=X", "EURNZD": "EURNZD=X",
+        # ── GBP crosses ──
+        "GBPAUD": "GBPAUD=X", "GBPNZD": "GBPNZD=X",
+        "GBPCAD": "GBPCAD=X", "GBPCHF": "GBPCHF=X",
+        # ── AUD / NZD / CAD crosses ──
+        "AUDNZD": "AUDNZD=X", "AUDCAD": "AUDCAD=X", "AUDCHF": "AUDCHF=X",
+        "NZDCAD": "NZDCAD=X", "NZDCHF": "NZDCHF=X", "CADCHF": "CADCHF=X",
+        # ── Metals & indices ──
         "XAUUSD": "GC=F",     "XAGUSD": "SI=F",
         "DAX":    "^GDAXI",   "UK100":  "^FTSE",    "US30":   "^DJI",
         "US500":  "^GSPC",    "USTEC":  "^IXIC",
@@ -577,6 +592,8 @@ class BacktestEngine:
         start_date: str,
         end_date: str,
         initial_equity: float = 100_000.0,
+        checkpoint_path: str = "",
+        resume_checkpoint: Optional[dict] = None,
     ) -> BacktestResult:
         """Run a single-symbol backtest and return a BacktestResult."""
         self.logger.info(
@@ -595,7 +612,8 @@ class BacktestEngine:
                 config=self.config.model_dump(),
             )
         return self._run_from_bars(
-            symbol, start_date, end_date, all_bars, mid_tf, bar_dates, initial_equity
+            symbol, start_date, end_date, all_bars, mid_tf, bar_dates, initial_equity,
+            checkpoint_path=checkpoint_path, resume_checkpoint=resume_checkpoint,
         )
 
     def run_with_bars(
@@ -638,6 +656,8 @@ class BacktestEngine:
         mid_tf: str,
         bar_dates: "List[datetime]",
         initial_equity: float,
+        checkpoint_path: str = "",
+        resume_checkpoint: Optional[dict] = None,
     ) -> "BacktestResult":
         """Build graph and run the async backtest core. Shared by run() and run_with_bars()."""
         # Use the mid_tf parameter (which reflects yfinance degradation) rather
@@ -675,6 +695,8 @@ class BacktestEngine:
                     symbol, all_bars, mid_tf, bar_dates,
                     initial_equity, executor, loader, graph, tier_tf_map,
                     start_date, end_date,
+                    checkpoint_path=checkpoint_path,
+                    resume_checkpoint=resume_checkpoint,
                 )
             )
         finally:
@@ -688,6 +710,8 @@ class BacktestEngine:
         start_date: str,
         end_date: str,
         initial_equity: float = 100_000.0,
+        checkpoint_path: str = "",
+        resume_checkpoint: Optional[dict] = None,
     ) -> "List[BacktestResult]":
         """Portfolio-level backtest: all symbols trade simultaneously.
 
@@ -703,7 +727,9 @@ class BacktestEngine:
         """
         if len(symbols) == 1:
             self._n_portfolio_symbols = 1
-            return [self.run(symbols[0], start_date, end_date, initial_equity)]
+            return [self.run(symbols[0], start_date, end_date, initial_equity,
+                             checkpoint_path=checkpoint_path,
+                             resume_checkpoint=resume_checkpoint)]
 
         self._n_portfolio_symbols = len(symbols)
         self.logger.info(
@@ -883,6 +909,15 @@ class BacktestEngine:
         _tp_extend_mult = float(_trailing_cfg.get("tp_extend_atr_mult", 2.0))
         _early_be_r    = float(_trailing_cfg.get("early_be_r", 0.0))
         _be_buffer_r   = float(_trailing_cfg.get("be_buffer_r", 0.0))
+        # Per-symbol trailing overrides (forex pairs need wider buffer / earlier BE)
+        _sym_be_buffer: Dict[str, float] = {}
+        _sym_early_be: Dict[str, float] = {}
+        for _s in symbols:
+            _ov_trail = _cfg_raw.get("symbol_overrides", {}).get(_s, {}).get("trailing", {})
+            if "be_buffer_r" in _ov_trail:
+                _sym_be_buffer[_s] = float(_ov_trail["be_buffer_r"])
+            if "early_be_r" in _ov_trail:
+                _sym_early_be[_s] = float(_ov_trail["early_be_r"])
         _stale_sl_hours = float(_trailing_cfg.get("stale_sl_hours", 0.0))
         _stale_sl_r    = float(_trailing_cfg.get("stale_sl_r_mult", 0.75))
         _atr_mult      = float(_trailing_cfg.get("atr_multiplier", 1.5))
@@ -891,6 +926,13 @@ class BacktestEngine:
         _fade_thresh   = float(_exit_cfg_raw.get("conviction_fade_threshold", 0.10))
         _opp_enabled   = bool(_exit_cfg_raw.get("mid_short_opposition_enabled", True))
         _opp_thresh    = float(_exit_cfg_raw.get("mid_short_opposition_threshold", 0.35))
+        _ct_mid_flip_thresh = float(_exit_cfg_raw.get("ct_mid_flip_threshold", _opp_thresh))
+        # Per-symbol ct_mid_flip_threshold overrides (from tuning layer)
+        _sym_ct_thresh: Dict[str, float] = {}
+        for _s in symbols:
+            _ov = _cfg_raw.get("symbol_overrides", {}).get(_s, {}).get("exit_rules", {})
+            if "ct_mid_flip_threshold" in _ov:
+                _sym_ct_thresh[_s] = float(_ov["ct_mid_flip_threshold"])
         _tighten_on    = bool(_exit_cfg_raw.get("tighten_on_fade_enabled", True))
         _tighten_thresh = float(_exit_cfg_raw.get("tighten_fade_threshold", 0.20))
         _tighten_tp_m  = float(_exit_cfg_raw.get("tighten_tp_atr_mult", 0.5))
@@ -930,19 +972,30 @@ class BacktestEngine:
 
         _cooldown_base = float(getattr(self.config.risk, "entry_cooldown_minutes", 0.0))
         _cooldown_scale = {"1m": 0.25, "5m": 0.50, "15m": 0.75, "30m": 0.85}.get(mid_tf, 1.0)
-        _cooldown_min  = max(5.0, _cooldown_base * _cooldown_scale)
+        _cooldown_min  = max(5.0, _cooldown_base * _cooldown_scale) if _cooldown_base > 0 else 0
         _max_daily     = int(getattr(self.config.risk, "max_daily_trades", 0))
         _max_daily_sl  = int(getattr(self.config.risk, "max_daily_sl_per_symbol", 0))
 
-        _streak_base_bars = max(1, int(4 * 3600 / _bar_seconds))
-        _streak_max_bars  = max(1, int(24 * 3600 / _bar_seconds))
+        _streak_base_h = float(getattr(self.config.risk, "streak_cooldown_base_hours", 4.0))
+        _streak_max_h  = float(getattr(self.config.risk, "streak_cooldown_max_hours", 24.0))
+        _streak_base_bars = max(1, int(_streak_base_h * 3600 / _bar_seconds))
+        _streak_max_bars  = max(1, int(_streak_max_h * 3600 / _bar_seconds))
 
         _news_atr_mult = float(_cfg_raw.get("execution", {}).get("news_spike_atr_mult", 3.0))
         _news_blackout_enabled = bool(_cfg_raw.get("execution", {}).get("news_blackout_minutes", 0) > 0)
 
-        # Signal ranking: collect all symbols' signals first, rank by EV,
-        # then fill slots from best to worst.  Off by default for backward compat.
-        _rank_signals = bool(getattr(self.config, "rank_signals", False))
+        # ── Debug decision journal (rich per-pipeline snapshot) ───────────
+        _journal_cfg = _cfg_raw.get("journal", {})
+        if _journal_cfg.get("debug_decisions", False):
+            from ..monitoring.journal import TradeJournal as _TJ
+            _debug_journal = _TJ(
+                log_dir=_journal_cfg.get("log_dir", "logs"),
+                log_decisions=False,
+                log_trades=False,
+                debug_decisions=True,
+            )
+        else:
+            _debug_journal = None
 
         # ── Shared state ──────────────────────────────────────────────────
         equity = initial_equity
@@ -970,7 +1023,21 @@ class BacktestEngine:
             base_risk_pct=self.config.risk.base_risk_pct,
             max_daily_drawdown_pct=self.config.risk.max_daily_drawdown_pct,
             max_concurrent_trades=self.config.risk.max_concurrent_trades,
+            per_symbol_leverage_cap=self.config.risk.per_symbol_leverage_cap,
+            portfolio_leverage_cap=self.config.risk.portfolio_leverage_cap,
+            margin_free_pct_threshold=self.config.risk.margin_free_pct_threshold,
+            spread_guard_fraction=self.config.risk.spread_guard_fraction,
+            slippage_pips=self.config.risk.slippage_pips,
         )
+
+        # Config-driven execution realism (override class-level defaults)
+        _margin_free_pct = risk_limits.margin_free_pct_threshold
+        _spread_guard_frac = risk_limits.spread_guard_fraction
+        _slippage_pips = risk_limits.slippage_pips
+
+        # Signal ranking: collect all symbols' signals first, rank by EV,
+        # then fill slots from best to worst.  Off by default for backward compat.
+        _rank_signals = bool(getattr(self.config, "rank_signals", False))
 
         # Per-symbol step counters (for agent_interval / surv_interval)
         _sym_step: Dict[str, int] = {s: 0 for s in symbols}
@@ -981,7 +1048,7 @@ class BacktestEngine:
             try:
                 _start_dt = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
             except Exception:
-                pass
+                logger.warning(f"Could not parse start_date '{start_date}'; using default")
 
         # Wait until each symbol has enough warmup bars
         _sym_warmup_done: Dict[str, bool] = {s: False for s in symbols}
@@ -998,11 +1065,28 @@ class BacktestEngine:
             f"surv_interval={_surv_interval}"
         )
 
+        # Compute the first unified bar where trading can actually begin
+        # (at least one symbol past _MIN_BARS AND bar_date >= _start_dt).
+        # This mirrors the single-symbol path which starts tqdm at _sig_bar.
+        _first_tradable = 0
+        for _fti, _ftd in enumerate(unified_dates):
+            if _start_dt and _ftd < _start_dt:
+                continue
+            for _fts in symbols:
+                _ft_idx = sym_ts_to_idx[_fts].get(_ftd.timestamp())
+                if _ft_idx is not None and _ft_idx >= _MIN_BARS:
+                    _first_tradable = _fti
+                    break
+            else:
+                continue
+            break
+
         _is_tty = getattr(_sys_.stderr, "isatty", lambda: False)()
         _bar_range = range(n_bars_total)
         if _tqdm is not None and _is_tty:
             _progress = _tqdm(_bar_range, desc="Portfolio backtest",
-                              unit="bar", leave=True, dynamic_ncols=True)
+                              unit="bar", leave=True, dynamic_ncols=True,
+                              initial=_first_tradable)
         else:
             _progress = _bar_range
         _report_every = max(100, n_bars_total // 20)
@@ -1033,8 +1117,11 @@ class BacktestEngine:
                             _ps = sym_ctx[_ddpos.symbol]["pip_sz"]
                             _mb = sym_ctx[_ddpos.symbol]["mid_bars"]
                             _si = sym_ts_to_idx[_ddpos.symbol].get(bar_ts)
-                            _cl = float(_mb["close"][_si]) if _si is not None else _ddpos.entry_price
-                            _ddpnl = self._pnl_at(_ddpos, _cl, _tv, _ps, close_step=_si or 0)
+                            if _si is not None:
+                                _cl = float(_mb["close"][_si])
+                            else:
+                                _cl = float(_mb["close"][-1]) if len(_mb["close"]) > 0 else _ddpos.entry_price
+                            _ddpnl = self._pnl_at(_ddpos, _cl, _tv, _ps, close_step=_si if _si is not None else (len(_mb["close"]) - 1))
                             closed_trades.append(ClosedTrade(
                                 symbol=_ddpos.symbol, direction=_ddpos.direction,
                                 entry_price=_ddpos.entry_price, exit_price=_cl,
@@ -1063,8 +1150,11 @@ class BacktestEngine:
                             _ps = sym_ctx[_wkpos.symbol]["pip_sz"]
                             _mb = sym_ctx[_wkpos.symbol]["mid_bars"]
                             _si = sym_ts_to_idx[_wkpos.symbol].get(bar_ts)
-                            _cl = float(_mb["close"][_si]) if _si is not None else _wkpos.entry_price
-                            _wkpnl = self._pnl_at(_wkpos, _cl, _tv, _ps, close_step=_si or 0)
+                            if _si is not None:
+                                _cl = float(_mb["close"][_si])
+                            else:
+                                _cl = float(_mb["close"][-1]) if len(_mb["close"]) > 0 else _wkpos.entry_price
+                            _wkpnl = self._pnl_at(_wkpos, _cl, _tv, _ps, close_step=_si if _si is not None else (len(_mb["close"]) - 1))
                             closed_trades.append(ClosedTrade(
                                 symbol=_wkpos.symbol, direction=_wkpos.direction,
                                 entry_price=_wkpos.entry_price, exit_price=_cl,
@@ -1090,8 +1180,11 @@ class BacktestEngine:
                                 _ps = sym_ctx[_wpos.symbol]["pip_sz"]
                                 _mb = sym_ctx[_wpos.symbol]["mid_bars"]
                                 _si = sym_ts_to_idx[_wpos.symbol].get(bar_ts)
-                                _cl = float(_mb["close"][_si]) if _si is not None else _wpos.entry_price
-                                _wpnl = self._pnl_at(_wpos, _cl, _tv, _ps, close_step=_si or 0)
+                                if _si is not None:
+                                    _cl = float(_mb["close"][_si])
+                                else:
+                                    _cl = float(_mb["close"][-1]) if len(_mb["close"]) > 0 else _wpos.entry_price
+                                _wpnl = self._pnl_at(_wpos, _cl, _tv, _ps, close_step=_si if _si is not None else (len(_mb["close"]) - 1))
                                 closed_trades.append(ClosedTrade(
                                     symbol=_wpos.symbol, direction=_wpos.direction,
                                     entry_price=_wpos.entry_price, exit_price=_cl,
@@ -1103,7 +1196,8 @@ class BacktestEngine:
                                     win_probability=_wpos.win_probability,
                                     agent_votes=_wpos.agent_votes,
                                 ))
-                        open_positions.clear()
+                        # Keep pending positions (unfilled signals); clear only filled
+                        open_positions[:] = [p for p in open_positions if p.pending]
                 elif _weekday < 4:
                     _weekend_blocked = False
 
@@ -1157,12 +1251,12 @@ class BacktestEngine:
                 for pos in open_positions:
                     if pos.pending and pos.symbol == sym:
                         _stop_dist = abs(pos.entry_price - pos.stop_loss)
-                        if _stop_dist > 1e-9 and spread / _stop_dist > self._MAX_SPREAD_FRAC:
+                        if _stop_dist > 1e-9 and spread / _stop_dist > _spread_guard_frac:
                             _fill_rejects.append(pos)
                             continue
                         pos.quantity = round(round(pos.quantity / _vstep) * _vstep, 8)
                         pos.quantity = max(_vmin, min(_vmax, pos.quantity))
-                        _slip = _sym_rng[sym].uniform(-self._SLIPPAGE_PIPS, self._SLIPPAGE_PIPS) * pip_sz
+                        _slip = _sym_rng[sym].uniform(-_slippage_pips, _slippage_pips) * pip_sz
                         if pos.direction == "long":
                             pos.entry_price = bar_open + spread / 2 + _slip
                         else:
@@ -1179,12 +1273,9 @@ class BacktestEngine:
                     exited = self._check_exit(
                         pos, hi, lo, idx, tick_val, pip_sz, closed_trades,
                         bar_open=bar_open, bar_close=cl,
+                        global_bar=global_step,
                     )
                     if exited:
-                        # Update bar index to global_step for consistent equity tracking
-                        closed_trades[-1] = ClosedTrade(
-                            **{**closed_trades[-1].__dict__, "close_bar": global_step}
-                        )
                         open_positions.remove(pos)
                     else:
                         still_open.append(pos)
@@ -1227,6 +1318,9 @@ class BacktestEngine:
                     _profit_r = _profit_dist / _one_r
                     if _profit_r > pos.peak_profit_r:
                         pos.peak_profit_r = _profit_r
+                    # Per-symbol BE buffer / early-BE (forex pairs may need wider buffer)
+                    _eff_be_buffer = _sym_be_buffer.get(pos.symbol, _be_buffer_r)
+                    _eff_early_be = _sym_early_be.get(pos.symbol, _early_be_r)
 
                     _should_close = False
                     _close_reason = ""
@@ -1272,7 +1366,8 @@ class BacktestEngine:
                                     _should_close = True; _close_reason = "mid+short opposition"
                             if not _should_close and _is_ct:
                                 _trade_sign = 1.0 if _is_long else -1.0
-                                if _d_mid * _trade_sign < -_opp_thresh:
+                                _ct_thresh_sym = _sym_ct_thresh.get(sym, _ct_mid_flip_thresh)
+                                if _d_mid * _trade_sign < -_ct_thresh_sym:
                                     _should_close = True; _close_reason = "CT mid flipped against"
 
                     if _should_close:
@@ -1351,10 +1446,11 @@ class BacktestEngine:
                         pos.quantity -= _qty1
                         pos.risk_amount = _orig_risk * (1.0 - _partial1_frac)
                         pos.partial_tp1_fired = True
+                        # Ratchet: never widen SL if trailing already tightened it
                         if _is_long:
-                            pos.stop_loss = pos.entry_price - _be_buffer_r * _one_r
+                            pos.stop_loss = max(pos.stop_loss, pos.entry_price - _eff_be_buffer * _one_r)
                         else:
-                            pos.stop_loss = pos.entry_price + _be_buffer_r * _one_r
+                            pos.stop_loss = min(pos.stop_loss, pos.entry_price + _eff_be_buffer * _one_r)
 
                     # Partial TP2
                     if _partial2_on and not pos.partial_tp2_fired and _profit_dist >= _partial2_r * _one_r:
@@ -1397,6 +1493,16 @@ class BacktestEngine:
                                 _tight_sl = pos.entry_price + _prog_r * _one_r
                                 if pos.stop_loss > _tight_sl + 1e-9:
                                     pos.stop_loss = _tight_sl
+                            # Market-close when squeeze is maxed and still losing
+                            if _overtime_frac >= 1.0:
+                                _should_close = True
+                                _close_reason = "stale_market_close"
+                                logger.info(
+                                    f"[STALE-CLOSE] bar={idx} {sym} {pos.direction} "
+                                    f"stale squeeze maxed ({_hours_held_sl:.1f}h, "
+                                    f"{_profit_r:+.2f}R) — market close "
+                                    f"(ticket={pos.ticket})"
+                                )
 
                     # Stale winner protection
                     if (_stale_sl_hours > 0 and _profit_r > 0 and _profit_r < 1.0
@@ -1404,28 +1510,30 @@ class BacktestEngine:
                         _hours_held_sw = (idx - pos.open_bar) * _hrs_per_bar
                         if _hours_held_sw >= _stale_sl_hours:
                             if _is_long:
-                                _be_floor = pos.entry_price - _be_buffer_r * _one_r
+                                _be_floor = pos.entry_price - _eff_be_buffer * _one_r
                                 if pos.stop_loss < _be_floor - 1e-9:
                                     pos.stop_loss = _be_floor
                             else:
-                                _be_floor = pos.entry_price + _be_buffer_r * _one_r
+                                _be_floor = pos.entry_price + _eff_be_buffer * _one_r
                                 if pos.stop_loss > _be_floor + 1e-9:
                                     pos.stop_loss = _be_floor
 
                     # Trailing SL stages
                     if _atr > 0:
-                        _be_sl_long  = pos.entry_price - _be_buffer_r * _one_r
-                        _be_sl_short = pos.entry_price + _be_buffer_r * _one_r
+                        _be_sl_long  = pos.entry_price - _eff_be_buffer * _one_r
+                        _be_sl_short = pos.entry_price + _eff_be_buffer * _one_r
                         if _is_long:
                             if _profit_dist >= 2.0 * _one_r:
                                 _new_sl = max(pos.stop_loss, cl - _atr * _atr_mult, pos.entry_price + 0.5 * _one_r)
                                 if _tp_extend_on and pos.take_profit > 0 and (pos.take_profit - cl) < _atr:
+                                    _old_tp = pos.take_profit
                                     pos.take_profit = cl + _tp_extend_mult * _atr
+                                    logger.debug(f"[TP-EXT] {sym} LONG tp {_old_tp:.5f}→{pos.take_profit:.5f}")
                             elif _profit_dist >= 1.5 * _one_r:
                                 _new_sl = max(pos.stop_loss, pos.entry_price + 0.5 * _one_r)
                             elif _profit_dist >= 1.0 * _one_r:
                                 _new_sl = max(pos.stop_loss, _be_sl_long)
-                            elif _early_be_r > 0 and _profit_dist >= _early_be_r * _one_r:
+                            elif _eff_early_be > 0 and _profit_dist >= _eff_early_be * _one_r:
                                 _new_sl = max(pos.stop_loss, _be_sl_long)
                             else:
                                 _new_sl = pos.stop_loss
@@ -1435,12 +1543,14 @@ class BacktestEngine:
                             if _profit_dist >= 2.0 * _one_r:
                                 _new_sl = min(pos.stop_loss, cl + _atr * _atr_mult, pos.entry_price - 0.5 * _one_r)
                                 if _tp_extend_on and pos.take_profit > 0 and (cl - pos.take_profit) < _atr:
+                                    _old_tp = pos.take_profit
                                     pos.take_profit = cl - _tp_extend_mult * _atr
+                                    logger.debug(f"[TP-EXT] {sym} SHORT tp {_old_tp:.5f}→{pos.take_profit:.5f}")
                             elif _profit_dist >= 1.5 * _one_r:
                                 _new_sl = min(pos.stop_loss, pos.entry_price - 0.5 * _one_r)
                             elif _profit_dist >= 1.0 * _one_r:
                                 _new_sl = min(pos.stop_loss, _be_sl_short)
-                            elif _early_be_r > 0 and _profit_dist >= _early_be_r * _one_r:
+                            elif _eff_early_be > 0 and _profit_dist >= _eff_early_be * _one_r:
                                 _new_sl = min(pos.stop_loss, _be_sl_short)
                             else:
                                 _new_sl = pos.stop_loss
@@ -1528,11 +1638,13 @@ class BacktestEngine:
                         _skip_entry = True
                 if not _skip_entry and _leverage > 0:
                     _margin_used = sum(
-                        p.quantity * p.entry_price * 100_000 / _leverage
+                        p.quantity * p.entry_price
+                        * executor.get_symbol_info(p.symbol).trade_contract_size
+                        / _leverage
                         for p in open_positions if not p.pending
                     )
                     _free_margin = equity - _margin_used
-                    if _free_margin < 0.20 * equity:
+                    if _free_margin < _margin_free_pct * equity:
                         _skip_entry = True
                 if _skip_entry:
                     continue
@@ -1555,6 +1667,15 @@ class BacktestEngine:
                     _sym_hist = ctx.get("streak_history", [])
                     _recent_pnl_r = [1.0 if t[1] > 0 else -1.0 for t in _sym_hist[-6:]]
 
+                    # Adaptive EV: rolling win-rate factor from last 10 trades
+                    _rolling_window = _sym_hist[-10:]
+                    if len(_rolling_window) >= 3:
+                        _wins = sum(1 for t in _rolling_window if t[1] > 0)
+                        _wr = _wins / len(_rolling_window)
+                        _ev_factor = max(min(_wr / 0.5, 1.2), 0.2)
+                    else:
+                        _ev_factor = 1.0
+
                     state = await graph.run(
                         symbol=sym,
                         features=features,
@@ -1562,37 +1683,49 @@ class BacktestEngine:
                         risk_limits=risk_limits,
                         features_by_tf=features_by_tf,
                         recent_pnl_r=_recent_pnl_r,
+                        rank_mode=_rank_signals,
                     )
                     ctx["last_agent_state"] = state
 
+                    # ── Debug decision log ──
+                    if _debug_journal is not None:
+                        _dbg = state.get("metadata", {}).get("debug_snapshot")
+                        if _dbg:
+                            _debug_journal.record_decision_debug(
+                                sym, _dbg,
+                                bar_time=bar_date.isoformat(timespec="seconds"),
+                            )
+
                     if _rank_signals:
                         # ── Ranked mode: collect candidates, defer entry ──
+                        # Clear expired streak blocks (side-effect)
+                        _blk_dir = ctx.get("streak_block_dir")
+                        _blk_until = ctx.get("streak_block_until", 0)
+                        if _blk_dir and step >= _blk_until:
+                            ctx["streak_block_dir"] = None
+                            ctx["streak_block_until"] = 0
+                        _streak_active = bool(ctx.get("streak_block_dir") and step < ctx.get("streak_block_until", 0))
                         for order in executor.placed_orders:
                             tp = order["trade_plan"]
                             _dir = getattr(tp.recipe.direction, "value", str(tp.recipe.direction))
                             if "." in _dir:
                                 _dir = _dir.split(".")[-1].lower()
                             _sl_dist = abs((order["entry_price"] or 0) - (order["stop_loss"] or 0))
-                            if _sl_dist < 1e-7:
-                                continue
-                            # Per-symbol daily SL cap
-                            if _max_daily_sl > 0 and ctx.get("day_sl_count", 0) >= _max_daily_sl:
-                                continue
-                            # Streak guard
-                            _blk_dir = ctx.get("streak_block_dir")
-                            _blk_until = ctx.get("streak_block_until", 0)
-                            if _blk_dir and step < _blk_until:
-                                continue
-                            elif _blk_dir and step >= _blk_until:
-                                ctx["streak_block_count"] = 0
-                                ctx["streak_block_dir"] = None
-                                ctx["streak_block_until"] = 0
-                            _pending_candidates.append({
-                                "sym": sym, "order": order, "state": state,
-                                "dir": _dir, "idx": idx, "step": step,
-                                "ev": tp.recipe.expected_value,
-                                "confidence": tp.confidence,
-                            })
+                            _last_e = ctx["last_entry"].get(sym)
+                            _elapsed = ((bar_date - _last_e).total_seconds() / 60.0) if _last_e is not None else None
+                            _pending_candidates.append(RankCandidate(
+                                symbol=sym,
+                                ev=tp.recipe.expected_value * _ev_factor,
+                                confidence=tp.confidence,
+                                sl_distance=_sl_dist,
+                                day_sl_count=ctx.get("day_sl_count", 0),
+                                streak_blocked=_streak_active,
+                                last_entry_elapsed_min=_elapsed,
+                                payload={
+                                    "order": order, "state": state,
+                                    "dir": _dir, "idx": idx, "step": step,
+                                },
+                            ))
                         if executor.placed_orders:
                             ctx["last_order_attempt"][sym] = bar_date
                     else:
@@ -1628,7 +1761,6 @@ class BacktestEngine:
                             if _blk_dir and step < _blk_until:
                                 continue
                             elif _blk_dir and step >= _blk_until:
-                                ctx["streak_block_count"] = 0
                                 ctx["streak_block_dir"] = None
                                 ctx["streak_block_until"] = 0
 
@@ -1668,37 +1800,33 @@ class BacktestEngine:
                 except Exception as exc:
                     self.logger.debug(f"Portfolio step {global_step} {sym}: {exc}")
 
-            # ── Ranked signal fill: sort candidates by EV, fill best first ─
+            # ── Ranked signal fill: shared ranking logic ────────────────
             if _rank_signals and _pending_candidates:
-                _pending_candidates.sort(key=lambda c: c["ev"], reverse=True)
-                for _cand in _pending_candidates:
-                    _max_conc = risk_limits.max_concurrent_trades
-                    if _max_conc > 0 and len([p for p in open_positions if not p.pending]) >= _max_conc:
-                        break
-                    if _max_daily > 0 and _day_trade_count >= _max_daily:
-                        break
-                    _csym = _cand["sym"]
+                _rank_cfg = RankConfig(
+                    max_concurrent=risk_limits.max_concurrent_trades,
+                    open_position_count=len([p for p in open_positions if not p.pending]),
+                    max_daily=_max_daily,
+                    daily_trade_count=_day_trade_count,
+                    cooldown_minutes=_cooldown_min,
+                    max_daily_sl=_max_daily_sl,
+                )
+                _accepted = rank_and_select(_pending_candidates, _rank_cfg)
+                for _cand in _accepted:
+                    _csym = _cand.symbol
                     _cctx = sym_ctx[_csym]
-                    # Re-check cooldown (another candidate for the same symbol
-                    # may already have been filled this bar).
-                    if _cooldown_min > 0:
-                        _last_e = _cctx["last_entry"].get(_csym)
-                        if _last_e is not None:
-                            _elapsed_c = (bar_date - _last_e).total_seconds() / 60.0
-                            if _elapsed_c < _cooldown_min:
-                                continue
-                    _cord = _cand["order"]
+                    _pl = _cand.payload
+                    _cord = _pl["order"]
                     _ctp = _cord["trade_plan"]
-                    _cstate = _cand["state"]
+                    _cstate = _pl["state"]
                     pos = SimPosition(
                         symbol=_csym,
-                        direction=_cand["dir"],
+                        direction=_pl["dir"],
                         entry_price=_cord["entry_price"],
                         stop_loss=_cord["stop_loss"],
                         take_profit=_cord["take_profit"],
                         quantity=_ctp.quantity,
                         risk_amount=_ctp.risk_amount,
-                        open_bar=_cand["idx"],
+                        open_bar=_pl["idx"],
                         ticket=_cord["order_ticket"],
                         open_global_step=global_step,
                         confidence=_ctp.confidence,
@@ -1765,6 +1893,13 @@ class BacktestEngine:
                         _cooldown_bars = min(_streak_base_bars * (2 ** _prev_count), _streak_max_bars)
                         sym_ctx[_ct.symbol]["streak_block_dir"] = "both"
                         sym_ctx[_ct.symbol]["streak_block_until"] = _sym_step[_ct.symbol] + _cooldown_bars
+                    elif sh[-1][1] > 0:
+                        # A win breaks the losing streak — reset the
+                        # escalation counter so the next 2-loss pair
+                        # starts from the base cooldown (4h) again.
+                        sym_ctx[_ct.symbol].pop("streak_block_count", None)
+                        sym_ctx[_ct.symbol]["streak_block_dir"] = None
+                        sym_ctx[_ct.symbol]["streak_block_until"] = 0
             self._prev_closed_count_pf = len(closed_trades)
 
             # Non-TTY progress
@@ -1777,7 +1912,7 @@ class BacktestEngine:
 
         # ── Close remaining positions at last bar ─────────────────────────
         _graph_logger.setLevel(_graph_orig_level)
-        for pos in open_positions:
+        for pos in [p for p in open_positions if not p.pending]:
             ctx = sym_ctx[pos.symbol]
             _mb = ctx["mid_bars"]
             _last_cl = float(_mb["close"][-1])
@@ -1877,6 +2012,8 @@ class BacktestEngine:
         tier_tf_map: Dict[str, str],
         start_date: str = "",
         end_date: str = "",
+        checkpoint_path: str = "",
+        resume_checkpoint: Optional[dict] = None,
     ) -> BacktestResult:
         mid_key = f"{symbol}_{mid_tf}"
         mid_bars = all_bars[mid_key]
@@ -1921,6 +2058,11 @@ class BacktestEngine:
             base_risk_pct=self.config.risk.base_risk_pct,
             max_daily_drawdown_pct=self.config.risk.max_daily_drawdown_pct,
             max_concurrent_trades=self.config.risk.max_concurrent_trades,
+            per_symbol_leverage_cap=self.config.risk.per_symbol_leverage_cap,
+            portfolio_leverage_cap=self.config.risk.portfolio_leverage_cap,
+            margin_free_pct_threshold=self.config.risk.margin_free_pct_threshold,
+            spread_guard_fraction=self.config.risk.spread_guard_fraction,
+            slippage_pips=self.config.risk.slippage_pips,
         )
 
         # ── Pre-compute config dicts once (avoid model_dump() per bar) ──────
@@ -1946,6 +2088,10 @@ class BacktestEngine:
         # Fires BEFORE stage 1 (+1R). 0 = disabled.
         _early_be_r     = float(_trailing_cfg.get("early_be_r", 0.0))
         _be_buffer_r    = float(_trailing_cfg.get("be_buffer_r", 0.0))
+        # Per-symbol trailing overrides (forex pairs need wider buffer / earlier BE)
+        _sym_trail_ov = _cfg_raw.get("symbol_overrides", {}).get(symbol, {}).get("trailing", {})
+        _be_buffer_r    = float(_sym_trail_ov.get("be_buffer_r", _be_buffer_r))
+        _early_be_r     = float(_sym_trail_ov.get("early_be_r", _early_be_r))
         # Stale-SL tightening: after N hours if still losing, cap at -stale_r×1R.
         _stale_sl_hours = float(_trailing_cfg.get("stale_sl_hours", 0.0))
         _stale_sl_r     = float(_trailing_cfg.get("stale_sl_r_mult", 0.75))
@@ -1958,6 +2104,10 @@ class BacktestEngine:
         _fade_thresh   = float(_exit_cfg_raw.get("conviction_fade_threshold", 0.10))
         _opp_enabled   = bool(_exit_cfg_raw.get("mid_short_opposition_enabled", True))
         _opp_thresh    = float(_exit_cfg_raw.get("mid_short_opposition_threshold", 0.35))
+        # Per-symbol ct_mid_flip_threshold override (from tuning layer)
+        _sym_exit_ov = _cfg_raw.get("symbol_overrides", {}).get(symbol, {}).get("exit_rules", {})
+        _ct_mid_flip_thresh = float(_sym_exit_ov.get("ct_mid_flip_threshold",
+            _exit_cfg_raw.get("ct_mid_flip_threshold", _opp_thresh)))
         # Tighten-on-fade: when conviction is weakening but not yet at close threshold,
         # lock SL at break-even and tighten TP.  Mirrors runner._check_and_close_positions.
         _tighten_on     = bool(_exit_cfg_raw.get("tighten_on_fade_enabled", True))
@@ -1992,6 +2142,24 @@ class BacktestEngine:
         # Margin tracking: approximate free margin to reject oversized entries
         _leverage      = float(_cfg_raw.get("risk", {}).get("leverage", 30))
         _margin_used   = 0.0   # running total of margin consumed by open positions
+
+        # Config-driven execution realism (override class-level defaults)
+        _margin_free_pct = risk_limits.margin_free_pct_threshold
+        _spread_guard_frac = risk_limits.spread_guard_fraction
+        _slippage_pips = risk_limits.slippage_pips
+
+        # ── Debug decision journal (rich per-pipeline snapshot) ───────────
+        _journal_cfg_ss = _cfg_raw.get("journal", {})
+        if _journal_cfg_ss.get("debug_decisions", False):
+            from ..monitoring.journal import TradeJournal as _TJ
+            _debug_journal_ss = _TJ(
+                log_dir=_journal_cfg_ss.get("log_dir", "logs"),
+                log_decisions=False,
+                log_trades=False,
+                debug_decisions=True,
+            )
+        else:
+            _debug_journal_ss = None
 
         # Agent-run throttle: only invoke the full signal pipeline every N bars,
         # mirroring the live runner's signal loop vs surveillance loop separation.
@@ -2036,8 +2204,13 @@ class BacktestEngine:
                 _start_dt = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
                 _idx = next((i for i, d in enumerate(bar_dates) if d >= _start_dt), _MIN_BARS)
                 _sig_bar = max(_idx, _MIN_BARS)
+                if _idx == _MIN_BARS and bar_dates:
+                    logger.warning(
+                        f"start_date {start_date} not found in bar_dates "
+                        f"(range {bar_dates[0]}..{bar_dates[-1]}); defaulting to bar {_sig_bar}"
+                    )
             except Exception:
-                pass
+                logger.warning(f"Could not parse start_date '{start_date}'; using default")
 
         # ── Live-parity guards ────────────────────────────────────────────────
         # Daily drawdown circuit breaker
@@ -2055,7 +2228,7 @@ class BacktestEngine:
         # to intraday signal changes rather than sitting idle for an hour.
         _cooldown_base   = float(getattr(self.config.risk, "entry_cooldown_minutes", 0.0))
         _cooldown_scale  = {"1m": 0.25, "5m": 0.50, "15m": 0.75, "30m": 0.85}.get(mid_tf, 1.0)
-        _cooldown_min    = max(5.0, _cooldown_base * _cooldown_scale)  # floor at 5 min
+        _cooldown_min    = max(5.0, _cooldown_base * _cooldown_scale) if _cooldown_base > 0 else 0  # floor at 5 min
         if _cooldown_scale < 1.0:
             self.logger.info(
                 f"[cooldown] {_cooldown_base:.0f}min × {_cooldown_scale:.2f} "
@@ -2082,8 +2255,10 @@ class BacktestEngine:
         _streak_block_until: Dict[str, int] = {}       # symbol → bar index when block expires
         _streak_block_dir: Dict[str, str] = {}         # symbol → blocked direction
         _streak_block_count: Dict[str, int] = {}       # symbol → consecutive streak count
-        _streak_base_bars = max(1, int(4 * 3600 / _bar_seconds))  # 4h in bars
-        _streak_max_bars  = max(1, int(24 * 3600 / _bar_seconds)) # 24h cap
+        _streak_base_h = float(getattr(self.config.risk, "streak_cooldown_base_hours", 4.0))
+        _streak_max_h  = float(getattr(self.config.risk, "streak_cooldown_max_hours", 24.0))
+        _streak_base_bars = max(1, int(_streak_base_h * 3600 / _bar_seconds))
+        _streak_max_bars  = max(1, int(_streak_max_h * 3600 / _bar_seconds))
         self._prev_closed_count = 0
 
         # ── Intra-bar simulation (IBS) ────────────────────────────────────────
@@ -2099,6 +2274,57 @@ class BacktestEngine:
         _ibs_mode = _ibs_max > 0 and mid_tf == "1m"
         _last_ibs_order: Optional[Dict] = None   # cached order for IBS re-entry
 
+        # ── Checkpoint / resume support ────────────────────────────────────
+        # Save checkpoint every _ckpt_interval bars so an interrupted
+        # backtest can be restarted from the last checkpoint.
+        from .checkpoint import (
+            BacktestCheckpoint, save_checkpoint, remove_checkpoint,
+            _sim_pos_to_dict, _dict_to_sim_pos,
+            _closed_trade_to_dict, _dict_to_closed_trade,
+        )
+        _ckpt_interval = max(200, n_bars // 50)  # ~50 saves over the run
+        _ckpt_path     = checkpoint_path          # "" = disabled
+
+        # ── Resume from checkpoint: restore mutable state ──────────────────
+        _resume_bar = _sig_bar   # first bar to execute (may be advanced by resume)
+        if resume_checkpoint is not None:
+            ck = resume_checkpoint
+            _resume_bar = int(ck["step"]) + 1  # resume from NEXT bar
+            equity = float(ck["equity"])
+            equity_curve = list(ck["equity_curve"])
+            equity_dates = [datetime.fromisoformat(d) for d in ck["equity_dates"]]
+            for pd in ck.get("open_positions", []):
+                open_positions.append(_dict_to_sim_pos(pd, SimPosition))
+            for td in ck.get("closed_trades", []):
+                closed_trades.append(_dict_to_closed_trade(td, ClosedTrade))
+            executor._open_positions = open_positions
+            # Restore guards
+            _day_open_equity = float(ck.get("day_open_equity", equity))
+            _current_day = ck.get("current_day")
+            _day_halted = bool(ck.get("day_halted", False))
+            _day_trade_count = int(ck.get("day_trade_count", 0))
+            _day_sl_count = {k: int(v) for k, v in ck.get("day_sl_count", {}).items()}
+            _wk_open_equity = float(ck.get("wk_open_equity", equity))
+            _current_week = ck.get("current_week")
+            _wk_halted = bool(ck.get("wk_halted", False))
+            _weekend_blocked = bool(ck.get("weekend_blocked", False))
+            _margin_used = float(ck.get("margin_used", 0.0))
+            for k, v in ck.get("last_entry", {}).items():
+                _last_entry[k] = datetime.fromisoformat(v)
+            for k, v in ck.get("last_order_attempt", {}).items():
+                _last_order_attempt[k] = datetime.fromisoformat(v)
+            _streak_history = {k: [tuple(x) for x in v] for k, v in ck.get("streak_history", {}).items()}
+            _streak_block_until = {k: int(v) for k, v in ck.get("streak_block_until", {}).items()}
+            _streak_block_dir = dict(ck.get("streak_block_dir", {}))
+            _streak_block_count = {k: int(v) for k, v in ck.get("streak_block_count", {}).items()}
+            # Re-seed RNG to the checkpoint bar for deterministic replay
+            random.seed(42 + _resume_bar)
+            self.logger.info(
+                f"Resumed from checkpoint: step={ck['step']}/{n_bars} "
+                f"equity={equity:.2f} trades={len(closed_trades)} "
+                f"open={len(open_positions)}"
+            )
+
         # ── Suppress chatty graph logs during backtest ─────────────────────
         # In non-debug mode, graph.py's per-pipeline INFO lines ("Running
         # agents", "Fusing", "Order placed", etc.) flood the output with
@@ -2109,7 +2335,7 @@ class BacktestEngine:
         if logging.getLogger().getEffectiveLevel() > logging.DEBUG:
             _graph_logger.setLevel(logging.WARNING)
 
-        _bar_range = range(_sig_bar, n_bars)
+        _bar_range = range(_resume_bar, n_bars)
         _is_tty = getattr(_sys_.stderr, "isatty", lambda: False)()
         # tqdm for interactive terminals; plain-text fallback when piped
         # (leave=True so the final bar stays visible after the loop ends).
@@ -2250,10 +2476,10 @@ class BacktestEngine:
                 if pos.pending:
                     # ── Spread guard: reject if spread > 20% of stop distance ──
                     _stop_dist = abs(pos.entry_price - pos.stop_loss)
-                    if _stop_dist > 1e-9 and spread / _stop_dist > self._MAX_SPREAD_FRAC:
+                    if _stop_dist > 1e-9 and spread / _stop_dist > _spread_guard_frac:
                         logger.debug(
                             f"[SPREAD-GUARD] bar={step} {bar_date:%H:%M} {symbol} "
-                            f"spread={spread:.5f} > {self._MAX_SPREAD_FRAC:.0%} of "
+                            f"spread={spread:.5f} > {_spread_guard_frac:.0%} of "
                             f"stop_dist={_stop_dist:.5f} — rejecting"
                         )
                         _fill_rejects.append(pos)
@@ -2263,8 +2489,8 @@ class BacktestEngine:
                     _vmin, _vmax, _vstep = self._vol_params(symbol)
                     pos.quantity = round(round(_raw_qty / _vstep) * _vstep, 8)
                     pos.quantity = max(_vmin, min(_vmax, pos.quantity))
-                    # ── Slippage: random ±0.3 pip micro-noise ──
-                    _slip = random.uniform(-self._SLIPPAGE_PIPS, self._SLIPPAGE_PIPS) * pip_sz
+                    # ── Slippage: random ±N pip micro-noise ──
+                    _slip = random.uniform(-_slippage_pips, _slippage_pips) * pip_sz
                     _planned_entry = pos.entry_price
                     if pos.direction == "long":
                         pos.entry_price = bar_open + spread / 2 + _slip  # fill at ask + slip
@@ -2329,8 +2555,8 @@ class BacktestEngine:
                     for _wp in _ibs_wps[1:]:   # skip waypoint[0] (= bar open = fill price)
                         _sl_hit_ibs = ((pos.direction == "long"  and _wp <= pos.stop_loss) or
                                        (pos.direction == "short" and _wp >= pos.stop_loss))
-                        _tp_hit_ibs = ((pos.direction == "long"  and _wp >= pos.take_profit) or
-                                       (pos.direction == "short" and _wp <= pos.take_profit))
+                        _tp_hit_ibs = ((pos.direction == "long"  and pos.take_profit > 0 and _wp >= pos.take_profit) or
+                                       (pos.direction == "short" and pos.take_profit > 0 and _wp <= pos.take_profit))
                         if _sl_hit_ibs and _tp_hit_ibs:
                             _sl_hit_ibs, _tp_hit_ibs = True, False  # SL wins (conservative)
                         if not (_sl_hit_ibs or _tp_hit_ibs):
@@ -2556,7 +2782,7 @@ class BacktestEngine:
                             # the counter-trend move is over.
                             if not _should_close and _is_ct:
                                 _trade_sign = 1.0 if _is_long else -1.0
-                                if _d_mid * _trade_sign < -_opp_thresh:
+                                if _d_mid * _trade_sign < -_ct_mid_flip_thresh:
                                     _should_close = True; _close_reason = "CT mid flipped against"
 
                     if _should_close:
@@ -2647,11 +2873,12 @@ class BacktestEngine:
                         pos.partial_tp1_fired = True
                         # Break-even with buffer: leave be_buffer_r × 1R of room
                         # so the remaining qty isn't stopped by spread/noise.
+                        # Ratchet: never widen SL if trailing already tightened it.
                         _old_sl_p1 = pos.stop_loss
                         if _is_long:
-                            pos.stop_loss = pos.entry_price - _be_buffer_r * _one_r
+                            pos.stop_loss = max(pos.stop_loss, pos.entry_price - _be_buffer_r * _one_r)
                         else:
-                            pos.stop_loss = pos.entry_price + _be_buffer_r * _one_r
+                            pos.stop_loss = min(pos.stop_loss, pos.entry_price + _be_buffer_r * _one_r)
                         logger.info(
                             f"[PARTIAL-TP1] bar={step} {symbol} {pos.direction} "
                             f"closed {_partial1_frac:.0%} @ {cl:.5f} (+1R) "
@@ -2779,7 +3006,9 @@ class BacktestEngine:
                                 # TP extension: push TP forward when price closes in on it (mirrors live)
                                 if (_tp_extend_on and pos.take_profit > 0
                                         and (pos.take_profit - cl) < _atr):
+                                    _old_tp = pos.take_profit
                                     pos.take_profit = cl + _tp_extend_mult * _atr
+                                    logger.debug(f"[TP-EXT] {symbol} LONG tp {_old_tp:.5f}→{pos.take_profit:.5f}")
                             elif _profit_dist >= 1.5 * _one_r:
                                 _new_sl = max(pos.stop_loss, pos.entry_price + 0.5 * _one_r)
                             elif _profit_dist >= 1.0 * _one_r:
@@ -2797,7 +3026,9 @@ class BacktestEngine:
                                 # TP extension: push TP forward when price closes in on it (mirrors live)
                                 if (_tp_extend_on and pos.take_profit > 0
                                         and (cl - pos.take_profit) < _atr):
+                                    _old_tp = pos.take_profit
                                     pos.take_profit = cl - _tp_extend_mult * _atr
+                                    logger.debug(f"[TP-EXT] {symbol} SHORT tp {_old_tp:.5f}→{pos.take_profit:.5f}")
                             elif _profit_dist >= 1.5 * _one_r:
                                 _new_sl = min(pos.stop_loss, pos.entry_price - 0.5 * _one_r)
                             elif _profit_dist >= 1.0 * _one_r:
@@ -2928,6 +3159,13 @@ class BacktestEngine:
                             # Block BOTH directions (full symbol cooldown)
                             _streak_block_dir[_ct.symbol] = "both"
                             _streak_block_until[_ct.symbol] = step + _cooldown_bars
+                        elif _sh[-1][1] > 0:
+                            # A win breaks the losing streak — reset the
+                            # escalation counter so the next 2-loss pair
+                            # starts from the base cooldown (4h) again.
+                            _streak_block_count.pop(_ct.symbol, None)
+                            _streak_block_dir.pop(_ct.symbol, None)
+                            _streak_block_until.pop(_ct.symbol, None)
             self._prev_closed_count = _n_closed_now
 
             # ── Refresh portfolio state (daily_pnl from today's open, not backtest start) ──
@@ -2954,10 +3192,9 @@ class BacktestEngine:
             # and avoids running 14 agents for nothing.
             _skip_entry = False
             if _cooldown_min > 0:
-                # Use the MORE RECENT of last accepted entry or last order
-                # attempt — this prevents graph.py from re-running when the
-                # engine will reject the order anyway (streak guard, etc.).
-                _pre_last_t = _last_order_attempt.get(symbol) or _last_entry.get(symbol)
+                # Use the last ACCEPTED entry only — rejected proposals
+                # (spread guard, margin, etc.) should not start cooldown.
+                _pre_last_t = _last_entry.get(symbol)
                 if _pre_last_t is not None:
                     _pre_elapsed = (bar_date - _pre_last_t).total_seconds() / 60.0
                     if _pre_elapsed < _cooldown_min:
@@ -2966,7 +3203,7 @@ class BacktestEngine:
                 _skip_entry = True
             if not _skip_entry:
                 _pre_mc = risk_limits.max_concurrent_trades
-                if _pre_mc > 0 and len(open_positions) >= _pre_mc:
+                if _pre_mc > 0 and len([p for p in open_positions if not p.pending]) >= _pre_mc:
                     _skip_entry = True
             # News blackout heuristic: block entry if current bar's range is
             # an extreme outlier (> N×ATR) — proxy for high-impact news events
@@ -2982,16 +3219,18 @@ class BacktestEngine:
             # Margin guard: reject entry if estimated margin usage > 80% of equity
             if not _skip_entry and _leverage > 0:
                 _margin_used = sum(
-                    p.quantity * p.entry_price * 100_000 / _leverage
+                    p.quantity * p.entry_price
+                    * executor.get_symbol_info(p.symbol).trade_contract_size
+                    / _leverage
                     for p in open_positions if not p.pending
                 )
                 _free_margin = equity - _margin_used
-                if _free_margin < 0.20 * equity:
+                if _free_margin < _margin_free_pct * equity:
                     _skip_entry = True
                     logger.debug(
                         f"[MARGIN] bar={step} {bar_date:%H:%M} {symbol} "
                         f"used={_margin_used:.0f} free={_free_margin:.0f} "
-                        f"< 20% equity={equity:.0f}"
+                        f"< {_margin_free_pct:.0%} equity={equity:.0f}"
                     )
             if _skip_entry:
                 continue
@@ -3028,12 +3267,21 @@ class BacktestEngine:
                 )
                 _last_agent_state = state
 
+                # ── Debug decision log (single-symbol mode) ──
+                if _debug_journal_ss is not None:
+                    _dbg = state.get("metadata", {}).get("debug_snapshot")
+                    if _dbg:
+                        _debug_journal_ss.record_decision_debug(
+                            symbol, _dbg,
+                            bar_time=bar_date.isoformat(timespec="seconds"),
+                        )
+
                 for order in executor.placed_orders:
                     # ── Max concurrent positions hard guard ────────────────
                     # Graph.py has its own check via portfolio_state, but here
                     # we enforce it directly so no timing gaps allow overfill.
                     _max_conc = risk_limits.max_concurrent_trades
-                    if _max_conc > 0 and len(open_positions) >= _max_conc:
+                    if _max_conc > 0 and len([p for p in open_positions if not p.pending]) >= _max_conc:
                         logger.debug(
                             f"[MAX-CONC] bar={step} {bar_date:%H:%M} {symbol} "
                             f"{len(open_positions)}/{_max_conc} positions — skipping"
@@ -3087,8 +3335,7 @@ class BacktestEngine:
                         )
                         continue
                     elif _blk_dir and step >= _blk_until:
-                        # Cooldown expired — clear block
-                        _streak_block_count.pop(symbol, None)
+                        # Cooldown expired — clear block but keep count for escalation
                         _streak_block_dir.pop(symbol, None)
                         _streak_block_until.pop(symbol, None)
 
@@ -3135,14 +3382,48 @@ class BacktestEngine:
                 if executor.placed_orders:
                     _last_order_attempt[symbol] = bar_date
 
+                # ── Periodic checkpoint save ───────────────────────────────
+                if _ckpt_path and (step - _sig_bar) % _ckpt_interval == 0 and step > _sig_bar:
+                    _ckpt_data = BacktestCheckpoint(
+                        step=step, equity=equity,
+                        equity_curve=equity_curve[:],
+                        equity_dates=[d.isoformat() for d in equity_dates],
+                        open_positions=[_sim_pos_to_dict(p) for p in open_positions],
+                        closed_trades=[_closed_trade_to_dict(t) for t in closed_trades],
+                        day_open_equity=_day_open_equity,
+                        current_day=_current_day,
+                        day_halted=_day_halted,
+                        day_trade_count=_day_trade_count,
+                        day_sl_count=dict(_day_sl_count),
+                        wk_open_equity=_wk_open_equity,
+                        current_week=_current_week,
+                        wk_halted=_wk_halted,
+                        weekend_blocked=_weekend_blocked,
+                        margin_used=_margin_used,
+                        last_entry={k: v.isoformat() for k, v in _last_entry.items()},
+                        last_order_attempt={k: v.isoformat() for k, v in _last_order_attempt.items()},
+                        streak_history=_streak_history,
+                        streak_block_until={k: v for k, v in _streak_block_until.items()},
+                        streak_block_dir=dict(_streak_block_dir),
+                        streak_block_count={k: v for k, v in _streak_block_count.items()},
+                        symbol=symbol, n_bars=n_bars, sig_bar=_sig_bar,
+                        initial_equity=initial_equity,
+                    )
+                    save_checkpoint(_ckpt_data.__dict__, _ckpt_path)
+
             except Exception as exc:
                 self.logger.debug(f"Step {step} error ({symbol}): {exc}")
 
         # Close any remaining positions at the last bar
         # Restore graph logger level
         _graph_logger.setLevel(_graph_orig_level)
+
+        # ── Checkpoint cleanup: remove on successful completion ────────────
+        if _ckpt_path:
+            remove_checkpoint(_ckpt_path)
+
         last_close = float(mid_bars["close"][n_bars - 1])
-        for pos in open_positions:
+        for pos in [p for p in open_positions if not p.pending]:
             pnl = self._pnl_at(pos, last_close, tick_val, pip_sz, close_step=n_bars - 1)
             pnl_r = pnl / max(pos.risk_amount, 1e-9)
             closed_trades.append(ClosedTrade(
@@ -3172,6 +3453,15 @@ class BacktestEngine:
             f"equity {initial_equity:.0f} → {final_equity:.0f} "
             f"({(final_equity / initial_equity - 1) * 100:+.2f}%)"
         )
+
+        # ── Close SL debug dump if open ──
+        _dump_f = getattr(self, "_sl_dump", None)
+        if _dump_f is not None:
+            try:
+                _dump_f.close()
+            except Exception:
+                pass
+            self._sl_dump = None
 
         # ── Debug tracer: record all exits ──
         _tr = _get_tracer()
@@ -4006,6 +4296,7 @@ class BacktestEngine:
         closed_trades: List[ClosedTrade],
         bar_open: float = 0.0,
         bar_close: float = 0.0,
+        global_bar: int = None,
     ) -> bool:
         """Check whether *pos* is stopped out or takes profit on this bar.
 
@@ -4036,7 +4327,7 @@ class BacktestEngine:
             tp_hit = bar_high >= pos.take_profit > 0
         else:
             sl_hit = bar_high >= pos.stop_loss > 0
-            tp_hit = bar_low  <= pos.take_profit
+            tp_hit = bar_low  <= pos.take_profit > 0
 
         # ── Path-based resolution when both are hit on the same bar ──────
         if sl_hit and tp_hit:
@@ -4088,7 +4379,7 @@ class BacktestEngine:
             stop_loss=pos.stop_loss, take_profit=pos.take_profit,
             quantity=pos.quantity, risk_amount=pos.risk_amount,
             pnl=pnl, pnl_r=_pnl_r,
-            open_bar=pos.open_bar, close_bar=step,
+            open_bar=pos.open_bar, close_bar=global_bar if global_bar is not None else step,
             exit_reason=exit_reason, confidence=pos.confidence,
             win_probability=pos.win_probability, agent_votes=pos.agent_votes,
         ))

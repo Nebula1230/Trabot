@@ -1,0 +1,141 @@
+symbols:
+- EURUSD
+- GBPUSD
+- USDJPY
+interval_seconds: 300
+realtime:
+  surveillance_interval_seconds: 60
+  watchdog_interval_seconds: 90
+  weekend_close_enabled: true
+  weekend_close_utc_hour: 20
+mt5:
+  host: localhost
+  port: 18812
+  login: 5048478471
+  password: Wu_wS1Lq
+  server: MetaQuotes-Demo
+  magic_number: 434242
+  slippage: 10
+  max_spread_fraction: 0.2
+rank_signals: true
+risk:
+  base_risk_pct: 0.1
+  max_daily_drawdown_pct: 5.0
+  max_weekly_drawdown_pct: 2.0
+  max_concurrent_trades: 6
+  per_symbol_leverage_cap: 3.0
+  portfolio_leverage_cap: 5.0
+  max_correlated_positions: 2
+  pivot_buffer_atr: 0.5
+  entry_cooldown_minutes: 15
+  max_daily_trades: 20
+agents:
+  enabled_agents: []
+  agent_weights:
+    RegimeAgent: 1.0
+    TrendAgent: 1.0
+    MomentumAgent: 1.0
+    MeanReversionAgent: 1.0
+    VolatilityAgent: 1.0
+    BreadthAgent: 1.0
+    PatternAgent: 1.0
+    IntermarketAgent: 0.8
+    SessionBreakoutAgent: 0.7
+    DivergenceAgent: 0.8
+    CorrelationAgent: 0.75
+alignment:
+  long_min_score: 0.2
+  mid_min_score: 0.1
+  short_min_score: 0.08
+  mean_rev_guard: 0.65
+  breadth_min: -0.6
+  min_win_prob: 0.52
+  min_ev: 0.15
+  min_confidence: 0.5
+  pullback_tolerance: 0.2
+  dead_zone_start_utc: 22
+  dead_zone_end_utc: 6
+  dead_zone_factor: 1.4
+  min_agent_consensus: 6
+  consensus_vote_threshold: 0.05
+  counter_trend:
+    enabled: false
+    mid_min_score: 0.25
+    short_min_score: 0.15
+    long_min_score: 0.2
+    win_prob_penalty: 0.1
+    max_rr: 1.5
+scale_in:
+  enabled: true
+  max_positions_per_symbol: 2
+  require_profit: true
+  risk_fraction: 0.5
+  sl_atr_multiplier: 1.0
+exit_rules:
+  conviction_fade_enabled: true
+  conviction_fade_threshold: 0.05
+  mid_short_opposition_enabled: true
+  mid_short_opposition_threshold: 0.5
+  tighten_on_fade_enabled: true
+  tighten_fade_threshold: 0.12
+  tighten_tp_atr_mult: 0.5
+  max_trade_duration_hours: 10
+execution:
+  signal_max_age_seconds: 150
+  max_tick_age_ms: 2000
+  news_blackout_minutes: 20
+trailing:
+  atr_multiplier: 1.5
+  tp_extend_enabled: true
+  tp_extend_atr_mult: 2.0
+  partial_tp_enabled: true
+  partial_tp_fraction: 0.5
+  partial_tp2_enabled: true
+  partial_tp2_r_mult: 2.0
+  partial_tp2_fraction: 0.4
+  windfall_exit_enabled: true
+  windfall_r_mult: 3.5
+  be_buffer_r: 0.1
+regime_weighting:
+  trend_threshold: 0.55
+  range_threshold: 0.4
+vix_risk_scaling:
+  enabled: true
+  threshold: 0.4
+  floor: 0.5
+kelly:
+  enabled: true
+  half_kelly: true
+  min_trades: 20
+  max_mult: 1.75
+  min_mult: 0.6
+  lookback_days: 60
+adaptive_weights:
+  enabled: true
+  sensitivity: 2.0
+  min_trades: 30
+  max_mult: 2.5
+  min_mult: 0.4
+  shrink_n: 60
+  update_interval_hours: 4.0
+  log_updates: true
+journal:
+  log_dir: logs
+  log_decisions: true
+  log_trades: true
+llm_agents:
+  enabled: false
+  upstream_path: /home/hkerroum/Documents/proj/scale/finbo/TradingAgents
+  analysts:
+  - market
+  - news
+  throttle_hours: 4.0
+  weight: 1.0
+  timeout_seconds: 120
+  max_retries: 2
+  cb_fail_threshold: 3
+  cb_cooldown_minutes: 15.0
+  llm_provider: openai
+  deep_think_llm: gpt-4o-mini
+  quick_think_llm: gpt-4o-mini
+  backend_url: ''

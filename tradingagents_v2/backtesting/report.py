@@ -14,6 +14,7 @@ No external JS/CDN dependencies — the HTML is fully self-contained.
 """
 
 import base64
+import html as _html
 import io
 import json
 import logging
@@ -48,6 +49,7 @@ def generate_report(
     results: List[BacktestResult],
     output_path: str = "backtest_report.html",
     wf_result: Optional[WalkForwardResult] = None,
+    comparison: Optional["ComparisonResult"] = None,
 ) -> str:
     """
     Generate a self-contained HTML performance report.
@@ -56,10 +58,14 @@ def generate_report(
         results:      List of BacktestResult (one per symbol; multi-symbol supported).
         output_path:  Path to write the HTML file.
         wf_result:    Optional WalkForwardResult to include a WF section.
+        comparison:   Optional ComparisonResult from backtest-vs-live matching.
 
     Returns:
         Absolute path to the generated HTML file.
     """
+    if not results:
+        raise ValueError("generate_report() requires at least one BacktestResult")
+
     all_metrics = [compute_metrics(r) for r in results]
 
     # Aggregate equity across symbols
@@ -101,6 +107,10 @@ def generate_report(
     if wf_result:
         sections.append(_section_walk_forward(wf_result))
 
+    if comparison is not None:
+        from .compare import comparison_html_section
+        sections.append(comparison_html_section(comparison))
+
     html = _wrap_html(
         "\n".join(sections),
         results[0].profile,
@@ -117,6 +127,7 @@ def generate_json_report(
     results: List[BacktestResult],
     output_path: str = "backtest_report.json",
     wf_result: Optional[WalkForwardResult] = None,
+    comparison: Optional["ComparisonResult"] = None,
 ) -> str:
     """
     Generate a machine-readable JSON performance report.
@@ -125,10 +136,14 @@ def generate_json_report(
         results:      List of BacktestResult (one per symbol).
         output_path:  Path to write the JSON file.
         wf_result:    Optional WalkForwardResult to include walk-forward data.
+        comparison:   Optional ComparisonResult from backtest-vs-live matching.
 
     Returns:
         Absolute path to the generated JSON file.
     """
+    if not results:
+        raise ValueError("generate_json_report() requires at least one BacktestResult")
+
     all_metrics = [compute_metrics(r) for r in results]
 
     # Aggregate equity — use portfolio curve when available
@@ -189,7 +204,8 @@ def generate_json_report(
     # Aggregate summary
     total_trades = sum(m["total_trades"] for m in all_metrics)
     avg_win_rate = sum(m["win_rate"] for m in all_metrics) / max(len(all_metrics), 1)
-    avg_pf       = sum(m["profit_factor"] for m in all_metrics) / max(len(all_metrics), 1)
+    _pf_vals     = [m["profit_factor"] for m in all_metrics if m["total_trades"] > 0]
+    avg_pf       = float(np.median(_pf_vals)) if _pf_vals else 0.0
     avg_sharpe   = sum(m["sharpe"] for m in all_metrics) / max(len(all_metrics), 1)
     max_dd       = max(m["max_drawdown_pct"] for m in all_metrics)
 
@@ -211,6 +227,21 @@ def generate_json_report(
         "symbols": symbols_data,
     }
 
+    # Config snapshot (useful for debugging tuning / overrides)
+    if results and hasattr(results[0], 'config') and results[0].config:
+        _cfg = results[0].config
+        report["config"] = {
+            "profile": _cfg.get("profile", "unknown"),
+            "symbol_overrides": _cfg.get("symbol_overrides", {}),
+            "confidence_sizing": _cfg.get("confidence_sizing", {}),
+            "streak_sizing": _cfg.get("streak_sizing", {}),
+            "exit_rules": {
+                k: v for k, v in _cfg.get("exit_rules", {}).items()
+                if k in ("ct_mid_flip_threshold", "d1_flip_threshold",
+                         "max_trade_duration_hours")
+            },
+        }
+
     # Walk-forward section
     if wf_result:
         report["walk_forward"] = {
@@ -229,6 +260,11 @@ def generate_json_report(
                 for w in wf_result.windows
             ],
         }
+
+    # Backtest vs Live comparison
+    if comparison is not None:
+        from .compare import comparison_json_section
+        report["comparison"] = comparison_json_section(comparison)
 
     output_path = str(output_path)
     Path(output_path).write_text(json.dumps(report, indent=2), encoding="utf-8")
@@ -337,7 +373,7 @@ def _section_per_symbol(metrics_list: List[Dict]) -> str:
         clr = "color:#4CAF50" if ret >= 0 else "color:#f44336"
         rows += (
             f"<tr>"
-            f"<td>{m['symbol']}</td>"
+            f"<td>{_html.escape(str(m['symbol']))}</td>"
             f"<td>{m['total_trades']}</td>"
             f"<td>{m['win_rate']:.1%}</td>"
             f"<td>{m['profit_factor']:.2f}</td>"
@@ -380,7 +416,7 @@ def _section_trades(results: List[BacktestResult]) -> str:
         _close_str = t.close_dt.strftime("%Y-%m-%d %H:%M") if t.close_dt else "—"
         rows += (
             f"<tr>"
-            f"<td>{t.symbol}</td>"
+            f"<td>{_html.escape(str(t.symbol))}</td>"
             f"<td>{'SHORT' if 'short' in str(t.direction).lower() else 'LONG'}</td>"
             f"<td>{_open_str}</td>"
             f"<td>{_close_str}</td>"
@@ -390,7 +426,7 @@ def _section_trades(results: List[BacktestResult]) -> str:
             f"<td>{t.take_profit:.5f}</td>"
             f"<td style='{clr}'>{t.pnl:+.2f}</td>"
             f"<td style='{clr}'>{t.pnl_r:+.2f}R</td>"
-            f"<td>{t.exit_reason.upper()}</td>"
+            f"<td>{_html.escape(str(t.exit_reason).upper())}</td>"
             f"<td>{_dur_str}</td>"
             f"<td>{t.win_probability:.0%}</td>"
             f"<td>{t.confidence:.2f}</td>"
@@ -495,12 +531,12 @@ def _wrap_html(body: str, profile: str, start: str, end: str) -> str:
         '<html lang="en">\n'
         "<head>\n"
         '  <meta charset="UTF-8">\n'
-        f'  <title>Backtest — {profile.upper()} — {start} to {end}</title>\n'
+        f'  <title>Backtest — {_html.escape(profile.upper())} — {_html.escape(start)} to {_html.escape(end)}</title>\n'
         f"  <style>{css}</style>\n"
         "</head>\n<body>\n"
         "  <h1>TradingAgents-v2 Backtest Report</h1>\n"
-        f'  <p style="color:#888">Profile: <b style="color:#90CAF9">{profile.upper()}</b>'
-        f" &nbsp;|&nbsp; Period: {start} → {end} &nbsp;|&nbsp; Generated: {ts}</p>\n"
+        f'  <p style="color:#888">Profile: <b style="color:#90CAF9">{_html.escape(profile.upper())}</b>'
+        f" &nbsp;|&nbsp; Period: {_html.escape(start)} → {_html.escape(end)} &nbsp;|&nbsp; Generated: {ts}</p>\n"
         f"  {body}\n"
         "</body></html>"
     )

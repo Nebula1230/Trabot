@@ -1,0 +1,27 @@
+{
+  "tuned_at": "2026-04-03T09:34:34.227349+00:00",
+  "symbol_overrides": {
+    "USDJPY": {
+      "confidence_sizing": {
+        "floor": 0.6,
+        "ceil": 1.4
+      },
+      "streak_sizing": {
+        "loss_cut": 0.6,
+        "loss_cut_per_streak": 0.2
+      },
+      "exit_rules": {
+        "ct_mid_flip_threshold": 0.4
+      }
+    }
+  },
+  "details": {
+    "USDJPY": {
+      "is_sharpe": 1.7886804435232484,
+      "oos_sharpe": 2.5195628367844303,
+      "is_return_pct": 12.824994355965224,
+      "oos_return_pct": 14.491479923466333,
+      "trials_run": 46
+    }
+  }
+}

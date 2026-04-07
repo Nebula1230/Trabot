@@ -103,6 +103,8 @@ mt5:
   # US30 normal spread=210 pts ≈ 0.5% of a 400-pt stop → allowed.
   # If EURUSD spikes to 10 pips during news ≈ 31% of stop → blocked.
   max_spread_fraction: 0.20
+  
+rank_signals: true  
 
 # ── Risk management ──────────────────────────────────────────────
 # Forex-safe defaults: small risk per trade, leverage kept low

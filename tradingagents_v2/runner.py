@@ -24,6 +24,7 @@ from datetime import datetime
 from .core.graph import TradingGraph
 from .core.agent_base import AgentRegistry
 from .core.types import PortfolioState, RiskLimits
+from .core.ranking import RankCandidate, RankConfig, rank_and_select
 from .agents import (
     RegimeAgent, TrendAgent, MomentumAgent,
     MeanReversionAgent, VolatilityAgent, BreadthAgent, PatternAgent,
@@ -152,6 +153,11 @@ class _NewsCalendar:
                 "next retry in ~2 hours"
             )
 
+    def maybe_refresh(self) -> None:
+        """Refresh the calendar if TTL has expired (called from sync or async context)."""
+        if time.time() - self._fetched_at > self._TTL:
+            self._refresh()
+
     def is_blackout(self, symbol: str, blackout_minutes: int) -> bool:
         """Return True if a high-impact event is within ±blackout_minutes for this symbol."""
         if blackout_minutes <= 0:
@@ -255,6 +261,7 @@ def _portfolio_state_from_executor(executor: MT5Executor,
             "type":       p["type"],    # "BUY" or "SELL"
             "profit":     p["profit"],
             "price_open": p["price_open"],
+            "sl":         p.get("sl", 0.0),
         })
     balance = account["balance"]
     equity  = account["equity"]
@@ -331,6 +338,7 @@ class TradingRunner:
             log_dir=j.log_dir,
             log_decisions=j.log_decisions,
             log_trades=j.log_trades,
+            debug_decisions=j.debug_decisions,
         )
 
         # Agent calibration tracker — records per-agent vote outcomes
@@ -346,6 +354,11 @@ class TradingRunner:
 
         # Trailing stop manager — read tuning from optional trailing: config block
         trailing_cfg = self.config.model_dump().get("trailing", {})
+        # Collect per-symbol trailing overrides for live mode (e.g. forex early_be_r)
+        _sym_trail_ov = {}
+        for _sym, _ov in self.config.model_dump().get("symbol_overrides", {}).items():
+            if "trailing" in _ov:
+                _sym_trail_ov[_sym] = _ov["trailing"]
         self.trailing_stop_mgr = TrailingStopManager(
             executor=self.executor,
             atr_multiplier=float(trailing_cfg.get("atr_multiplier", 1.5)),
@@ -364,7 +377,13 @@ class TradingRunner:
             stale_sl_hours=float(trailing_cfg.get("stale_sl_hours", 0.0)),
             stale_sl_r_mult=float(trailing_cfg.get("stale_sl_r_mult", 0.75)),
             profile=self.config.profile,
+            sym_trailing_overrides=_sym_trail_ov,
         )
+
+        # RL exit policy — learned or heuristic-based exit decisions
+        from .execution.rl_exit_policy import RLExitPolicy
+        _rl_cfg = self.config.model_dump().get("rl_exit_policy", {})
+        self.rl_exit_policy = RLExitPolicy(_rl_cfg)
 
         # Risk limits from config
         self.risk_limits = RiskLimits(
@@ -412,8 +431,18 @@ class TradingRunner:
         self._streak_block_dir: dict = {}      # symbol → blocked direction ("long"/"short")
         self._streak_block_count: dict = {}    # symbol → consecutive streak count
 
+        # Per-symbol daily SL counter — mirrors backtest engine's day_sl_count.
+        # Reset each UTC calendar day in _run_cycle; incremented by the
+        # surveillance loop when a position hits its stop-loss.
+        self._daily_sl_count: dict = {}        # symbol → int
+
         # Counter-trend scalp tickets — used for shorter time-stop (default 2h)
         self._ct_tickets: set = set()
+
+        # ── Ticket reconciliation: detect MT5-native SL/TP closes ─────────
+        # MT5 silently removes positions hit by SL/TP.  Without reconciliation,
+        # _daily_sl_count and _streak_history are never updated for those exits.
+        self._known_tickets: dict = {}   # ticket → {"symbol": str, "type": str}
 
         # ── Persist / restore daily guards across restarts ────────────────────
         # Without this: every restart resets _daily_trade_count=0 and
@@ -423,8 +452,6 @@ class TradingRunner:
             self.journal.log_dir / f"_bot_state_{self.config.profile}.json"
         )
         self._restore_daily_state()
-
-        self._setup_signal_handlers()
 
     # ------------------------------------------------------------------
     # Public entry points
@@ -464,11 +491,15 @@ class TradingRunner:
                     "1H": 60, "4H": 90, "1D": 120,
                 }
                 surveillance_interval = _surv_by_tf.get(_mid_tf, 60)
+        # Store mid TF for cooldown TF-scaling in _run_cycle
+        _tf_cfg_cd = self.config.timeframes
+        self._mid_tf = _tf_cfg_cd.mid[0] if _tf_cfg_cd.mid else "1H"
         if watchdog_interval is None:
             watchdog_interval = int(rt_cfg.get("watchdog_interval_seconds", 90))
 
         self._running = True
         self._cycle_num = 0
+        self._setup_signal_handlers()
         self.logger.info(
             f"TradingRunner started — symbols: {self.config.symbols} | "
             f"profile: {self.config.profile} | "
@@ -477,11 +508,14 @@ class TradingRunner:
         )
         # Run all three loops concurrently; if any crashes fatally it raises
         # and asyncio.gather re-raises, letting the outer try/except log it.
-        await asyncio.gather(
-            self._surveillance_loop(surveillance_interval),
-            self._signal_loop(interval_seconds),
-            self._watchdog_loop(check_interval=watchdog_interval),
-        )
+        try:
+            await asyncio.gather(
+                self._surveillance_loop(surveillance_interval),
+                self._signal_loop(interval_seconds),
+                self._watchdog_loop(check_interval=watchdog_interval),
+            )
+        finally:
+            self.executor.shutdown()
 
     # ------------------------------------------------------------------
     # Watchdog — MT5 connection health + autonomous recovery
@@ -524,54 +558,13 @@ class TradingRunner:
 
                 # ── MT5 connection check ───────────────────────────────────────
                 if self.executor.simulation_mode:
-                    continue   # nothing to reconnect in simulation
-
-                async with self._executor_lock:
-                    acct = self.executor.get_account_info()
-                if acct is not None:
-                    continue   # all good
-
-                # Connection lost — attempt reconnect
-                self.logger.warning("[WATCHDOG] MT5 connection lost — attempting reconnect")
-                delay = _BACKOFF_BASE
-                reconnected = False
-                for attempt in range(1, _MAX_RECONNECT + 1):
-                    self.logger.info(
-                        f"[WATCHDOG] Reconnect attempt {attempt}/{_MAX_RECONNECT} "
-                        f"(waiting {delay}s)"
-                    )
-                    await asyncio.sleep(delay)
-                    try:
-                        async with self._executor_lock:
-                            self.executor.shutdown()
-                    except Exception:
-                        pass
-                    try:
-                        cfg = self.config.mt5.model_dump()
-                        from .execution.mt5_executor import MT5Executor
-                        async with self._executor_lock:
-                            self.executor = MT5Executor(cfg)
-                            # Propagate new executor to dependent components
-                            self.data_loader._executor = self.executor
-                            self.data_loader.simulation = self.executor.simulation_mode
-                            self.data_loader._tf_map    = self.executor.get_tf_map()
-                            self.trailing_stop_mgr.executor = self.executor
-                            self.graph.executor = self.executor
-                            # Verify while still holding lock
-                            if self.executor.get_account_info() is not None:
-                                self.logger.info("[WATCHDOG] MT5 reconnected successfully")
-                                reconnected = True
-                        if reconnected:
-                            break
-                    except Exception as exc:
-                        self.logger.error(f"[WATCHDOG] Reconnect attempt {attempt} failed: {exc}")
-                    delay = min(delay * 2, 120)   # cap at 2 min
-
-                if not reconnected:
-                    self.logger.critical(
-                        "[WATCHDOG] Could not reconnect to MT5 after "
-                        f"{_MAX_RECONNECT} attempts — bot will keep retrying next cycle"
-                    )
+                    pass   # nothing to reconnect in simulation
+                else:
+                    async with self._executor_lock:
+                        acct = self.executor.get_account_info()
+                    if acct is None:
+                        # Connection lost — attempt reconnect
+                        await self._reconnect_mt5(_BACKOFF_BASE, _MAX_RECONNECT)
 
                 # ── Trade health evaluation ────────────────────────────────────
                 # Lightweight per-position checks that don't require agent re-runs.
@@ -593,7 +586,15 @@ class TradingRunner:
                         _open_t = _wp.get("open_time", 0)
                         if not (_entry and _sl and _open_t and _ticket):
                             continue
-                        _one_r = abs(_entry - _sl)
+                        # Use original SL from _known_tickets (immutable, set at
+                        # entry) so that prior trailing-SL moves don't shrink 1R.
+                        # Falls back to current SL for positions opened before
+                        # this runner session (unknown original SL).
+                        _kt_info = self._known_tickets.get(_ticket)
+                        _orig_sl = (_kt_info.get("stop_loss", 0.0)
+                                    if _kt_info and "stop_loss" in _kt_info
+                                    else 0.0)
+                        _one_r = abs(_entry - _orig_sl) if _orig_sl else abs(_entry - _sl)
                         if _one_r < 1e-9:
                             continue
                         _profit = (_price - _entry) if _type == "BUY" else (_entry - _price)
@@ -634,6 +635,46 @@ class TradingRunner:
             except Exception as exc:
                 self.logger.error(f"[WATCHDOG] Unexpected error: {exc}")
 
+    async def _reconnect_mt5(self, backoff_base: float, max_attempts: int) -> None:
+        """Attempt to reconnect to MT5 with exponential back-off."""
+        self.logger.warning("[WATCHDOG] MT5 connection lost — attempting reconnect")
+        delay = backoff_base
+        reconnected = False
+        for attempt in range(1, max_attempts + 1):
+            self.logger.info(
+                f"[WATCHDOG] Reconnect attempt {attempt}/{max_attempts} "
+                f"(waiting {delay}s)"
+            )
+            await asyncio.sleep(delay)
+            try:
+                async with self._executor_lock:
+                    self.executor.shutdown()
+            except Exception:
+                pass
+            try:
+                cfg = self.config.mt5.model_dump()
+                from .execution.mt5_executor import MT5Executor
+                async with self._executor_lock:
+                    self.executor = MT5Executor(cfg)
+                    self.data_loader._executor = self.executor
+                    self.data_loader.simulation = self.executor.simulation_mode
+                    self.data_loader._tf_map    = self.executor.get_tf_map()
+                    self.trailing_stop_mgr.executor = self.executor
+                    self.graph.executor = self.executor
+                    if self.executor.get_account_info() is not None:
+                        self.logger.info("[WATCHDOG] MT5 reconnected successfully")
+                        reconnected = True
+                if reconnected:
+                    break
+            except Exception as exc:
+                self.logger.error(f"[WATCHDOG] Reconnect attempt {attempt} failed: {exc}")
+            delay = min(delay * 2, 120)
+        if not reconnected:
+            self.logger.critical(
+                "[WATCHDOG] Could not reconnect to MT5 after "
+                f"{max_attempts} attempts — bot will keep retrying next cycle"
+            )
+
     async def _surveillance_loop(self, interval: int) -> None:
         """Fast loop: SL management + exit checks for open positions."""
         _skip_ratchet = bool(
@@ -651,19 +692,22 @@ class TradingRunner:
                     _now_utc  = datetime.utcnow()
                     _cutoff   = int(_rt_cfg_sv.get("weekend_close_utc_hour", 20))
                     if _now_utc.weekday() == 4 and _now_utc.hour >= _cutoff:
-                        # Friday past market close — close everything once
-                        _do_close = False
+                        # Friday past market close — close everything, retry each
+                        # surveillance tick until no bot positions remain.
                         async with self._state_lock:
-                            if not self._weekend_close_active:
-                                self._weekend_close_active = True
-                                _do_close = True
-                        if _do_close:
+                            self._weekend_close_active = True
+                        async with self._executor_lock:
+                            _bot_open = [
+                                p for p in self.executor.get_open_positions()
+                                if p.get("magic") == self.executor.magic_number
+                            ]
+                        if _bot_open:
                             async with self._executor_lock:
                                 await self._close_all_positions(
                                     f"Friday weekend gap protection (past {_cutoff}:00 UTC)"
                                 )
-                    elif _now_utc.weekday() not in (4, 5):
-                        # Monday–Thursday or Sunday: markets open → allow entries again
+                    elif _now_utc.weekday() in (0, 1, 2, 3):
+                        # Monday–Thursday: markets open → allow entries again
                         async with self._state_lock:
                             self._weekend_close_active = False
 
@@ -717,6 +761,30 @@ class TradingRunner:
                                     f"drawdown circuit breaker: {_real_dd*100:.2f}% < -{_max_dd_pct:.2f}%"
                                 )
 
+                    # ── Weekly drawdown circuit breaker: close ALL open positions
+                    # when the weekly drawdown ceiling is breached.  Mirrors the
+                    # backtest engine's weekly_dd_close_all behaviour.
+                    _max_wk_pct = float(_dd_cfg.get("max_weekly_drawdown_pct", 0))
+                    if _max_wk_pct > 0 and self._start_of_week_balance > 0:
+                        _acct_wk = self.executor.get_account_info()
+                        if _acct_wk is not None:
+                            _eq_wk = _acct_wk.get("equity", self._start_of_week_balance)
+                            _wk_dd = (_eq_wk - self._start_of_week_balance) / self._start_of_week_balance
+                            if _wk_dd < -(_max_wk_pct / 100):
+                                self.logger.warning(
+                                    f"[WEEKLY DD CLOSE-ALL] Weekly drawdown {_wk_dd*100:.2f}% "
+                                    f"breached -{_max_wk_pct:.2f}% ceiling — "
+                                    "closing all open positions"
+                                )
+                                await self._close_all_positions(
+                                    f"weekly drawdown circuit breaker: {_wk_dd*100:.2f}% < -{_max_wk_pct:.2f}%"
+                                )
+
+                    # 2b. Reconcile broker-closed positions (SL/TP hit by MT5)
+                    #     Updates streak history, daily SL cap, CT tickets.
+                    async with self._state_lock:
+                        self._reconcile_closed_tickets()
+
                     # 3. Agent-based exit check (exit_check_only — no entry evaluation)
                     await self._check_and_close_positions()
             except Exception as e:
@@ -763,6 +831,16 @@ class TradingRunner:
         self.logger.warning(
             f"[CLOSE ALL] Closing {len(open_positions)} position(s) — {reason}"
         )
+        # Derive a clean exit_reason tag for the closed-trade journal
+        _reason_lc = reason.lower()
+        if "weekend" in _reason_lc:
+            _exit_tag = "weekend"
+        elif "weekly" in _reason_lc:
+            _exit_tag = "weekly_dd_close_all"
+        elif "drawdown" in _reason_lc:
+            _exit_tag = "dd_close_all"
+        else:
+            _exit_tag = "close_all"
         failed: list = []
         for pos in open_positions:
             symbol = pos["symbol"]
@@ -772,6 +850,19 @@ class TradingRunner:
                 self.logger.info(
                     f"  Closed {symbol} #{ticket}  pnl={pos['profit']:+.2f}"
                 )
+                _dir_ca = "long" if pos.get("type") == "BUY" else "short"
+                self._record_exit(
+                    ticket=ticket,
+                    symbol=symbol,
+                    direction=_dir_ca,
+                    exit_price=pos.get("price_current", 0.0),
+                    pnl=pos.get("profit", 0.0),
+                    exit_reason=_exit_tag,
+                )
+                async with self._state_lock:
+                    self._known_tickets.pop(ticket, None)
+                    self._ct_tickets.discard(ticket)
+                self.agent_tracker.score_closed_trade(ticket, pos.get("profit", 0.0))
                 self.journal.record_cycle(symbol, {
                     "decision":     "closed",
                     "executed":     True,
@@ -793,6 +884,19 @@ class TradingRunner:
                     self.logger.info(
                         f"  Retry #{attempt}: closed {pos['symbol']} #{pos['ticket']}"
                     )
+                    _dir_rt = "long" if pos.get("type") == "BUY" else "short"
+                    self._record_exit(
+                        ticket=pos["ticket"],
+                        symbol=pos["symbol"],
+                        direction=_dir_rt,
+                        exit_price=pos.get("price_current", 0.0),
+                        pnl=pos.get("profit", 0.0),
+                        exit_reason=_exit_tag,
+                    )
+                    async with self._state_lock:
+                        self._known_tickets.pop(pos["ticket"], None)
+                        self._ct_tickets.discard(pos["ticket"])
+                    self.agent_tracker.score_closed_trade(pos["ticket"], pos.get("profit", 0.0))
                 else:
                     still_failed.append(pos)
             failed = still_failed
@@ -801,6 +905,188 @@ class TradingRunner:
             self.logger.error(
                 f"[CLOSE ALL] {len(failed)} position(s) STILL OPEN after retries: {tags}"
             )
+
+    def _record_exit(
+        self,
+        *,
+        ticket: int,
+        symbol: str,
+        direction: str,
+        exit_price: float,
+        pnl: float,
+        exit_reason: str,
+    ) -> None:
+        """Record a closed trade in ClosedTrade-compatible format.
+
+        Pulls entry-time metadata from ``_known_tickets`` (enriched at order
+        placement) and falls back to MT5 position data when unavailable.
+        """
+        info = self._known_tickets.get(ticket, {})
+        entry_price = info.get("entry_price", 0.0)
+        stop_loss = info.get("stop_loss", 0.0)
+        take_profit = info.get("take_profit", 0.0)
+        quantity = info.get("quantity", 0.0)
+        risk_amount = info.get("risk_amount", 0.0)
+        confidence = info.get("confidence", 0.0)
+        win_probability = info.get("win_probability", 0.0)
+        agent_votes = info.get("agent_votes", {})
+        open_dt = info.get("open_dt")
+        entry_type = info.get("entry_type", "full-alignment")
+
+        # Compute pnl_r (P&L in risk units)
+        pnl_r = pnl / risk_amount if risk_amount and risk_amount > 1e-9 else 0.0
+
+        self.journal.record_closed_trade(
+            symbol=symbol,
+            direction=direction,
+            entry_price=entry_price,
+            exit_price=exit_price,
+            stop_loss=stop_loss,
+            take_profit=take_profit,
+            quantity=quantity,
+            risk_amount=risk_amount,
+            pnl=pnl,
+            pnl_r=pnl_r,
+            exit_reason=exit_reason,
+            confidence=confidence,
+            win_probability=win_probability,
+            agent_votes=agent_votes,
+            open_dt=open_dt,
+            ticket=ticket,
+            entry_type=entry_type,
+        )
+
+    def _reconcile_closed_tickets(self) -> None:
+        """Detect positions closed natively by MT5 (SL/TP hit) and update
+        streak history, daily SL counter, and CT ticket tracking.
+
+        Called every surveillance tick inside the executor lock.
+        Compares _known_tickets against current open positions; any ticket
+        that vanished was closed by the broker.  We then query
+        get_closed_trades() to get the P&L and reason.
+        """
+        current_positions = self.executor.get_open_positions()
+        current_tickets = {
+            p["ticket"] for p in current_positions
+            if p.get("magic") == self.executor.magic_number
+        }
+
+        # Snapshot current open tickets into _known_tickets for new ones
+        for p in current_positions:
+            _t = p["ticket"]
+            if p.get("magic") == self.executor.magic_number and _t not in self._known_tickets:
+                self._known_tickets[_t] = {
+                    "symbol": p["symbol"],
+                    "type": p["type"],
+                }
+
+        # Find vanished tickets
+        # Snapshot to avoid RuntimeError if dict changes during iteration
+        vanished = {t: info for t, info in list(self._known_tickets.items())
+                    if t not in current_tickets}
+        if not vanished:
+            return
+
+        # Query recent closed deals to get P&L for vanished tickets
+        closed_deals = self.executor.get_closed_trades(days=1)
+        if closed_deals is None:
+            self.logger.warning("[RECONCILE] Could not fetch closed trades — skipping reconciliation")
+            return
+        # Build position_id → deal lookup.  MT5 deal tickets differ from
+        # position tickets; position_id links back to the original position.
+        deal_by_pos_id: dict = {}
+        for d in closed_deals:
+            _pid = d.get("position_id")
+            if _pid:
+                deal_by_pos_id[_pid] = d
+
+        for ticket, info in vanished.items():
+            symbol = info["symbol"]
+            trade_type = info["type"]
+            _dir = "long" if trade_type == "BUY" else "short"
+
+            # Try to find the deal for this position ticket
+            deal = deal_by_pos_id.get(ticket)
+            pnl = deal["profit"] if deal else 0.0
+
+            self.logger.info(
+                f"[RECONCILE] {symbol} #{ticket} {trade_type} vanished from MT5 "
+                f"(broker SL/TP hit) — pnl={pnl:+.2f}"
+            )
+
+            # Determine exit reason from deal details
+            _exit_reason = "broker_closed"
+            if deal:
+                _deal_comment = str(deal.get("comment", "")).lower()
+                if "sl" in _deal_comment or "stop" in _deal_comment:
+                    _exit_reason = "sl"
+                elif "tp" in _deal_comment or "take" in _deal_comment:
+                    _exit_reason = "tp"
+            _exit_px = deal["price"] if deal and "price" in deal else 0.0
+
+            # Record in ClosedTrade-compatible journal
+            self._record_exit(
+                ticket=ticket,
+                symbol=symbol,
+                direction=_dir,
+                exit_price=_exit_px,
+                pnl=pnl,
+                exit_reason=_exit_reason,
+            )
+
+            # Update streak history — append ALL trades (not just losses)
+            # so that recent_pnl_r reflects the full win/loss sequence for
+            # streak-momentum sizing (parity with engine.py).
+            if _exit_reason == "sl":
+                self._daily_sl_count[symbol] = self._daily_sl_count.get(symbol, 0) + 1
+            self._streak_history.setdefault(symbol, []).append(
+                (_dir, pnl, time.time())
+            )
+            _sh = self._streak_history[symbol]
+            if len(_sh) > 50:
+                self._streak_history[symbol] = _sh[-50:]
+                _sh = self._streak_history[symbol]
+            if pnl < 0:
+                if len(_sh) >= 2 and _sh[-1][1] < 0 and _sh[-2][1] < 0:
+                    _prev_cnt = self._streak_block_count.get(symbol, 0)
+                    self._streak_block_count[symbol] = _prev_cnt + 1
+                    _streak_base_h = float(getattr(self.config.risk, "streak_cooldown_base_hours", 4.0))
+                    _streak_max_h = float(getattr(self.config.risk, "streak_cooldown_max_hours", 24.0))
+                    _cd_secs = min(int(_streak_base_h * 3600) * (2 ** _prev_cnt), int(_streak_max_h * 3600))
+                    self._streak_block_dir[symbol] = "both"
+                    self._streak_block_until[symbol] = time.time() + _cd_secs
+                    self.logger.warning(
+                        f"STREAK [{symbol}]: 2 consecutive losses (broker SL) "
+                        f"— blocking ALL directions for {_cd_secs/3600:.0f}h "
+                        f"(streak #{_prev_cnt + 1})"
+                    )
+            elif pnl >= 0:
+                # Win resets the block state but keeps history intact
+                # (engine.py retains full history for recent_pnl_r sizing).
+                self._streak_block_count.pop(symbol, None)
+                self._streak_block_dir.pop(symbol, None)
+                self._streak_block_until.pop(symbol, None)
+
+            # Clean up CT ticket tracking
+            self._ct_tickets.discard(ticket)
+
+            # Score agent votes
+            self.agent_tracker.score_closed_trade(ticket, pnl)
+
+            # Journal
+            self.journal.record_cycle(symbol, {
+                "decision": "broker_closed",
+                "executed": True,
+                "order_ticket": ticket,
+                "errors": [],
+            })
+
+            # Remove from known set
+            del self._known_tickets[ticket]
+
+        # Persist state changes from reconciliation (SL counts, streak, etc.)
+        if vanished:
+            self._persist_daily_state()
 
     async def _check_and_close_positions(self) -> None:
         """
@@ -833,6 +1119,9 @@ class TradingRunner:
         fade_threshold      = float(exit_cfg.get("conviction_fade_threshold", 0.10))
         # Mid+Short opposition: close when BOTH mid & short oppose by more than this
         opposition_threshold = float(exit_cfg.get("mid_short_opposition_threshold", 0.35))
+        ct_mid_flip_threshold = float(exit_cfg.get("ct_mid_flip_threshold", opposition_threshold))
+        # Per-symbol ct_mid_flip_threshold overrides (from tuning layer)
+        _sym_overrides_cfg = self.config.model_dump().get("symbol_overrides", {})
         # Whether each condition is enabled
         # Default False: conviction_fade is opt-in (must be explicitly enabled in config).
         # Defaulting True was silently force-closing positions on every bar where |dir_long|
@@ -849,6 +1138,9 @@ class TradingRunner:
             trade_type = pos["type"]  # "BUY" or "SELL"
             try:
                 features_by_tf = self.data_loader.get_multi_features(symbol)
+                if features_by_tf is None:
+                    self.logger.warning(f"Could not load features for {symbol} — skipping exit check")
+                    continue
                 features = (features_by_tf.get("mid")
                             or features_by_tf.get("long")
                             or features_by_tf.get("short"))
@@ -874,6 +1166,65 @@ class TradingRunner:
 
                 should_close = False
                 reason = ""
+                _exit_tag = "signal"   # default; overridden for time-stop
+
+                # ── RL Exit Policy check ──────────────────────────────────────
+                # The RL policy gets first say: if it recommends EXIT, skip the
+                # hand-tuned rules entirely.  TIGHTEN is handled as a SL move.
+                if self.rl_exit_policy.enabled:
+                    from .execution.rl_exit_policy import ExitObservation, ExitAction
+                    _trade_sign_rl = 1.0 if trade_type == "BUY" else -1.0
+                    _open_ts_rl = pos.get("open_time", 0)
+                    _hours_rl = (time.time() - _open_ts_rl) / 3600.0 if _open_ts_rl else 0
+                    _max_h_rl = float(exit_cfg.get("max_trade_duration_hours", 16))
+                    _entry_rl = pos.get("price_open", 0)
+                    _sl_rl = pos.get("sl", 0)
+                    _one_r_rl = abs(_entry_rl - _sl_rl) if _sl_rl else 1.0
+                    _profit_in_r = (pos.get("price_current", _entry_rl) - _entry_rl) * _trade_sign_rl / max(_one_r_rl, 1e-9)
+                    _atr_now_rl = features.atr_14 if features and features.atr_14 else 1.0
+                    _sig_conf = float(fusion.confidence) if hasattr(fusion, 'confidence') else 0.5
+
+                    _obs = ExitObservation(
+                        dir_long=dir_long * _trade_sign_rl,
+                        dir_mid=dir_mid * _trade_sign_rl,
+                        dir_short=dir_short * _trade_sign_rl,
+                        profit_r=_profit_in_r,
+                        hours_held=_hours_rl,
+                        max_hours=_max_h_rl,
+                        atr_ratio=1.0,  # ratio vs entry ATR (simplified)
+                        signal_conf=_sig_conf,
+                        is_counter_trend=pos.get("ticket") in self._ct_tickets,
+                    )
+                    _rl_action = self.rl_exit_policy.predict(_obs)
+                    if _rl_action == ExitAction.EXIT:
+                        should_close = True
+                        _exit_tag = "rl-exit"
+                        reason = (
+                            f"RL exit policy: score triggered "
+                            f"(D1={dir_long:.3f} M={dir_mid:.3f} "
+                            f"profit={_profit_in_r:.2f}R held={_hours_rl:.1f}h)"
+                        )
+                    elif _rl_action == ExitAction.TIGHTEN:
+                        # Tighten SL to breakeven + buffer
+                        _atr_rl = features.atr_14 if features else 0
+                        if _atr_rl > 0 and pos.get("sl"):
+                            _be_buf_rl = 0.10 * _one_r_rl
+                            if trade_type == "BUY":
+                                _new_sl_rl = max(pos["sl"], _entry_rl - _be_buf_rl)
+                                if _new_sl_rl > pos["sl"]:
+                                    self.executor.modify_stop_loss(pos["ticket"], _new_sl_rl)
+                                    self.logger.info(
+                                        f"RL-TIGHTEN [{symbol} #{pos['ticket']}] "
+                                        f"SL: {pos['sl']:.5f}→{_new_sl_rl:.5f}"
+                                    )
+                            else:
+                                _new_sl_rl = min(pos["sl"], _entry_rl + _be_buf_rl) if pos["sl"] > 0 else _entry_rl + _be_buf_rl
+                                if pos["sl"] == 0 or _new_sl_rl < pos["sl"]:
+                                    self.executor.modify_stop_loss(pos["ticket"], _new_sl_rl)
+                                    self.logger.info(
+                                        f"RL-TIGHTEN [{symbol} #{pos['ticket']}] "
+                                        f"SL: {pos['sl']:.5f}→{_new_sl_rl:.5f}"
+                                    )
 
                 if short_tier_exits:
                     # ── SCALP exits: driven by the 1m SHORT-tier signal ────────
@@ -906,17 +1257,20 @@ class TradingRunner:
 
                 else:
                     # ── SWING exits: driven by D1 long-tier signal ─────────────
+                    _ticket_exit = pos.get("ticket")
+                    _is_ct = _ticket_exit in self._ct_tickets
 
-                    # ── Condition 1: D1 flip ───────────────────────────────────
-                    if trade_type == "BUY" and dir_long < -flip_threshold:
-                        should_close = True
-                        reason = f"D1 flipped bearish ({dir_long:.3f})"
-                    elif trade_type == "SELL" and dir_long > flip_threshold:
-                        should_close = True
-                        reason = f"D1 flipped bullish ({dir_long:.3f})"
+                    # ── Condition 1: D1 flip (CT trades immune — they oppose D1) ──
+                    if not _is_ct:
+                        if trade_type == "BUY" and dir_long < -flip_threshold:
+                            should_close = True
+                            reason = f"D1 flipped bearish ({dir_long:.3f})"
+                        elif trade_type == "SELL" and dir_long > flip_threshold:
+                            should_close = True
+                            reason = f"D1 flipped bullish ({dir_long:.3f})"
 
-                    # ── Condition 2: Conviction fade ───────────────────────────
-                    if not should_close and fade_enabled:
+                    # ── Condition 2: Conviction fade (CT trades immune) ────────
+                    if not should_close and not _is_ct and fade_enabled:
                         if abs(dir_long) < fade_threshold:
                             should_close = True
                             reason = (
@@ -941,9 +1295,23 @@ class TradingRunner:
                                     f"(M={dir_mid:.3f} S={dir_short:.3f}) while D1 weak ({dir_long:.3f})"
                                 )
 
-                # ── Time-stop ────────────────────────────────────────────────
-                # If neither signal condition fired, check whether the trade has
-                # been open too long without reaching its TP.
+                    # ── Condition 4: CT mid-flip — dedicated CT exit ───────────
+                    # CT trades oppose D1, so D1-flip/fade don't apply.  Instead,
+                    # close when the mid-TF flips against the CT trade direction.
+                    if not should_close and _is_ct:
+                        _trade_sign = 1.0 if trade_type == "BUY" else -1.0
+                        _ct_thresh_sym = float(
+                            _sym_overrides_cfg.get(symbol, {}).get("exit_rules", {}).get(
+                                "ct_mid_flip_threshold", ct_mid_flip_threshold))
+                        if dir_mid * _trade_sign < -_ct_thresh_sym:
+                            should_close = True
+                            reason = f"CT mid flipped against (dir_mid={dir_mid:.3f})"
+
+                # ── Time-stop (adaptive) ─────────────────────────────────────
+                # Base time-stop is scaled by volatility and session:
+                #   - High ATR (> 1.5× 14-period ATR) → extend by 30% (let volatile moves develop)
+                #   - Low ATR  (< 0.7× baseline)      → shorten by 20% (exit stale trades faster)
+                #   - Asian session (21:00-06:00 UTC)  → shorten by 25% (low liquidity, signals degrade)
                 # Counter-trend scalps use a shorter time-stop (default 2h).
                 if not should_close:
                     max_hours = float(exit_cfg.get("max_trade_duration_hours", 0))
@@ -951,6 +1319,30 @@ class TradingRunner:
                     _ticket = pos.get("ticket")
                     _is_ct = _ticket in self._ct_tickets
                     _eff_hours = _ct_max_hours if _is_ct else max_hours
+
+                    # ── Adaptive time-stop scaling ────────────────────────────
+                    _adaptive_ts = bool(exit_cfg.get("adaptive_time_stop", False))
+                    if _adaptive_ts and _eff_hours > 0 and features:
+                        _atr_now = features.atr_14 if features.atr_14 else 0.0
+                        # Use EMA20/close ratio as a baseline volatility proxy
+                        _atr_baseline = _atr_now  # simplification: compare to self
+                        if hasattr(features, 'atr_ratio') and features.atr_ratio:
+                            _atr_ratio = features.atr_ratio
+                        else:
+                            _atr_ratio = 1.0  # neutral
+
+                        # Volatility scaling
+                        if _atr_ratio > 1.5:
+                            _eff_hours *= 1.30  # high vol → give more room
+                        elif _atr_ratio < 0.7:
+                            _eff_hours *= 0.80  # low vol → exit sooner
+
+                        # Session scaling: Asian session = shorter time-stop
+                        from datetime import datetime as _dt_cls
+                        _utc_hour = _dt_cls.utcnow().hour
+                        if _utc_hour >= 21 or _utc_hour < 6:
+                            _eff_hours *= 0.75  # Asian session: low liquidity
+
                     if _eff_hours > 0:
                         open_ts = pos.get("open_time", 0)  # UNIX seconds
                         if open_ts and open_ts > 0:
@@ -958,10 +1350,11 @@ class TradingRunner:
                             hours_open = (_t.time() - open_ts) / 3600.0
                             if hours_open >= _eff_hours:
                                 should_close = True
+                                _exit_tag = "time-stop"
                                 reason = (
-                                    f"time-stop{'(CT)' if _is_ct else ''}: "
+                                    f"time-stop{'(CT)' if _is_ct else ''}{'(adaptive)' if _adaptive_ts else ''}: "
                                     f"open {hours_open:.1f}h "
-                                    f">= {_eff_hours:.0f}h limit  "
+                                    f">= {_eff_hours:.1f}h limit  "
                                     f"pnl={pos['profit']:+.2f}"
                                 )
 
@@ -972,8 +1365,19 @@ class TradingRunner:
                     )
                     ok = self.executor.close_position(pos["ticket"])
                     if ok:
-                        # Clean up CT ticket tracking
-                        self._ct_tickets.discard(pos["ticket"])
+                        # Record closed trade in ClosedTrade-compatible journal
+                        _dir_exit = "long" if trade_type == "BUY" else "short"
+                        self._record_exit(
+                            ticket=pos["ticket"],
+                            symbol=symbol,
+                            direction=_dir_exit,
+                            exit_price=pos.get("price_current", 0.0),
+                            pnl=pos.get("profit", 0.0),
+                            exit_reason=_exit_tag,
+                        )
+                        async with self._state_lock:
+                            self._known_tickets.pop(pos["ticket"], None)
+                            self._ct_tickets.discard(pos["ticket"])
                         # Score agent votes against the outcome of this trade
                         self.agent_tracker.score_closed_trade(
                             pos["ticket"], pos.get("profit", 0.0)
@@ -984,24 +1388,28 @@ class TradingRunner:
                             "order_ticket": pos["ticket"],
                             "errors": [],
                         })
-                        # ── Streak guard: record loss ─────────────────────────
+                        # ── Streak guard: record trade (parity with engine.py) ──
                         _pnl = pos.get("profit", 0.0)
+                        _dir = "long" if trade_type == "BUY" else "short"
+                        self._streak_history.setdefault(symbol, []).append(
+                            (_dir, _pnl, time.time())
+                        )
+                        _sh = self._streak_history[symbol]
+                        if len(_sh) > 50:
+                            self._streak_history[symbol] = _sh[-50:]
+                            _sh = self._streak_history[symbol]
                         if _pnl < 0:
-                            _dir = "long" if trade_type == "BUY" else "short"
-                            self._streak_history.setdefault(symbol, []).append(
-                                (_dir, _pnl, time.time())
-                            )
                             # Direction-agnostic: any 2 consecutive losses block
                             # the symbol (CT trades can't bypass the guard)
-                            _sh = self._streak_history[symbol]
                             if (len(_sh) >= 2
                                     and _sh[-1][1] < 0 and _sh[-2][1] < 0):
                                 _prev_cnt = self._streak_block_count.get(symbol, 0)
                                 self._streak_block_count[symbol] = _prev_cnt + 1
-                                # Escalating cooldown: 4h → 8h → 16h → 24h
+                                _streak_base_h = float(getattr(self.config.risk, "streak_cooldown_base_hours", 4.0))
+                                _streak_max_h = float(getattr(self.config.risk, "streak_cooldown_max_hours", 24.0))
                                 _cd_secs = min(
-                                    4 * 3600 * (2 ** _prev_cnt),
-                                    24 * 3600,
+                                    int(_streak_base_h * 3600) * (2 ** _prev_cnt),
+                                    int(_streak_max_h * 3600),
                                 )
                                 self._streak_block_dir[symbol] = "both"
                                 self._streak_block_until[symbol] = time.time() + _cd_secs
@@ -1011,10 +1419,12 @@ class TradingRunner:
                                     f"(streak #{_prev_cnt + 1})"
                                 )
                         elif _pnl >= 0:
-                            # Win or break-even resets the streak guard
+                            # Win resets block state but keeps history for
+                            # recent_pnl_r sizing (engine.py retains full history).
                             self._streak_block_count.pop(symbol, None)
                             self._streak_block_dir.pop(symbol, None)
                             self._streak_block_until.pop(symbol, None)
+                        self._persist_daily_state()
                     else:
                         self.logger.warning(f"Failed to close {symbol} #{pos['ticket']}")
                 else:
@@ -1036,18 +1446,16 @@ class TradingRunner:
                             and atr > 0
                             and pos_profit > 0
                             and fade_threshold < abs(dir_long) < tighten_threshold):
-                        # BE buffer: use current SL distance as 1R proxy
-                        _one_r_t = abs(pos_entry - pos_sl) if pos_sl > 0 else atr
-                        _be_buf  = self.trailing_stop_mgr.be_buffer_r * _one_r_t
+                        # SL → exact entry price (break-even), matching engine.py
                         if trade_type == "BUY":
-                            tight_sl = max(pos_sl, pos_entry - _be_buf)   # at least BE w/ buffer
+                            tight_sl = max(pos_sl, pos_entry)             # exact BE
                             tight_tp = price_now + tighten_tp_mult * atr  # nearby TP
                             # Only apply if TP would meaningfully tighten
                             # (must be at least 0.2×ATR more conservative than current)
                             tp_improves = (pos_tp <= 0 or tight_tp < pos_tp - 0.2 * atr)
                             sl_improves = (tight_sl > pos_sl)
                         else:                                              # SELL
-                            tight_sl = min(pos_sl, pos_entry + _be_buf) if pos_sl > 0 else pos_entry + _be_buf
+                            tight_sl = min(pos_sl, pos_entry) if pos_sl > 0 else pos_entry
                             tight_tp = price_now - tighten_tp_mult * atr
                             tp_improves = (pos_tp <= 0 or tight_tp > pos_tp + 0.2 * atr)
                             sl_improves = (pos_sl <= 0 or tight_sl < pos_sl)
@@ -1062,6 +1470,72 @@ class TradingRunner:
                                 f"TP: {pos_tp:.5f}→{new_tp:.5f}"
                             )
                             self.executor.modify_sl_tp(pos["ticket"], new_sl, new_tp)
+
+                    # ── In-trade signal re-evaluation ──────────────────────────
+                    # Re-check signal strength while trade is open:
+                    #   - Signal STRENGTHENED (all 3 tiers agree by > 1.5× entry gate):
+                    #     → loosen SL by 0.25×ATR to give the winner more room
+                    #   - Signal WEAKENED (D1 < 50% of entry gate but not at flip):
+                    #     → tighten SL toward entry by 0.15×ATR to protect profits
+                    _reeval_enabled = bool(exit_cfg.get("signal_reeval_enabled", False))
+                    if _reeval_enabled and atr > 0:
+                        _trade_sign = 1.0 if trade_type == "BUY" else -1.0
+                        _d1_aligned = dir_long * _trade_sign
+                        _mid_aligned = dir_mid * _trade_sign
+                        _short_aligned = dir_short * _trade_sign
+                        _entry_gate = float(al_cfg.get("long_min_score", 0.15))
+
+                        # Strong signal: all 3 tiers agree at > 1.5× entry threshold
+                        if (_d1_aligned > _entry_gate * 1.5
+                                and _mid_aligned > 0.05
+                                and _short_aligned > 0.0
+                                and pos_profit > 0):
+                            # Loosen SL by 0.25×ATR (give winner more room)
+                            if trade_type == "BUY":
+                                _loose_sl = pos_sl - 0.25 * atr
+                                if _loose_sl < pos_sl and pos_sl > 0:
+                                    self.logger.info(
+                                        f"REEVAL-LOOSEN [{symbol} #{pos['ticket']}] "
+                                        f"signal strong (D1={dir_long:.3f} M={dir_mid:.3f} S={dir_short:.3f}) "
+                                        f"SL: {pos_sl:.5f}→{_loose_sl:.5f}"
+                                    )
+                                    self.executor.modify_stop_loss(pos["ticket"], _loose_sl)
+                            else:
+                                _loose_sl = pos_sl + 0.25 * atr
+                                if pos_sl > 0 and _loose_sl > pos_sl:
+                                    self.logger.info(
+                                        f"REEVAL-LOOSEN [{symbol} #{pos['ticket']}] "
+                                        f"signal strong (D1={dir_long:.3f} M={dir_mid:.3f} S={dir_short:.3f}) "
+                                        f"SL: {pos_sl:.5f}→{_loose_sl:.5f}"
+                                    )
+                                    self.executor.modify_stop_loss(pos["ticket"], _loose_sl)
+
+                        # Weakened signal: D1 still in trade direction but below 50% of entry gate
+                        elif (0 < _d1_aligned < _entry_gate * 0.5
+                              and pos_profit > 0):
+                            # Tighten SL by 0.15×ATR to protect profits
+                            if trade_type == "BUY":
+                                _tight_sl = pos_sl + 0.15 * atr
+                                _max_tight = pos_entry  # don't tighten past entry
+                                _tight_sl = min(_tight_sl, _max_tight)
+                                if _tight_sl > pos_sl:
+                                    self.logger.info(
+                                        f"REEVAL-TIGHTEN [{symbol} #{pos['ticket']}] "
+                                        f"signal weakened (D1={dir_long:.3f}) "
+                                        f"SL: {pos_sl:.5f}→{_tight_sl:.5f}"
+                                    )
+                                    self.executor.modify_stop_loss(pos["ticket"], _tight_sl)
+                            else:
+                                _tight_sl = pos_sl - 0.15 * atr
+                                _min_tight = pos_entry
+                                _tight_sl = max(_tight_sl, _min_tight)
+                                if pos_sl > 0 and _tight_sl < pos_sl:
+                                    self.logger.info(
+                                        f"REEVAL-TIGHTEN [{symbol} #{pos['ticket']}] "
+                                        f"signal weakened (D1={dir_long:.3f}) "
+                                        f"SL: {pos_sl:.5f}→{_tight_sl:.5f}"
+                                    )
+                                    self.executor.modify_stop_loss(pos["ticket"], _tight_sl)
 
                     self.logger.debug(
                         f"HOLD {symbol} #{pos['ticket']} {trade_type}  "
@@ -1084,6 +1558,14 @@ class TradingRunner:
         # TTL guard limits actual recomputation to at most every N hours.
         self.adaptive_weight_mgr.update()
 
+        # Pre-refresh news calendar in a thread pool so the blocking HTTP
+        # call never freezes the event loop during the per-symbol loop.
+        _news_cfg_pre = self.config.model_dump().get("execution", {})
+        if int(_news_cfg_pre.get("news_blackout_minutes", 0)) > 0:
+            await asyncio.get_event_loop().run_in_executor(
+                None, _news_calendar.maybe_refresh
+            )
+
         async with self._executor_lock:
             portfolio = _portfolio_state_from_executor(self.executor, self.order_manager)
         results = {}
@@ -1097,6 +1579,7 @@ class TradingRunner:
                 self._start_of_day_balance = portfolio.equity
                 self._start_of_day_date = today_utc
                 self._daily_trade_count = 0  # reset counter each new UTC day
+                self._daily_sl_count.clear()  # reset per-symbol SL counter
                 self.logger.info(
                     f"New trading day {today_utc} — "
                     f"start-of-day equity: {self._start_of_day_balance:.2f}"
@@ -1142,6 +1625,24 @@ class TradingRunner:
                 )
                 return {}
 
+        # 3. Daily drawdown entry halt: block new entries when the daily
+        #    drawdown ceiling is breached.  Mirrors the engine's _day_halted
+        #    flag.  (The surveillance loop independently closes positions via
+        #    the DD close-all logic, but this gate prevents *new* entries.)
+        _max_dd_pct_cb = float(_risk_cfg_cb.get("max_daily_drawdown_pct", 0))
+        if _max_dd_pct_cb > 0 and self._start_of_day_balance > 0 and portfolio is not None:
+            _daily_dd = (
+                (portfolio.equity - self._start_of_day_balance)
+                / self._start_of_day_balance
+            )
+            if _daily_dd < -(_max_dd_pct_cb / 100):
+                self.logger.warning(
+                    f"[DAILY HALT] Daily drawdown {_daily_dd * 100:.2f}% breached "
+                    f"-{_max_dd_pct_cb:.2f}% ceiling — "
+                    "no new entries until tomorrow"
+                )
+                return {}
+
         # Phase 1: Fetch bar data for all symbols concurrently, capped at 5 simultaneous
         # requests to avoid overwhelming the MT5 bridge with a request storm.
         _sem = asyncio.Semaphore(5)
@@ -1171,7 +1672,15 @@ class TradingRunner:
         # candidates by expected value and execute from best to worst.
         _risk_cfg = self.config.model_dump().get("risk", {})
         _max_daily = int(_risk_cfg.get("max_daily_trades", 0))
-        _cooldown_secs = float(_risk_cfg.get("entry_cooldown_minutes", 0)) * 60.0
+        # Scale cooldown by mid-TF granularity (mirrors engine.py):
+        # the configured value assumes 1H bars; faster TFs get shorter cooldowns.
+        _cooldown_base = float(_risk_cfg.get("entry_cooldown_minutes", 0))
+        _cd_scale = {"1m": 0.25, "5m": 0.50, "15m": 0.75, "30m": 0.85}.get(
+            getattr(self, "_mid_tf", "1H"), 1.0
+        )
+        _cooldown_min = max(5.0, _cooldown_base * _cd_scale) if _cooldown_base > 0 else 0
+        _cooldown_secs = _cooldown_min * 60.0
+        _max_daily_sl = int(_risk_cfg.get("max_daily_sl_per_symbol", 0))
         _rank_signals = bool(getattr(self.config, "rank_signals", False))
         _pending_candidates: list = []   # used only when _rank_signals is True
 
@@ -1182,6 +1691,40 @@ class TradingRunner:
                     f"Max daily trades ({_max_daily}) reached — no further entries today"
                 )
                 break
+
+            # Margin guard: reject entry if free margin < 20% of equity
+            # (mirrors engine.py: _free_margin < 0.20 * equity)
+            _acct_mg = self.executor.get_account_info()
+            if _acct_mg is None:
+                self.logger.error(
+                    f"{symbol}: cannot fetch account info — blocking entry"
+                )
+                results[symbol] = {"decision": "error", "executed": False,
+                                   "order_ticket": None,
+                                   "errors": ["account_info_unavailable"]}
+                continue
+            _eq_mg = _acct_mg.get("equity", 0.0)
+            _fm_mg = _acct_mg.get("free_margin", _eq_mg)
+            if _eq_mg > 0 and _fm_mg < 0.20 * _eq_mg:
+                self.logger.debug(
+                    f"{symbol}: margin guard — free_margin={_fm_mg:.0f} "
+                    f"< 20% equity={_eq_mg:.0f} — skipping"
+                )
+                results[symbol] = {"decision": "margin_guard", "executed": False,
+                                   "order_ticket": None, "errors": []}
+                continue
+
+            # Per-symbol daily SL cap: halt symbol after N SL exits today
+            _sym_sl_cnt = self._daily_sl_count.get(symbol, 0)
+            if _max_daily_sl > 0 and _sym_sl_cnt >= _max_daily_sl:
+                self.logger.info(
+                    f"{symbol}: daily SL cap reached "
+                    f"(SL_today={_sym_sl_cnt} >= max={_max_daily_sl}) "
+                    f"— skipping entry"
+                )
+                results[symbol] = {"decision": "daily_sl_cap", "executed": False,
+                                   "order_ticket": None, "errors": []}
+                continue
 
             # Per-symbol cooldown: skip symbol if not enough time has elapsed since
             # the last trade on that symbol.
@@ -1268,16 +1811,34 @@ class TradingRunner:
                     "block_reason": state.get("metadata", {}).get("block_reason", ""),
                 }
 
+                # ── Debug decision log (rich per-pipeline snapshot) ──
+                _dbg = state.get("metadata", {}).get("debug_snapshot")
+                if _dbg:
+                    self.journal.record_decision_debug(symbol, _dbg)
+
                 if _rank_signals:
                     # Collect candidate for deferred ranking; skip symbols
                     # whose pipeline didn't produce a trade plan.
                     tp = state.get("trade_plan")
                     if tp and state.get("decision") != "rejected":
-                        _pending_candidates.append({
-                            "symbol": symbol,
-                            "state":  state,
-                            "ev":     tp.recipe.expected_value,
-                        })
+                        _sl_dist = abs(tp.entry_price - tp.stop_loss)
+                        _cd_elapsed = None
+                        if symbol in self._entry_cooldown:
+                            _cd_elapsed = (time.time() - self._entry_cooldown[symbol]) / 60.0
+                        _streak_blk_active = bool(
+                            self._streak_block_dir.get(symbol)
+                            and time.time() < self._streak_block_until.get(symbol, 0)
+                        )
+                        _pending_candidates.append(RankCandidate(
+                            symbol=symbol,
+                            ev=tp.recipe.expected_value,
+                            confidence=tp.confidence,
+                            sl_distance=_sl_dist,
+                            day_sl_count=self._daily_sl_count.get(symbol, 0),
+                            streak_blocked=_streak_blk_active,
+                            last_entry_elapsed_min=_cd_elapsed,
+                            payload={"state": state},
+                        ))
                     # Journal even if not executed yet
                     self.journal.record_cycle(symbol, results[symbol])
                     continue   # defer execution to ranked fill phase below
@@ -1296,9 +1857,30 @@ class TradingRunner:
                         state["trade_plan"],
                         {"order_ticket": mt5_ticket},
                     )
+                    # Enrich _known_tickets with full entry data for closed-trade journal
+                    if mt5_ticket:
+                        _tp = state["trade_plan"]
+                        _agent_out = state.get("agent_outputs", {})
+                        _votes = {k: float(v.dir_score) for k, v in _agent_out.items() if hasattr(v, "dir_score")} if _agent_out else {}
+                        async with self._state_lock:
+                            self._known_tickets[mt5_ticket] = {
+                                "symbol":          symbol,
+                                "type":            "BUY" if _tp.recipe.direction == "long" else "SELL",
+                                "entry_price":     _tp.entry_price,
+                                "stop_loss":       _tp.stop_loss,
+                                "take_profit":     _tp.take_profit,
+                                "quantity":        _tp.quantity,
+                                "risk_amount":     _tp.risk_amount,
+                                "confidence":      _tp.confidence,
+                                "win_probability": _tp.recipe.win_probability,
+                                "agent_votes":     _votes,
+                                "open_dt":         datetime.utcnow().isoformat(timespec="seconds") + "Z",
+                                "entry_type":      state.get("metadata", {}).get("entry_type", "full-alignment"),
+                            }
                     # Track counter-trend scalp tickets for shorter time-stop
                     if mt5_ticket and state.get("metadata", {}).get("entry_type") == "counter-trend-scalp":
-                        self._ct_tickets.add(mt5_ticket)
+                        async with self._state_lock:
+                            self._ct_tickets.add(mt5_ticket)
                     # Record agent votes for calibration tracking
                     if mt5_ticket and state.get("agent_outputs"):
                         direction = str(state["trade_plan"].recipe.direction)
@@ -1331,27 +1913,40 @@ class TradingRunner:
                 results[symbol] = {"decision": "stop", "executed": False,
                                    "order_ticket": None, "errors": [str(e)]}
 
-        # ── Ranked signal fill: sort candidates by EV, execute best first ──
+        # ── Ranked signal fill: shared ranking logic ────────────────────
         if _rank_signals and _pending_candidates:
-            _pending_candidates.sort(key=lambda c: c["ev"], reverse=True)
-            self.logger.info(
-                f"[RANK] {len(_pending_candidates)} candidate(s) — "
-                + ", ".join(f"{c['symbol']}(EV={c['ev']:.3f})" for c in _pending_candidates)
+            # Refresh portfolio so slot count reflects positions closed by
+            # the surveillance loop during the candidate-collection phase.
+            async with self._executor_lock:
+                _fresh_pf = _portfolio_state_from_executor(self.executor, self.order_manager)
+            if _fresh_pf is not None:
+                portfolio = _fresh_pf
+            _rank_cfg = RankConfig(
+                max_concurrent=self.risk_limits.max_concurrent_trades,
+                open_position_count=len(portfolio.open_positions) if portfolio else 0,
+                max_daily=_max_daily,
+                daily_trade_count=self._daily_trade_count,
+                cooldown_minutes=_cooldown_min,
+                max_daily_sl=_max_daily_sl,
             )
-            for _cand in _pending_candidates:
-                _csym = _cand["symbol"]
-                # Re-check daily cap (a prior candidate may have consumed a slot)
+            _accepted = rank_and_select(_pending_candidates, _rank_cfg)
+            self.logger.info(
+                f"[RANK] {len(_pending_candidates)} candidate(s), "
+                f"{len(_accepted)} accepted — "
+                + ", ".join(f"{c.symbol}(EV={c.ev:.3f})" for c in _accepted)
+            )
+            for _cand in _accepted:
+              try:
+                # Re-check daily limit before executing each candidate.
+                # rank_and_select budgets slots, but prior candidates in
+                # this loop may have incremented the counter already.
                 if _max_daily > 0 and self._daily_trade_count >= _max_daily:
-                    self.logger.info(f"[RANK] {_csym}: skipped — daily cap reached")
+                    self.logger.info(
+                        f"[RANK] Daily limit {_max_daily} reached — skipping remaining candidates"
+                    )
                     break
-                # Re-check cooldown (another candidate for same symbol may have filled)
-                if _cooldown_secs > 0 and _csym in self._entry_cooldown:
-                    _el = time.time() - self._entry_cooldown[_csym]
-                    if _el < _cooldown_secs:
-                        self.logger.debug(f"[RANK] {_csym}: skipped — cooldown active")
-                        continue
-                # Execute the deferred trade plan
-                _cstate = _cand["state"]
+                _csym = _cand.symbol
+                _cstate = _cand.payload["state"]
                 _cstate = await self.graph.execute_deferred(
                     _cstate, executor_lock=self._executor_lock
                 )
@@ -1370,8 +1965,29 @@ class TradingRunner:
                     self.journal.record_trade(
                         _csym, _cstate["trade_plan"], {"order_ticket": mt5_ticket}
                     )
+                    # Enrich _known_tickets with full entry data for closed-trade journal
+                    if mt5_ticket:
+                        _tp_r = _cstate["trade_plan"]
+                        _ao_r = _cstate.get("agent_outputs", {})
+                        _votes_r = {k: float(v.dir_score) for k, v in _ao_r.items() if hasattr(v, "dir_score")} if _ao_r else {}
+                        async with self._state_lock:
+                            self._known_tickets[mt5_ticket] = {
+                                "symbol":          _csym,
+                                "type":            "BUY" if _tp_r.recipe.direction == "long" else "SELL",
+                                "entry_price":     _tp_r.entry_price,
+                                "stop_loss":       _tp_r.stop_loss,
+                                "take_profit":     _tp_r.take_profit,
+                                "quantity":        _tp_r.quantity,
+                                "risk_amount":     _tp_r.risk_amount,
+                                "confidence":      _tp_r.confidence,
+                                "win_probability": _tp_r.recipe.win_probability,
+                                "agent_votes":     _votes_r,
+                                "open_dt":         datetime.utcnow().isoformat(timespec="seconds") + "Z",
+                                "entry_type":      _cstate.get("metadata", {}).get("entry_type", "full-alignment"),
+                            }
                     if mt5_ticket and _cstate.get("metadata", {}).get("entry_type") == "counter-trend-scalp":
-                        self._ct_tickets.add(mt5_ticket)
+                        async with self._state_lock:
+                            self._ct_tickets.add(mt5_ticket)
                     if mt5_ticket and _cstate.get("agent_outputs"):
                         direction = str(_cstate["trade_plan"].recipe.direction)
                         self.agent_tracker.record_trade_votes(
@@ -1380,7 +1996,7 @@ class TradingRunner:
                     self._entry_cooldown[_csym] = time.time()
                     self._daily_trade_count += 1
                     self.logger.info(
-                        f"[RANK] {_csym}: trade executed (EV={_cand['ev']:.3f}) — "
+                        f"[RANK] {_csym}: trade executed (EV={_cand.ev:.3f}) — "
                         f"daily count {self._daily_trade_count}/{_max_daily or '∞'}"
                     )
                     self._persist_daily_state()
@@ -1394,6 +2010,9 @@ class TradingRunner:
                                 update={"daily_drawdown": real_dd, "max_daily_drawdown": real_dd}
                             )
                         portfolio = _refreshed
+              except Exception as _rank_err:
+                self.logger.error(f"Error filling ranked candidate {_cand.symbol}: {_rank_err}")
+                results[_cand.symbol] = {"decision": "stop", "executed": False, "errors": [str(_rank_err)], "block_reason": "rank_fill_error"}
 
         # Update trailing stops for all open positions — now owned by surveillance loop
         # (kept here as fallback when run_once is called directly in tests)
@@ -1438,6 +2057,21 @@ class TradingRunner:
                 self.logger.info(
                     f"[State] Stale state from {raw.get('date')} — starting fresh for {today}"
                 )
+                # Restore cross-day state that shouldn't reset daily
+                self._weekend_close_active  = bool(raw.get("weekend_close_active", False))
+                self._start_of_week_balance = float(raw.get("start_of_week_balance", 0.0))
+                self._start_of_week_date    = raw.get("start_of_week_date", "")
+                self._streak_block_dir   = raw.get("streak_block_dir", {})
+                self._streak_block_until = {k: float(v) for k, v in raw.get("streak_block_until", {}).items()}
+                self._streak_block_count = {k: int(v) for k, v in raw.get("streak_block_count", {}).items()}
+                self._ct_tickets         = set(raw.get("ct_tickets", []))
+                self._streak_history = {
+                    k: [tuple(e) for e in v]
+                    for k, v in raw.get("streak_history", {}).items()
+                }
+                self._known_tickets = {
+                    int(k): v for k, v in raw.get("known_tickets", {}).items()
+                }
                 return
             self._daily_trade_count      = int(raw.get("daily_trade_count", 0))
             self._entry_cooldown         = {k: float(v) for k, v in raw.get("entry_cooldown", {}).items()}
@@ -1446,6 +2080,18 @@ class TradingRunner:
             self._start_of_week_balance  = float(raw.get("start_of_week_balance", 0.0))
             self._start_of_week_date     = raw.get("start_of_week_date", "")
             self._weekend_close_active   = bool(raw.get("weekend_close_active", False))
+            self._daily_sl_count         = {k: int(v) for k, v in raw.get("daily_sl_count", {}).items()}
+            self._streak_block_dir       = raw.get("streak_block_dir", {})
+            self._streak_block_until     = {k: float(v) for k, v in raw.get("streak_block_until", {}).items()}
+            self._streak_block_count     = {k: int(v) for k, v in raw.get("streak_block_count", {}).items()}
+            self._ct_tickets             = set(raw.get("ct_tickets", []))
+            self._streak_history = {
+                k: [tuple(e) for e in v]
+                for k, v in raw.get("streak_history", {}).items()
+            }
+            self._known_tickets = {
+                int(k): v for k, v in raw.get("known_tickets", {}).items()
+            }
             self.logger.info(
                 f"[State] Restored: daily_trades={self._daily_trade_count}, "
                 f"cooldowns={len(self._entry_cooldown)}, "
@@ -1469,8 +2115,16 @@ class TradingRunner:
                 "start_of_week_balance": self._start_of_week_balance,
                 "start_of_week_date":    self._start_of_week_date,
                 "weekend_close_active":  self._weekend_close_active,
+                "daily_sl_count":        self._daily_sl_count,
+                "streak_block_dir":      self._streak_block_dir,
+                "streak_block_until":    self._streak_block_until,
+                "streak_block_count":    self._streak_block_count,
+                "ct_tickets":            list(self._ct_tickets),
+                "streak_history":        {k: v[-50:] for k, v in self._streak_history.items()},
+                "known_tickets":         {str(k): v for k, v in self._known_tickets.items()},
             }
             # Atomic write: write to temp file then rename to prevent corruption
+            self._state_file.parent.mkdir(parents=True, exist_ok=True)
             _tmp = self._state_file.with_suffix(".tmp")
             _tmp.write_text(json.dumps(payload))
             _tmp.replace(self._state_file)
@@ -1483,7 +2137,7 @@ class TradingRunner:
 
     def _setup_signal_handlers(self):
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
         except RuntimeError:
             return  # No running loop (e.g. in tests) — skip signal handler setup
         for sig in (signal.SIGINT, signal.SIGTERM):
@@ -1521,7 +2175,7 @@ def _build_runner_cli() -> "argparse.Namespace":
     )
     parser.add_argument(
         "--profile", default="balanced",
-        choices=["safe", "balanced", "risky", "scalp", "hft"],
+        choices=["safe", "balanced", "risky", "risky_equity", "scalp", "hft"],
         help="Risk/strategy profile (default: balanced)",
     )
     parser.add_argument(
@@ -1547,8 +2201,32 @@ def _build_runner_cli() -> "argparse.Namespace":
              "Mutually exclusive with --agents.",
     )
     parser.add_argument(
+        "--tune-file", nargs="+", default=None, dest="tune_file",
+        metavar="FILE",
+        help=(
+            "Load tuned params. Accepts:\n"
+            "  - A single .tuned.json (applies all symbols inside it)\n"
+            "  - Multiple SYMBOL:file pairs, e.g. USDJPY:usdjpy.tuned.json EURUSD:eurusd.tuned.json"
+        ),
+    )
+    parser.add_argument(
+        "--symbols", nargs="+", default=None,
+        help="Override which symbols to trade (space-separated, e.g. USDJPY EURUSD).",
+    )
+    parser.add_argument(
+        "--mid-tf", default=None, dest="mid_tf",
+        help="Override the mid timeframe (e.g. 15m, 1H). Applies to all symbols.",
+    )
+    parser.add_argument(
         "--list-agents", action="store_true", dest="list_agents",
         help="Print all available agent names and exit.",
+    )
+    parser.add_argument(
+        "--debug", action="store_true",
+        help="Enable debug decision logging: writes a rich JSONL file "
+             "(debug_decisions_YYYY-MM-DD.jsonl) with full pipeline detail "
+             "for every trade decision (agent votes, fusion, alignment, "
+             "recipe, risk check, sizing, execution).",
     )
 
     # Handle --list-agents before argparse runs full validation
@@ -1583,6 +2261,39 @@ if __name__ == "__main__":
         print(f"[ERROR] Could not load config '{args.config}': {e}", file=sys.stderr)
         sys.exit(1)
 
+    # Apply symbol selection
+    if args.symbols:
+        cfg.symbols = list(args.symbols)
+        logging.getLogger("runner").info(f"Symbol selection: {cfg.symbols}")
+
+    # Apply tuned per-symbol overrides
+    if args.tune_file:
+        from tradingagents_v2.backtesting.symbol_tuner import SymbolTuner
+        merged_overrides: dict = {}
+        for entry in args.tune_file:
+            if ":" in entry and not entry.startswith("/"):
+                # SYMBOL:path format
+                sym, path = entry.split(":", 1)
+                sym = sym.strip().upper()
+                file_overrides = SymbolTuner.load_overrides(path.strip())
+                if sym in file_overrides:
+                    merged_overrides[sym] = file_overrides[sym]
+                elif file_overrides:
+                    # File has overrides but not for this symbol — take first
+                    merged_overrides[sym] = next(iter(file_overrides.values()))
+            else:
+                # Plain path — load all symbols from file
+                file_overrides = SymbolTuner.load_overrides(entry)
+                merged_overrides.update(file_overrides)
+        cfg_dict = cfg.model_dump()
+        cfg_dict["symbol_overrides"] = merged_overrides
+        from tradingagents_v2.config.settings import TradingConfig as _TC
+        cfg = _TC(**cfg_dict)
+        logging.getLogger("runner").info(
+            f"Loaded tuned overrides for {list(merged_overrides.keys())} "
+            f"from {args.tune_file}"
+        )
+
     # Apply agent selection
     if args.agents:
         unknown = [a for a in args.agents if a not in _ALL_AGENTS]
@@ -1602,6 +2313,16 @@ if __name__ == "__main__":
         logging.getLogger("runner").info(
             f"Agent selection (excluding {args.disable_agents}): {cfg.agents.enabled_agents}"
         )
+
+    # Apply mid-timeframe override
+    if args.mid_tf:
+        cfg.timeframes.mid = [args.mid_tf]
+        logging.getLogger("runner").info(f"Mid timeframe override: {args.mid_tf}")
+
+    # Apply debug decision logging
+    if args.debug:
+        cfg.journal.debug_decisions = True
+        logging.getLogger("runner").info("Debug decision logging enabled")
 
     runner = TradingRunner(config=cfg, simulation=args.simulation)
     asyncio.run(runner.run_forever())

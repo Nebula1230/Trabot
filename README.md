@@ -17,9 +17,10 @@ Runs live (MT5 via Docker on Linux, native on Windows) or in backtest with reali
 7. [Risk Management](#risk-management)
 8. [Profiles](#profiles)
 9. [Backtesting Engine](#backtesting-engine)
-10. [Monitoring & Adaptation](#monitoring--adaptation)
-11. [Setup & Usage](#setup--usage)
-12. [Project Structure](#project-structure)
+10. [Per-Symbol Tuning](#per-symbol-tuning)
+11. [Monitoring & Adaptation](#monitoring--adaptation)
+12. [Setup & Usage](#setup--usage)
+13. [Project Structure](#project-structure)
 
 ---
 
@@ -332,6 +333,114 @@ Win rate, profit factor, Sharpe ratio, Calmar ratio, max drawdown, expectancy in
 
 ---
 
+## Per-Symbol Tuning
+
+`backtesting/symbol_tuner.py` — automated per-symbol parameter optimisation. Each symbol gets its own confidence sizing, streak sizing, and CT exit threshold, tuned via grid search with IS/OOS validation.
+
+### What It Tunes
+
+| Parameter | Grid | Description |
+|-----------|------|-------------|
+| `confidence_sizing.floor` | 0.60 – 1.00 | Min risk multiplier from low-confidence signals |
+| `confidence_sizing.ceil` | 1.00 – 1.40 | Max risk multiplier from high-confidence signals |
+| `streak_sizing.loss_cut` | 0.50 – 0.80 | Floor multiplier during losing streaks |
+| `streak_sizing.loss_cut_per_streak` | 0.05 – 0.20 | Additional cut per consecutive loss |
+| `exit_rules.ct_mid_flip_threshold` | 0.40 – 0.70 | When to exit on counter-trend mid-timeframe flip |
+
+### Architecture
+
+1. **Stage A — CT threshold** (5 full backtests, parallelised): each CT value produces different trade outcomes, so a separate backtest is required per value.
+2. **Stage B — Confidence sizing** (analytical replay, instant): replays the best-CT trade list with different floor/ceil combos (~25 combos in <1 sec).
+3. **Stage C — Streak sizing** (analytical replay, instant): same replay with different loss_cut/per_streak combos (~16 combos in <1 sec).
+4. **Validation** (1 real backtest): runs the full engine with the best params applied to produce honest IS/OOS Sharpe ratios.
+
+Total: 6 backtests per symbol (5 CT + 1 validation). With 3 threads: ~20 min at 1H, ~80 min at 15m.
+
+### IS/OOS Split
+
+Date range is split 70% in-sample / 30% out-of-sample. The tuner optimises on IS and reports OOS metrics for overfit detection. Negative OOS Sharpe = the params don't generalise → use profile defaults.
+
+### CLI Usage
+
+```bash
+# Tune USDJPY on 1H (default, fastest)
+python -m tradingagents_v2.backtesting \
+  --symbol USDJPY \
+  --start 2024-06-01 --end 2025-04-01 \
+  --profile risky --tune \
+  --output report_usdjpy
+
+# Tune at 15m granularity (more accurate, 4× slower)
+python -m tradingagents_v2.backtesting \
+  --symbol USDJPY --tune --tune-tf 15m \
+  --start 2024-06-01 --end 2025-04-01 \
+  --profile risky --output report_usdjpy
+
+# Max parallelism (all 5 CT backtests at once)
+python -m tradingagents_v2.backtesting \
+  --symbol USDJPY --tune --tune-workers 5 \
+  --start 2024-06-01 --end 2025-04-01 \
+  --profile risky --output report_usdjpy
+
+# Reuse previously tuned params (instant, no re-tuning)
+python -m tradingagents_v2.backtesting \
+  --symbol USDJPY --tune-file report_usdjpy.tuned.json \
+  --start 2024-06-01 --end 2025-04-01 \
+  --profile risky --output report_usdjpy_tuned
+```
+
+### Output
+
+Tuning saves a `.tuned.json` file:
+
+```json
+{
+  "symbol_overrides": {
+    "USDJPY": {
+      "confidence_sizing": { "floor": 0.6, "ceil": 1.4 },
+      "streak_sizing": { "loss_cut": 0.8, "loss_cut_per_streak": 0.05 },
+      "exit_rules": { "ct_mid_flip_threshold": 0.4 }
+    }
+  },
+  "details": {
+    "USDJPY": {
+      "is_sharpe": 1.227,
+      "oos_sharpe": -0.300,
+      "trials_run": 46
+    }
+  }
+}
+```
+
+### Applying Tuned Params to Live Trading
+
+```bash
+# Single tune file (all symbols inside)
+python -m tradingagents_v2.runner \
+  --profile risky --config config.yaml \
+  --tune-file report_portfolio.tuned.json
+
+# Per-symbol tune files
+python -m tradingagents_v2.runner \
+  --profile risky --config config.yaml \
+  --symbols USDJPY EURUSD \
+  --tune-file USDJPY:usdjpy.tuned.json EURUSD:eurusd.tuned.json
+
+# Or add directly to config.yaml:
+symbol_overrides:
+  USDJPY:
+    confidence_sizing:
+      floor: 0.6
+      ceil: 1.4
+    streak_sizing:
+      loss_cut: 0.8
+      loss_cut_per_streak: 0.05
+    exit_rules:
+      ct_mid_flip_threshold: 0.4
+```
+
+---
+
 ## Monitoring & Adaptation
 
 ### Trade Journal
@@ -424,23 +533,65 @@ interval_seconds: 300   # signal cycle every 5 min
 
 ```bash
 # Live trading (connects to MT5)
-python run_demo.py --live --profile balanced
-
-# Single cycle then exit (debug)
-python run_demo.py --live --once
+python -m tradingagents_v2.runner --profile balanced --config config.yaml
 
 # Override profile
-python run_demo.py --live --profile risky
-python run_demo.py --live --profile scalp
+python -m tradingagents_v2.runner --profile risky --config config.yaml
+python -m tradingagents_v2.runner --profile scalp --config config.yaml
 
-# Override config file
-python run_demo.py --live --config my_config.yaml
+# Simulation mode (no real orders)
+python -m tradingagents_v2.runner --profile risky --config config.yaml --simulation
+
+# Select specific symbols
+python -m tradingagents_v2.runner --profile risky --config config.yaml --symbols USDJPY EURUSD
+
+# Override mid timeframe
+python -m tradingagents_v2.runner --profile risky --config config.yaml --mid-tf 15m
+
+# Apply tuned params from file(s)
+python -m tradingagents_v2.runner --profile risky --config config.yaml \
+  --tune-file USDJPY:usdjpy.tuned.json EURUSD:eurusd.tuned.json
+
+# Select/disable specific agents
+python -m tradingagents_v2.runner --profile risky --config config.yaml \
+  --agents TrendAgent MomentumAgent RegimeAgent
+python -m tradingagents_v2.runner --profile risky --config config.yaml \
+  --disable-agents ScalpingAgent VwapScalpAgent
 ```
 
 ### Backtesting
 
 ```bash
-python trading_test.py --profile risky --symbol EURUSD --start 2026-01-01 --end 2026-03-20
+# Basic single-symbol backtest
+python -m tradingagents_v2.backtesting \
+  --symbol USDJPY --profile risky \
+  --start 2024-06-01 --end 2025-04-01 \
+  --output report_usdjpy
+
+# Multi-symbol portfolio backtest
+python -m tradingagents_v2.backtesting \
+  --symbol USDJPY EURUSD GBPUSD --profile risky \
+  --start 2024-06-01 --end 2025-04-01 \
+  --output report_portfolio
+
+# With walk-forward validation
+python -m tradingagents_v2.backtesting \
+  --symbol USDJPY --profile risky --wf \
+  --start 2024-06-01 --end 2025-04-01 \
+  --output report_usdjpy
+
+# Tune + backtest in one shot
+python -m tradingagents_v2.backtesting \
+  --symbol USDJPY --profile risky --tune \
+  --start 2024-06-01 --end 2025-04-01 \
+  --output report_usdjpy
+
+# Load previously tuned params
+python -m tradingagents_v2.backtesting \
+  --symbol USDJPY --profile risky \
+  --tune-file report_usdjpy.tuned.json \
+  --start 2024-06-01 --end 2025-04-01 \
+  --output report_usdjpy_tuned
 ```
 
 ### Graceful Shutdown
@@ -501,9 +652,12 @@ TradingAgents-v2/
     │   └── kelly_tracker.py        # KellyTracker — per-symbol half-Kelly adaptive sizing
     │
     ├── backtesting/
+    │   ├── __init__.py              # CLI entry point (--tune, --tune-file, --tune-tf, etc.)
     │   ├── engine.py               # BacktestEngine — full sim with dynamic spread, swaps
+    │   ├── symbol_tuner.py         # SymbolTuner — per-symbol param grid search + IS/OOS
     │   ├── walk_forward.py         # Walk-forward optimisation framework
     │   ├── metrics.py              # Win rate, Sharpe, drawdown, per-recipe stats
+    │   ├── report.py               # HTML + JSON report generation
     │   └── debug_tracer.py         # Bar-level decision recording for playback
     │
     └── monitoring/

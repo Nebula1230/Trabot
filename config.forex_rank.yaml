@@ -1,0 +1,158 @@
+# ─────────────────────────────────────────────────────────────────
+# Forex Ranked Portfolio Configuration
+# ─────────────────────────────────────────────────────────────────
+# Universe: 28 forex pairs (7 majors + 21 crosses).
+# Strategy: Every cycle, agents analyse all 28 pairs.  Signals are
+#           ranked by Expected Value (EV) and only the TOP N are
+#           traded at any given time (max_concurrent_trades).
+#
+# Usage:
+#   python -m tradingagents_v2.backtesting \
+#       --config config.forex_rank.yaml \
+#       --profile risky \
+#       --start 2026-03-01 --end 2026-04-01 \
+#       --mid-tf 15m
+# ─────────────────────────────────────────────────────────────────
+
+# ── Forex universe: 7 majors + 21 crosses ────────────────────────
+# Full 28-pair universe gives ranking maximum diversity.
+symbols:
+  # ── 7 majors (vs USD) ──
+  - EURUSD
+  - GBPUSD
+  - USDJPY
+  - USDCHF
+  - AUDUSD
+  - USDCAD
+  - NZDUSD
+  # ── EUR crosses ──
+  - EURGBP
+  - EURJPY
+  - EURCHF
+  - EURAUD
+  - EURCAD
+  - EURNZD
+  # ── GBP crosses ──
+  - GBPJPY
+  - GBPCHF
+  - GBPAUD
+  - GBPCAD
+  - GBPNZD
+  # ── AUD / NZD / CAD / CHF crosses ──
+  - AUDJPY
+  - AUDCHF
+  - AUDCAD
+  - AUDNZD
+  - NZDJPY
+  - NZDCHF
+  - NZDCAD
+  - CADJPY
+  - CADCHF
+  - CHFJPY
+
+# ── Signal ranking ───────────────────────────────────────────────
+# Collect ALL symbols' signals first, then rank by EV and fill best
+# slots.  Without this, entries are first-come-first-served by list
+# order — with 28 symbols that wastes slots on mediocre setups.
+rank_signals: true
+
+# ── Cycle interval ───────────────────────────────────────────────
+interval_seconds: 300
+
+# ── Real-time surveillance ───────────────────────────────────────
+realtime:
+  surveillance_interval_seconds: 60
+  watchdog_interval_seconds: 90
+  weekend_close_enabled: true
+  weekend_close_utc_hour: 20
+
+# ── MT5 connection (fill in your demo credentials) ───────────────
+mt5:
+  host: "localhost"
+  port: 18812
+  login: 0            # ← your MT5 demo account number
+  password: ""        # ← your MT5 demo password
+  server: ""          # ← broker server name
+  magic_number: 434243
+  slippage: 10
+  max_spread_fraction: 0.20
+
+# ── Risk management ─────────────────────────────────────────────
+# Key: max_concurrent_trades=3 limits to 3 open positions max.
+# With 28 symbols and ranking, only the top-N EV signals get filled.
+risk:
+  max_daily_sl_per_symbol: 5     # block symbol after 5 SL exits/day
+  max_concurrent_trades: 5       # max open positions at once
+# ── Agents ───────────────────────────────────────────────────────
+agents:
+  enabled_agents: []   # empty = all enabled
+  agent_weights:
+    RegimeAgent: 1.0
+    TrendAgent: 1.0
+    MomentumAgent: 1.0
+    MeanReversionAgent: 1.0
+    VolatilityAgent: 1.0
+    BreadthAgent: 1.0
+    PatternAgent: 1.0
+    IntermarketAgent: 0.80
+    SessionBreakoutAgent: 0.70
+    DivergenceAgent: 0.80
+    CorrelationAgent: 0.75
+
+# ── Alignment thresholds ────────────────────────────────────────
+# Rely on profile defaults — the ranking handles quality selection.
+alignment:
+  dead_zone_start_utc: 22
+  dead_zone_end_utc: 6
+  dead_zone_factor: 1.40
+  counter_trend:
+    enabled: false
+
+# ── Scale-in (pyramiding) ───────────────────────────────────────
+scale_in:
+  enabled: true
+  max_positions_per_symbol: 3
+  require_profit: true
+  risk_fraction: 0.5
+  sl_atr_multiplier: 1.0
+
+# ── Exit rules ───────────────────────────────────────────────────
+# Profile defaults (risky: 16h duration, no fade, no tighten).
+
+# ── Trailing stop / partial TP ───────────────────────────────────
+# Profile defaults (risky: 6h stale, 0.50R).
+
+# ── Symbol overrides ────────────────────────────────────────────
+# Profile handles per-symbol overrides (consensus=3, be_buffer=0.25).
+
+# ── Regime weighting ────────────────────────────────────────────
+# Use profile defaults (same values).
+
+# ── VIX risk scaling ────────────────────────────────────────────
+# Use profile defaults (risky: floor=0.4).
+
+# ── Kelly sizing ─────────────────────────────────────────────────
+kelly:
+  enabled: true
+  half_kelly: true
+  min_trades: 20
+  max_mult: 1.75
+  min_mult: 0.60
+  lookback_days: 60
+
+# ── Adaptive weight learning ────────────────────────────────────
+adaptive_weights:
+  enabled: true
+  sensitivity: 2.0
+  min_trades: 30
+  max_mult: 2.50
+  min_mult: 0.40
+  shrink_n: 60
+  update_interval_hours: 4.0
+  log_updates: true
+
+# ── Journal ──────────────────────────────────────────────────────
+journal:
+  log_dir: "logs"
+  log_decisions: true
+  log_trades: true

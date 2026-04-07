@@ -1,0 +1,192 @@
+{
+  "generated_at": "2026-04-05T09:48:40.492785Z",
+  "profile": "risky",
+  "start_date": "2026-01-01",
+  "end_date": "2026-01-31",
+  "initial_equity": 1000.0,
+  "final_equity": 991.2884,
+  "summary": {
+    "total_return_pct": -0.8712,
+    "max_drawdown_pct": 2.375,
+    "total_trades": 9,
+    "avg_win_rate": 0.2222,
+    "avg_profit_factor": 0.516,
+    "avg_sharpe": -3.011
+  },
+  "symbols": [
+    {
+      "symbol": "EURGBP",
+      "metrics": {
+        "total_trades": 9,
+        "win_rate": 0.2222,
+        "profit_factor": 0.516,
+        "total_return_pct": -0.871,
+        "max_drawdown_pct": 2.375,
+        "sharpe": -3.011,
+        "calmar": -4.466,
+        "avg_win_r": 1.35,
+        "avg_loss_r": -0.445,
+        "expectancy_r": -0.046
+      },
+      "trades": [
+        {
+          "entry_time": "2026-01-06T14:15:00+00:00",
+          "exit_time": "2026-01-06T20:45:00+00:00",
+          "duration_sec": 23400,
+          "direction": "short",
+          "entry_price": 0.865595,
+          "exit_price": 0.865827,
+          "stop_loss": 0.865827,
+          "take_profit": 0.86421,
+          "quantity": 0.09,
+          "pnl": -2.72,
+          "pnl_r": -0.3819,
+          "exit_reason": "sl",
+          "confidence": 0.5036
+        },
+        {
+          "entry_time": "2026-01-08T08:00:00+00:00",
+          "exit_time": "2026-01-08T12:00:00+00:00",
+          "duration_sec": 14400,
+          "direction": "long",
+          "entry_price": 0.868551,
+          "exit_price": 0.868585,
+          "stop_loss": 0.86773,
+          "take_profit": 0.86976,
+          "quantity": 0.09,
+          "pnl": -0.3244,
+          "pnl_r": -0.0443,
+          "exit_reason": "time-stop",
+          "confidence": 0.498
+        },
+        {
+          "entry_time": "2026-01-08T16:15:00+00:00",
+          "exit_time": "2026-01-08T22:30:00+00:00",
+          "duration_sec": 22500,
+          "direction": "short",
+          "entry_price": 0.867307,
+          "exit_price": 0.867534,
+          "stop_loss": 0.867534,
+          "take_profit": 0.86575,
+          "quantity": 0.08,
+          "pnl": -2.3807,
+          "pnl_r": -0.3432,
+          "exit_reason": "sl",
+          "confidence": 0.498
+        },
+        {
+          "entry_time": "2026-01-08T17:00:00+00:00",
+          "exit_time": "2026-01-08T23:15:00+00:00",
+          "duration_sec": 22500,
+          "direction": "short",
+          "entry_price": 0.867055,
+          "exit_price": 0.867332,
+          "stop_loss": 0.867332,
+          "take_profit": 0.86554,
+          "quantity": 0.04,
+          "pnl": -1.3908,
+          "pnl_r": -0.3417,
+          "exit_reason": "sl",
+          "confidence": 0.498
+        },
+        {
+          "entry_time": "2026-01-09T15:45:00+00:00",
+          "exit_time": "2026-01-09T20:00:00+00:00",
+          "duration_sec": 15300,
+          "direction": "short",
+          "entry_price": 0.867325,
+          "exit_price": 0.86781,
+          "stop_loss": 0.86826,
+          "take_profit": 0.86563,
+          "quantity": 0.07,
+          "pnl": -3.8827,
+          "pnl_r": -0.5856,
+          "exit_reason": "weekend",
+          "confidence": 0.4959
+        },
+        {
+          "entry_time": "2026-01-19T08:15:00+00:00",
+          "exit_time": "2026-01-19T15:00:00+00:00",
+          "duration_sec": 24300,
+          "direction": "short",
+          "entry_price": 0.866709,
+          "exit_price": 0.86721,
+          "stop_loss": 0.86721,
+          "take_profit": 0.86443,
+          "quantity": 0.05,
+          "pnl": -2.8514,
+          "pnl_r": -0.4071,
+          "exit_reason": "sl",
+          "confidence": 0.35
+        },
+        {
+          "entry_time": "2026-01-22T07:30:00+00:00",
+          "exit_time": "2026-01-22T08:45:00+00:00",
+          "duration_sec": 4500,
+          "direction": "long",
+          "entry_price": 0.871069,
+          "exit_price": 0.86966,
+          "stop_loss": 0.86966,
+          "take_profit": 0.87331,
+          "quantity": 0.03,
+          "pnl": -4.4376,
+          "pnl_r": -1.0141,
+          "exit_reason": "sl",
+          "confidence": 0.5485
+        },
+        {
+          "entry_time": "2026-01-22T04:45:00+00:00",
+          "exit_time": "2026-01-22T10:45:00+00:00",
+          "duration_sec": 21600,
+          "direction": "long",
+          "entry_price": 0.870552,
+          "exit_price": 0.871965,
+          "stop_loss": 0.86917,
+          "take_profit": 0.87299,
+          "quantity": 0.025,
+          "pnl": 3.3568,
+          "pnl_r": 0.977,
+          "exit_reason": "partial_tp1",
+          "confidence": 0.5485
+        },
+        {
+          "entry_time": "2026-01-22T04:45:00+00:00",
+          "exit_time": "2026-01-22T12:15:00+00:00",
+          "duration_sec": 27000,
+          "direction": "long",
+          "entry_price": 0.870552,
+          "exit_price": 0.87299,
+          "stop_loss": 0.870345,
+          "take_profit": 0.87299,
+          "quantity": 0.025,
+          "pnl": 5.9193,
+          "pnl_r": 1.7228,
+          "exit_reason": "tp",
+          "confidence": 0.5485
+        }
+      ]
+    }
+  ],
+  "config": {
+    "profile": "risky",
+    "symbol_overrides": {},
+    "confidence_sizing": {
+      "enabled": true,
+      "floor": 0.8,
+      "ceil": 1.2,
+      "base_conf": 0.45,
+      "short_sizing_penalty": 0.95
+    },
+    "streak_sizing": {
+      "enabled": true,
+      "win_boost": 1.15,
+      "loss_cut": 0.6,
+      "loss_cut_per_streak": 0.15
+    },
+    "exit_rules": {
+      "max_trade_duration_hours": 16,
+      "ct_mid_flip_threshold": 0.6,
+      "d1_flip_threshold": 0.45
+    }
+  }
+}

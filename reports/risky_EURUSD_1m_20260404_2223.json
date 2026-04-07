@@ -1,0 +1,56 @@
+{
+  "generated_at": "2026-04-04T20:23:58.545093Z",
+  "profile": "risky",
+  "start_date": "2025-01-01",
+  "end_date": "2025-04-01",
+  "initial_equity": 100000.0,
+  "final_equity": 100000.0,
+  "summary": {
+    "total_return_pct": 0.0,
+    "max_drawdown_pct": 0.0,
+    "total_trades": 0,
+    "avg_win_rate": 0.0,
+    "avg_profit_factor": 0.0,
+    "avg_sharpe": 0.0
+  },
+  "symbols": [
+    {
+      "symbol": "EURUSD",
+      "metrics": {
+        "total_trades": 0,
+        "win_rate": 0.0,
+        "profit_factor": 0.0,
+        "total_return_pct": 0.0,
+        "max_drawdown_pct": 0.0,
+        "sharpe": 0.0,
+        "calmar": 0.0,
+        "avg_win_r": 0.0,
+        "avg_loss_r": 0.0,
+        "expectancy_r": 0.0
+      },
+      "trades": []
+    }
+  ],
+  "config": {
+    "profile": "risky",
+    "symbol_overrides": {},
+    "confidence_sizing": {
+      "enabled": true,
+      "floor": 0.8,
+      "ceil": 1.2,
+      "base_conf": 0.45,
+      "short_sizing_penalty": 0.95
+    },
+    "streak_sizing": {
+      "enabled": true,
+      "win_boost": 1.15,
+      "loss_cut": 0.6,
+      "loss_cut_per_streak": 0.15
+    },
+    "exit_rules": {
+      "max_trade_duration_hours": 16,
+      "ct_mid_flip_threshold": 0.6,
+      "d1_flip_threshold": 0.45
+    }
+  }
+}

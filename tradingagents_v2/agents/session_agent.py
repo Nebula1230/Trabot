@@ -67,6 +67,9 @@ class SessionBreakoutAgent(BaseAgent):
         else:
             confidence = float(np.clip(0.45 + magnitude * 0.45, 0.45, 0.90))
 
+        # Remember original direction before any dampening
+        original_dir_sign = np.sign(dir_score)
+
         # Corroboration: ADX confirms trend strength at breakout
         if magnitude > 0.05:
             if adx > 25:
@@ -76,13 +79,13 @@ class SessionBreakoutAgent(BaseAgent):
                 dir_score  *= 0.70
 
             # Slope agreement: slope should point same way as breakout
-            # Use current (possibly dampened) dir_score for slope check
-            slope_agrees = (dir_score > 0 and slope_norm > 0.1) or \
-                           (dir_score < 0 and slope_norm < -0.1)
+            # Use ORIGINAL direction (before ADX dampening) to avoid double-dampening
+            slope_agrees = (original_dir_sign > 0 and slope_norm > 0.1) or \
+                           (original_dir_sign < 0 and slope_norm < -0.1)
             if slope_agrees:
                 confidence = min(1.0, confidence + 0.05)
-            elif (dir_score > 0 and slope_norm < -0.2) or \
-                 (dir_score < 0 and slope_norm > 0.2):
+            elif (original_dir_sign > 0 and slope_norm < -0.2) or \
+                 (original_dir_sign < 0 and slope_norm > 0.2):
                 # Slope actively disagrees
                 dir_score  *= 0.6
                 confidence *= 0.75

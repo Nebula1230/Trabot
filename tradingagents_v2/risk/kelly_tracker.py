@@ -122,6 +122,8 @@ class KellyTracker:
             self.logger.warning(f"KellyTracker: MT5 history unavailable ({exc})")
             return {"n": 0, "win_rate": 0.5, "avg_rr": 2.0}
 
+        if closed is None:
+            closed = []
         trades = [t for t in closed if t.get("symbol") == symbol]
         n      = len(trades)
         if n == 0:

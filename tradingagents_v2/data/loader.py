@@ -336,7 +336,7 @@ class DataLoader:
         ema20 = float(ema20_arr[-1])
         ema50 = float(ema50_arr[-1])
         ema200 = float(ema200_arr[-1])
-        _slope_lb = min(6, len(ema20_arr) - 1)  # clamp lookback for slope
+        _slope_lb = max(1, min(6, len(ema20_arr) - 1))  # clamp lookback for slope (≥1)
         ema20_slope = float(ema20_arr[-1] - ema20_arr[-(_slope_lb)]) / max(ema20_arr[-(_slope_lb)], 1e-9)
         ema50_slope = float(ema50_arr[-1] - ema50_arr[-(_slope_lb)]) / max(ema50_arr[-(_slope_lb)], 1e-9)
         ema200_slope = float(ema200_arr[-1] - ema200_arr[-(_slope_lb)]) / max(ema200_arr[-(_slope_lb)], 1e-9)
@@ -381,9 +381,10 @@ class DataLoader:
         # --- Realized vol (20-bar, annualised using timeframe-aware factor) ---
         # sqrt(bars_per_year) correctly scales per-bar vol to an annual figure
         # so that e.g. EUR/USD on 1m or 1H both produce ~7-10% annual vol.
-        log_rets = np.diff(np.log(close[-21:]))
+        _close_safe = np.maximum(close[-21:], 1e-9)
+        log_rets = np.diff(np.log(_close_safe))
         _bpy = _BARS_PER_YEAR.get(primary_tf, 252)
-        realized_vol = float(log_rets.std() * np.sqrt(_bpy))
+        realized_vol = float(np.nan_to_num(log_rets.std() * np.sqrt(_bpy), nan=0.0))
 
         # --- ADX -------------------------------------------------------------
         adx_14 = self._adx(high, low, close, 14)
@@ -405,8 +406,8 @@ class DataLoader:
         # and breakout signals for intraday scalping.
         bar_times = bars.get("time")   # seconds-since-epoch, may be None in sim
         if bar_times is not None and len(bar_times) > 1:
-            import datetime as _dt
-            today_utc = _dt.datetime.utcfromtimestamp(int(bar_times[-1])).replace(
+            from datetime import timezone as _tz
+            today_utc = datetime.fromtimestamp(int(bar_times[-1]), tz=_tz.utc).replace(
                 hour=0, minute=0, second=0, microsecond=0
             )
             session_start_ts = int(today_utc.timestamp())
@@ -438,7 +439,7 @@ class DataLoader:
 
         # --- Cross-symbol correlation divergences (CorrelationAgent) ----------
         corr_dxy, corr_pair, corr_risk = self._correlation_divergences(
-            symbol, close, macro, atr_14,
+            symbol, close, macro, atr_14, primary_tf=primary_tf,
         )
 
         # --- Session breakout (Asian range, computed for all timeframes) ----
@@ -882,8 +883,8 @@ class DataLoader:
             real = self._breadth_features_real(symbol)
             if real is not None:
                 return real
-        except Exception:
-            pass  # fall through to MT5-proxy method
+        except Exception as exc:
+            logging.getLogger("loader").debug(f"Real breadth lookup failed: {exc}")
 
         sym_up = symbol.upper()
 
@@ -1210,7 +1211,7 @@ class DataLoader:
         Apply per-symbol correlation weights to raw macro signals.
         Returns (dxy_dir, vix_dir, crude_dir, yield_dir) each in [-1, 1].
         """
-        sym = symbol.upper().replace("m", "")   # strip mini-contract suffix
+        sym = symbol.replace("m", "").upper()   # strip mini-contract suffix
         weights = self._INTERMARKET_WEIGHTS.get(sym)
         if weights is None:
             return 0.0, 0.0, 0.0, 0.0
@@ -1254,6 +1255,7 @@ class DataLoader:
         close: np.ndarray,
         macro: Dict[str, float],
         atr_14: float,
+        primary_tf: str = "1D",
     ) -> Tuple[float, float, float]:
         """
         Compute three correlation-divergence signals for *symbol*.
@@ -1275,7 +1277,7 @@ class DataLoader:
         sym_ret = (close[-1] - close[-6]) / (atr_14 * 5.0)  # roughly ±1 scale
         sym_ret = float(np.clip(sym_ret, -2.0, 2.0))
 
-        sym_up = symbol.upper().replace("m", "")
+        sym_up = symbol.replace("m", "").upper()
         iw = self._INTERMARKET_WEIGHTS.get(sym_up)
 
         # ── 1. DXY divergence ────────────────────────────────────────────
@@ -1297,7 +1299,7 @@ class DataLoader:
         peer = self._CORR_PEERS.get(sym_up)
         if peer is not None:
             # Try loading peer bars from the same data source
-            peer_bars = self._load_bars(peer, "1D", 10)
+            peer_bars = self._load_bars(peer, primary_tf, 10)
             if peer_bars is not None and len(peer_bars["close"]) >= 6:
                 peer_close = peer_bars["close"]
                 peer_atr_arr = _atr(peer_bars["high"], peer_bars["low"], peer_bars["close"], 5)

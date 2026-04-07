@@ -336,7 +336,7 @@ class MT5Executor:
             return {
                 "order_ticket": result.order,
                 "symbol": symbol,
-                "volume": trade_plan.quantity,
+                "volume": volume,
                 "price": entry_price,
                 "stop_loss": stop_loss,
                 "take_profit": take_profit,
@@ -347,6 +347,145 @@ class MT5Executor:
         except Exception as e:
             self.logger.error(f"Error placing bracket order: {e}")
             return None
+
+    def place_limit_order(self, trade_plan: TradePlan,
+                          limit_price: float,
+                          stop_loss: float = None,
+                          take_profit: float = None,
+                          expiration_seconds: int = 3600) -> Optional[Dict[str, Any]]:
+        """
+        Place a pending limit order at a better price than current market.
+
+        For LONG: limit_price < current ask  (buy on a dip to support)
+        For SHORT: limit_price > current bid (sell on a rally to resistance)
+
+        If the limit is not filled within *expiration_seconds* it is auto-cancelled.
+        Falls back to a market order if the broker rejects the pending order type.
+        """
+        try:
+            if not self.initialized:
+                self.logger.error("MT5 not initialized")
+                return None
+
+            symbol = trade_plan.symbol
+            symbol_info = self.get_symbol_info(symbol)
+            if not symbol_info:
+                return None
+
+            if stop_loss is None:
+                stop_loss = trade_plan.stop_loss
+            if take_profit is None:
+                take_profit = trade_plan.take_profit
+
+            if self.simulation_mode:
+                self.logger.info(f"SIMULATION: Placing limit order for {symbol} @ {limit_price}")
+                return {
+                    "order_ticket": 12346,
+                    "symbol": symbol,
+                    "volume": trade_plan.quantity,
+                    "price": limit_price,
+                    "stop_loss": stop_loss,
+                    "take_profit": take_profit,
+                    "direction": trade_plan.recipe.direction,
+                    "magic": self.magic_number,
+                    "order_type": "limit",
+                    "simulated": True,
+                }
+
+            # Clamp volume to broker limits
+            volume = trade_plan.quantity
+            vol_min  = getattr(symbol_info, 'volume_min',  0.01)
+            vol_max  = getattr(symbol_info, 'volume_max',  1000.0)
+            vol_step = getattr(symbol_info, 'volume_step', 0.01)
+            if vol_step > 0:
+                volume = round(round(volume / vol_step) * vol_step, 8)
+            volume = max(vol_min, min(vol_max, volume))
+
+            # Determine filling mode
+            filling_type = self._mt5.ORDER_FILLING_FOK
+            info_flags = getattr(symbol_info, 'filling_mode', 0)
+            if info_flags & 0x1:
+                filling_type = self._mt5.ORDER_FILLING_FOK
+            elif info_flags & 0x2:
+                filling_type = self._mt5.ORDER_FILLING_IOC
+
+            is_long = trade_plan.recipe.direction == Direction.LONG
+            order_type = (self._mt5.ORDER_TYPE_BUY_LIMIT if is_long
+                          else self._mt5.ORDER_TYPE_SELL_LIMIT)
+
+            # Expiration: GTC or timed
+            import datetime as _dt
+            expiration_time = int((_dt.datetime.utcnow()
+                                   + _dt.timedelta(seconds=expiration_seconds)).timestamp())
+
+            request = {
+                "action":          self._mt5.TRADE_ACTION_PENDING,
+                "symbol":          symbol,
+                "volume":          volume,
+                "type":            order_type,
+                "price":           limit_price,
+                "sl":              stop_loss,
+                "tp":              take_profit,
+                "deviation":       self.config.get("slippage", 10),
+                "magic":           self.magic_number,
+                "comment":         f"{self._order_comment}_LMT",
+                "type_filling":    filling_type,
+                "type_time":       self._mt5.ORDER_TIME_SPECIFIED,
+                "expiration":      expiration_time,
+            }
+            self.logger.debug(f"limit_order_send request: {request}")
+
+            result = self._mt5.order_send(request)
+            if result is None:
+                err = self._mt5.last_error()
+                self.logger.error(f"Limit order_send returned None — last_error: {err}")
+                # Fallback to market order
+                self.logger.info(f"Falling back to market order for {symbol}")
+                return self.place_bracket_order(trade_plan, stop_loss=stop_loss, take_profit=take_profit)
+
+            if result.retcode != self._mt5.TRADE_RETCODE_DONE:
+                self.logger.warning(
+                    f"Limit order rejected: retcode={result.retcode} comment={result.comment} "
+                    f"— falling back to market order"
+                )
+                return self.place_bracket_order(trade_plan, stop_loss=stop_loss, take_profit=take_profit)
+
+            self.logger.info(f"Limit order placed: ticket={result.order} @ {limit_price}")
+            return {
+                "order_ticket": result.order,
+                "symbol": symbol,
+                "volume": volume,
+                "price": limit_price,
+                "stop_loss": stop_loss,
+                "take_profit": take_profit,
+                "direction": trade_plan.recipe.direction,
+                "magic": self.magic_number,
+                "order_type": "limit",
+            }
+
+        except Exception as e:
+            self.logger.error(f"Error placing limit order: {e}")
+            return None
+
+    def cancel_pending_order(self, order_ticket: int) -> bool:
+        """Cancel a pending limit/stop order by ticket."""
+        if self.simulation_mode:
+            self.logger.info(f"SIMULATION: Cancelled pending order {order_ticket}")
+            return True
+        try:
+            request = {
+                "action": self._mt5.TRADE_ACTION_REMOVE,
+                "order":  order_ticket,
+            }
+            result = self._mt5.order_send(request)
+            if result and result.retcode == self._mt5.TRADE_RETCODE_DONE:
+                self.logger.info(f"Pending order {order_ticket} cancelled")
+                return True
+            self.logger.warning(f"Failed to cancel order {order_ticket}: {result}")
+            return False
+        except Exception as e:
+            self.logger.error(f"Error cancelling order {order_ticket}: {e}")
+            return False
 
     def modify_stop_loss(self, position_ticket: int, new_stop_loss: float) -> bool:
         """Modify stop loss for an open position."""
@@ -498,12 +637,16 @@ class MT5Executor:
                 return False
 
             pos = position[0]
+            tick = self._mt5.symbol_info_tick(pos.symbol)
+            if tick is None:
+                self.logger.error(f"No tick data for {pos.symbol} — cannot close #{position_ticket}")
+                return False
             if pos.type == self._mt5.POSITION_TYPE_BUY:
                 close_type = self._mt5.ORDER_TYPE_SELL
-                price = self._mt5.symbol_info_tick(pos.symbol).bid
+                price = tick.bid
             else:
                 close_type = self._mt5.ORDER_TYPE_BUY
-                price = self._mt5.symbol_info_tick(pos.symbol).ask
+                price = tick.ask
 
             # Auto-detect supported filling mode (same logic as entry orders)
             sym_info = self._mt5.symbol_info(pos.symbol)
@@ -586,12 +729,16 @@ class MT5Executor:
                 )
                 return False
 
+            tick = self._mt5.symbol_info_tick(pos.symbol)
+            if tick is None:
+                self.logger.error(f"No tick data for {pos.symbol} — cannot partial close #{position_ticket}")
+                return False
             if pos.type == self._mt5.POSITION_TYPE_BUY:
                 close_type = self._mt5.ORDER_TYPE_SELL
-                price      = self._mt5.symbol_info_tick(pos.symbol).bid
+                price      = tick.bid
             else:
                 close_type = self._mt5.ORDER_TYPE_BUY
-                price      = self._mt5.symbol_info_tick(pos.symbol).ask
+                price      = tick.ask
 
             fill_mode = self._mt5.ORDER_FILLING_RETURN
             if sym_info:
@@ -694,7 +841,8 @@ class MT5Executor:
                 return []
             return [
                 {
-                    "ticket":     d.ticket,
+                    "ticket":      d.ticket,
+                    "position_id": d.position_id,
                     "symbol":     d.symbol,
                     "type":       "BUY" if d.type == self._mt5.DEAL_TYPE_BUY else "SELL",
                     "volume":     d.volume,

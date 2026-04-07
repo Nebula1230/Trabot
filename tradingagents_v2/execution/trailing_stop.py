@@ -49,7 +49,8 @@ class TrailingStopManager:
                  be_buffer_r: float = 0.0,
                  stale_sl_hours: float = 0.0,
                  stale_sl_r_mult: float = 0.75,
-                 profile: str = ""):
+                 profile: str = "",
+                 sym_trailing_overrides: dict | None = None):
         self.executor = executor
         self.profile = profile
         self.atr_multiplier = atr_multiplier
@@ -62,6 +63,8 @@ class TrailingStopManager:
         # ── Breakeven buffer: room beyond exact entry for BE SL moves ─────
         # Covers spread cost and noise; avoids ~0R stops that waste partial gains.
         self.be_buffer_r = be_buffer_r
+        # Per-symbol trailing overrides (e.g. forex gets early_be_r=0.5)
+        self._sym_trail_ov = sym_trailing_overrides or {}
         # ── Stale SL: tighten SL after N hours if trade still in loss ──────
         # Caps max loss at -stale_sl_r_mult × 1R to reduce late SL hits.
         self.stale_sl_hours  = stale_sl_hours
@@ -84,6 +87,11 @@ class TrailingStopManager:
         # Entry ATR snapshot per ticket — for ATR-adaptive stale_sl.
         # On restart, first tick captures current ATR (close enough proxy).
         self._entry_atr: dict[int, float] = {}
+        # Original 1R (|entry − initial SL|) per ticket.  Snapshotted on the
+        # first surveillance tick and never updated, so trailing SL moves don't
+        # pollute the R-multiple thresholds used by stages 2/3, partial TP2,
+        # and windfall.  Mirrors engine.py's immutable `entry_sl` field.
+        self._entry_one_r: dict[int, float] = {}
         # Peak profit (R) per ticket — for stale winner protection.
         self._peak_profit_r: dict[int, float] = {}
         self.logger = logging.getLogger("TrailingStopManager")
@@ -98,6 +106,15 @@ class TrailingStopManager:
                 self._manage_one(pos, data_loader)
             except Exception as e:
                 self.logger.error(f"Error managing SL for #{pos.get('ticket')}: {e}")
+
+        # Prune stale tickets no longer open — prevents unbounded memory growth
+        live_tickets = {p.get("ticket") for p in our_positions}
+        for stale in list(self._entry_atr.keys() - live_tickets):
+            del self._entry_atr[stale]
+        for stale in list(self._entry_one_r.keys() - live_tickets):
+            del self._entry_one_r[stale]
+        for stale in list(self._peak_profit_r.keys() - live_tickets):
+            del self._peak_profit_r[stale]
 
     def update_structural_sl_tp(self, data_loader: "DataLoader"):
         """
@@ -138,7 +155,13 @@ class TrailingStopManager:
         if current_sl == 0.0:
             return  # unmanaged position -- skip
 
-        features = data_loader.get_features(symbol)
+        # Use D1-scale ATR for structural ratchet to prevent micro-structure
+        # collapse on lower timeframes.  get_structural_levels() uses D1 bars
+        # internally, so the ATR should match that scale for consistent buffer
+        # and minimum distance calculations.
+        # Try D1 features first; fall back to default (1H) if unavailable.
+        features_d1 = data_loader.get_features(symbol, primary_tf="1D", n_bars=60)
+        features = features_d1 if features_d1 else data_loader.get_features(symbol)
         if features is None:
             return
 
@@ -214,12 +237,19 @@ class TrailingStopManager:
         current_sl    = pos.get("sl", 0.0)
         tp            = pos.get("tp", 0.0)
 
-        # 1R = original SL distance
+        # 1R = original SL distance (immutable, snapshotted on first tick).
+        # Using current_sl here would shrink 1R after stage-1 moves SL to
+        # near-entry, causing stages 2/3, TP2, and windfall to fire at the
+        # wrong thresholds (parity with engine.py entry_sl).
         if current_sl == 0.0:
             return  # no SL set — nothing to manage
-        one_r = abs(entry - current_sl)
-        if one_r < 1e-9:
-            return
+        _stored_one_r = self._entry_one_r.get(ticket)
+        if _stored_one_r is None:
+            _stored_one_r = abs(entry - current_sl)
+            if _stored_one_r < 1e-9:
+                return
+            self._entry_one_r[ticket] = _stored_one_r
+        one_r = _stored_one_r
 
         features = data_loader.get_features(symbol)
         atr = features.atr_14 if features else one_r  # fallback
@@ -229,6 +259,11 @@ class TrailingStopManager:
             self._entry_atr[ticket] = atr
 
         _be_buf = self.be_buffer_r * one_r
+        # Per-symbol overrides for early_be and be_buffer
+        _sym_ov = self._sym_trail_ov.get(symbol, {})
+        _eff_early_be = float(_sym_ov.get("early_be_r", self.early_be_r))
+        _eff_be_buf_r = float(_sym_ov.get("be_buffer_r", self.be_buffer_r))
+        _be_buf = _eff_be_buf_r * one_r
 
         # ── Progressive stale-SL tightening: trade open > N hours while losing →
         # SL tightens from -stale_r × 1R and progressively squeezes to
@@ -347,7 +382,7 @@ class TrailingStopManager:
                 # Stage 1: break-even (with buffer)
                 new_sl = max(current_sl, _be_sl)
                 stage = 1
-            elif self.early_be_r > 0 and profit >= self.early_be_r * one_r:
+            elif _eff_early_be > 0 and profit >= _eff_early_be * one_r:
                 # Stage 0: early break-even (with buffer)
                 new_sl = max(current_sl, _be_sl)
                 stage = 0
@@ -433,9 +468,15 @@ class TrailingStopManager:
                         f"TP extend BUY {symbol} #{ticket}: "
                         f"{tp:.5f} → {new_tp:.5f}  (price={price:.5f} ATR={atr:.5f})"
                     )
-                    self.executor.modify_sl_tp(ticket, new_sl, new_tp)
+                    ok = self.executor.modify_sl_tp(ticket, new_sl, new_tp)
+                    if not ok:
+                        self.logger.warning(f"modify_sl_tp FAILED BUY {symbol} #{ticket}")
+                        return
                 else:
-                    self.executor.modify_stop_loss(ticket, new_sl)
+                    ok = self.executor.modify_stop_loss(ticket, new_sl)
+                    if not ok:
+                        self.logger.warning(f"modify_stop_loss FAILED BUY {symbol} #{ticket}")
+                        return
 
         elif pos_type == "SELL":
             profit = entry - price          # positive = in profit
@@ -455,7 +496,7 @@ class TrailingStopManager:
                 # Stage 1: break-even (with buffer)
                 new_sl = min(current_sl, _be_sl)
                 stage = 1
-            elif self.early_be_r > 0 and profit >= self.early_be_r * one_r:
+            elif _eff_early_be > 0 and profit >= _eff_early_be * one_r:
                 # Stage 0: early break-even (with buffer)
                 new_sl = min(current_sl, _be_sl)
                 stage = 0
@@ -539,6 +580,12 @@ class TrailingStopManager:
                         f"TP extend SELL {symbol} #{ticket}: "
                         f"{tp:.5f} → {new_tp:.5f}  (price={price:.5f} ATR={atr:.5f})"
                     )
-                    self.executor.modify_sl_tp(ticket, new_sl, new_tp)
+                    ok = self.executor.modify_sl_tp(ticket, new_sl, new_tp)
+                    if not ok:
+                        self.logger.warning(f"modify_sl_tp FAILED SELL {symbol} #{ticket}")
+                        return
                 else:
-                    self.executor.modify_stop_loss(ticket, new_sl)
+                    ok = self.executor.modify_stop_loss(ticket, new_sl)
+                    if not ok:
+                        self.logger.warning(f"modify_stop_loss FAILED SELL {symbol} #{ticket}")
+                        return

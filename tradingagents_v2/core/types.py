@@ -221,10 +221,11 @@ class RiskLimits(BaseModel):
     per_symbol_leverage_cap: float = 3.0
     portfolio_leverage_cap: float = 5.0
     max_correlated_positions: int = 2
-    portfolio_leverage_cap: float = 5.0
     min_win_prob: float = 0.48
     min_expectancy_r: float = 0.10
-    max_correlated_positions: int = 2
+    margin_free_pct_threshold: float = 0.20
+    spread_guard_fraction: float = 0.20
+    slippage_pips: float = 0.3
 
 
 class ExecutionConfig(BaseModel):

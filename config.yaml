@@ -9,6 +9,7 @@ symbols:
   - "SPY"
   - "QQQ"
 
+rank_signals: true  
 # Timeframe configuration
 timeframes:
   long: ["1D", "1W"]
